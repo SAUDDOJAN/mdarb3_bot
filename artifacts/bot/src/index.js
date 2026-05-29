@@ -29,7 +29,7 @@ http.createServer((req, res) => {
 
   res.writeHead(200, { "Content-Type": "application/json" });
   res.end(JSON.stringify({ status: "ok", bot: client.isReady() ? "online" : "starting" }));
-}).listen(PORT, () => console.log(`[Bot] Health server listening on :${PORT}`));
+}).listen(PORT, "0.0.0.0", () => console.log(`[Bot] Health server listening on 0.0.0.0:${PORT}`));
 
 // تفعيل صلاحيات قراءة محتوى الرسائل إجبارياً لحل مشكلة الحجب
 client.options.intents?.add?.(["Guilds", "GuildMessages", "MessageContent"]);
