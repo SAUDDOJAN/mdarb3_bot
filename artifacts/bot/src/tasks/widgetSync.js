@@ -53,9 +53,14 @@ export function startWidgetSync(client) {
                 updatedAt: new Date().toISOString()
             };
 
-            const outPath = path.resolve('../website/widget_data.js');
-            fs.writeFileSync(outPath, `window.DISCORD_WIDGET_DATA = ${JSON.stringify(data)};`);
             globalThis.widgetData = data;
+
+            try {
+                const outPath = path.resolve('../website/widget_data.js');
+                fs.writeFileSync(outPath, `window.DISCORD_WIDGET_DATA = ${JSON.stringify(data)};`);
+            } catch(fileErr) {
+                // Ignore file write errors in production (Railway)
+            }
             
         } catch(err) {
             console.error('[WidgetSync] Error:', err.message);
