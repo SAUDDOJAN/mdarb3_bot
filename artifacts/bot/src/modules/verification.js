@@ -5,11 +5,11 @@ import path from "path";
 
 // Register custom font to avoid missing font issues on Railway/Linux
 try {
-  const fontPath = path.join(process.cwd(), "assets", "Cairo-Bold.ttf");
-  GlobalFonts.registerFromPath(fontPath, "CairoCustom");
-  console.log("[Welcome] Registered font CairoCustom from:", fontPath);
+  const fontPath = path.join(process.cwd(), "assets", "Tajawal-Bold.ttf");
+  GlobalFonts.registerFromPath(fontPath, "TajawalCustom");
+  console.log("[Welcome] Registered font TajawalCustom from:", fontPath);
 } catch (e) {
-  console.error("Failed to load Cairo font:", e);
+  console.error("Failed to load Tajawal font:", e);
 }
 
 export async function handleInteraction(interaction) {
@@ -85,7 +85,7 @@ export async function handleInteraction(interaction) {
             ctx.drawImage(banner, 0, 0);
 
             const username = member.user.username;
-            ctx.font = '75px "CairoCustom"';
+            ctx.font = '75px "TajawalCustom"';
             ctx.fillStyle = "#ffffff";
             ctx.textAlign = "center";
             ctx.textBaseline = "middle";
