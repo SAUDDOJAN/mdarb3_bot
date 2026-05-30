@@ -5,7 +5,9 @@ import path from "path";
 
 // Register custom font to avoid missing font issues on Railway/Linux
 try {
-  GlobalFonts.registerFromPath(path.join(process.cwd(), "assets", "Cairo-Bold.ttf"), "Cairo");
+  const fontPath = path.join(process.cwd(), "assets", "Cairo-Bold.ttf");
+  GlobalFonts.registerFromPath(fontPath, "CairoCustom");
+  console.log("[Welcome] Registered font CairoCustom from:", fontPath);
 } catch (e) {
   console.error("Failed to load Cairo font:", e);
 }
@@ -83,7 +85,7 @@ export async function handleInteraction(interaction) {
             ctx.drawImage(banner, 0, 0);
 
             const username = member.user.username;
-            ctx.font = "bold 75px Cairo, sans-serif";
+            ctx.font = '75px "CairoCustom"';
             ctx.fillStyle = "#ffffff";
             ctx.textAlign = "center";
             ctx.textBaseline = "middle";
