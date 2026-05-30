@@ -12,6 +12,7 @@ import * as alliance from "../modules/alliance.js";
 import * as sageController from "../modules/sageController.js";
 import * as sageGatekeeper from "../modules/sageGatekeeper.js";
 import * as verification from "../modules/verification.js";
+import * as social from "../modules/social.js";
 
 const routers = {
   ticket: tickets.handleInteraction,
@@ -30,6 +31,7 @@ const routers = {
   sage_gate_agree: sageGatekeeper.handleGatekeeperButton,
   sage_gate_reject: sageGatekeeper.handleGatekeeperButton,
   verify: verification.handleInteraction,
+  social: social.handleInteraction,
 };
 
 export async function route(interaction) {

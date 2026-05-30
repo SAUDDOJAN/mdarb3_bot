@@ -1,7 +1,14 @@
 import { AttachmentBuilder } from "discord.js";
 import { query } from "../database/index.js";
-import { createCanvas, loadImage } from "@napi-rs/canvas";
+import { createCanvas, loadImage, GlobalFonts } from "@napi-rs/canvas";
 import path from "path";
+
+// Register custom font to avoid missing font issues on Railway/Linux
+try {
+  GlobalFonts.registerFromPath(path.join(process.cwd(), "assets", "Cairo-Bold.ttf"), "Cairo");
+} catch (e) {
+  console.error("Failed to load Cairo font:", e);
+}
 
 export async function handleInteraction(interaction) {
   if (!interaction.isButton()) return;
@@ -76,7 +83,7 @@ export async function handleInteraction(interaction) {
             ctx.drawImage(banner, 0, 0);
 
             const username = member.user.username;
-            ctx.font = "bold 75px sans-serif";
+            ctx.font = "bold 75px Cairo, sans-serif";
             ctx.fillStyle = "#ffffff";
             ctx.textAlign = "center";
             ctx.textBaseline = "middle";
