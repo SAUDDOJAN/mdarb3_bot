@@ -5,9 +5,10 @@ import fs from "fs"; // حزمة النظام الأساسية لإدارة ال
 import client from "./client.js";
 import { initDb } from "./database/index.js";
 import { getSyncedChannels } from "./database/radar.js";
+import { initSocket, emitDiscordMessage } from "./socket.js";
 
 const PORT = process.env.PORT || 3000;
-http.createServer((req, res) => {
+const server = http.createServer((req, res) => {
   // CORS Headers
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
@@ -29,7 +30,10 @@ http.createServer((req, res) => {
 
   res.writeHead(200, { "Content-Type": "application/json" });
   res.end(JSON.stringify({ status: "ok", bot: client.isReady() ? "online" : "starting" }));
-}).listen(PORT, "0.0.0.0", () => console.log(`[Bot] Health server listening on 0.0.0.0:${PORT}`));
+});
+
+initSocket(server);
+server.listen(PORT, "0.0.0.0", () => console.log(`[Bot] Health & Socket server listening on 0.0.0.0:${PORT}`));
 
 // تفعيل صلاحيات قراءة محتوى الرسائل إجبارياً لحل مشكلة الحجب
 client.options.intents?.add?.(["Guilds", "GuildMessages", "MessageContent"]);
@@ -41,6 +45,11 @@ const SAGE_HUB_CHANNEL_ID = "1507706953521041509";
 // المزامنة المتعددة الأوتوماتيكية عبر ملف JSON الموحد
 client.on("messageCreate", (message) => {
   if (message.author.bot || message.webhookId || message.applicationId === client.user.id) return;
+
+  // Real-time Chat Sync with App for General Channel
+  if (message.channel.id === "1294312574162178200") {
+    emitDiscordMessage(message);
+  }
 
   const syncedData = getSyncedChannels();
   const syncedChannelIds = Object.values(syncedData);
