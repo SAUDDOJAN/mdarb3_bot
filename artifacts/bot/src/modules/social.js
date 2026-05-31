@@ -26,12 +26,11 @@ export async function handleInteraction(interaction) {
       // Update the button with new count
       if (interaction.message && interaction.message.components.length > 0) {
         try {
-          const role = interaction.guild.roles.cache.get(NOTIFY_ROLE_ID) || await interaction.guild.roles.fetch(NOTIFY_ROLE_ID);
-          // Calculate count after role change. Since role.members.size might take a moment to update in cache,
-          // we can adjust it manually based on cache or just fetch.
+          // Fetch all members to ensure cache is fully populated for accurate count
+          await interaction.guild.members.fetch();
+          const role = interaction.guild.roles.cache.get(NOTIFY_ROLE_ID);
+          
           let count = role ? role.members.size : 0;
-          if (isSubscribed && role?.members.has(member.id)) count--;
-          if (!isSubscribed && !role?.members.has(member.id)) count++;
           
           const actionRow = interaction.message.components[0];
           const oldButton = actionRow.components.find(c => c.customId === 'social:subscribe');

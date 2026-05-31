@@ -61,7 +61,8 @@ async function checkYouTube(client) {
           let roleCount = 0;
           if (channel.guild) {
             try {
-              const role = channel.guild.roles.cache.get(NOTIFY_ROLE_ID) || await channel.guild.roles.fetch(NOTIFY_ROLE_ID);
+              await channel.guild.members.fetch();
+              const role = channel.guild.roles.cache.get(NOTIFY_ROLE_ID);
               if (role) roleCount = role.members.size;
             } catch (err) {
               console.error('[SocialNotifier] Error fetching role for count:', err);
