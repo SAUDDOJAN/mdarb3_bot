@@ -58,6 +58,16 @@ async function checkYouTube(client) {
         // Notify Discord
         const channel = await client.channels.fetch(NOTIFY_CHANNEL_ID);
         if (channel) {
+          let roleCount = 0;
+          if (channel.guild) {
+            try {
+              const role = channel.guild.roles.cache.get(NOTIFY_ROLE_ID) || await channel.guild.roles.fetch(NOTIFY_ROLE_ID);
+              if (role) roleCount = role.members.size;
+            } catch (err) {
+              console.error('[SocialNotifier] Error fetching role for count:', err);
+            }
+          }
+
           const embed = new EmbedBuilder()
             .setColor('#FF0000') // YouTube Red
             .setAuthor({ name: feed.title || 'Mdarb3 | مدربة', iconURL: LOGO_URL, url: YOUTUBE_CHANNEL_URL })
@@ -69,7 +79,7 @@ async function checkYouTube(client) {
 
           const subscribeButton = new ButtonBuilder()
             .setCustomId('social:subscribe')
-            .setLabel('🔔 اشترك بالإشعارات')
+            .setLabel(`🔔 اشترك بالإشعارات (${roleCount})`)
             .setStyle(ButtonStyle.Primary);
 
           const row = new ActionRowBuilder().addComponents(subscribeButton);
