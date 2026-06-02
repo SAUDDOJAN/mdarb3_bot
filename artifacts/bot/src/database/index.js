@@ -207,6 +207,13 @@ export async function initDb() {
     )
   `);
 
+  await query(`
+    CREATE TABLE IF NOT EXISTS bot_state (
+      key TEXT PRIMARY KEY,
+      value JSONB
+    )
+  `);
+
   await query(`ALTER TABLE guild_config ADD COLUMN IF NOT EXISTS admin_channel_id TEXT`);
   await query(`ALTER TABLE guild_config ADD COLUMN IF NOT EXISTS powercard_channel_id TEXT`);
   await query(`ALTER TABLE guild_config ADD COLUMN IF NOT EXISTS event_category_id TEXT`);

@@ -101,14 +101,14 @@ async function main() {
   await loadEvents(client);
   // ──────────────────────────────────────────────────────────────────────────
 
+  await initDb();
+
   const { startWidgetSync } = await import("./tasks/widgetSync.js");
   startWidgetSync(client);
 
-  // بدء تشغيل نظام إشعارات اليوتيوب (وتويتش لاحقاً)
   const { startSocialNotifier } = await import("./tasks/socialNotifier.js");
   startSocialNotifier(client);
 
-  await initDb();
   await client.login(process.env.DISCORD_BOT_TOKEN);
 }
 

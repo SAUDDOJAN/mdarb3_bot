@@ -1,39 +1,40 @@
-import fs from 'fs';
-import path from 'path';
 import Parser from 'rss-parser';
 import { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
+import { query } from '../database/index.js';
 
 const parser = new Parser();
 
-// Paths and configurations
-const DATA_FILE = path.resolve('./social_data.json');
 const YT_HANDLE = '@mdarb3';
 const YOUTUBE_CHANNEL_URL = `https://www.youtube.com/${YT_HANDLE}`;
-
 const NOTIFY_CHANNEL_ID = '1405207264868175952';
 const NOTIFY_ROLE_ID = '1405203186389745885';
+const LOGO_URL = 'https://yt3.googleusercontent.com/ytc/AIdro_k6yB-G4pW9Z-f0000000000000000000000000000=s900-c-k-c0x00ffffff-no-rj';
 
-// You can use a URL for the logo, or attach it later. For now we use the discord avatar if possible, or a direct link.
-// We'll leave it empty to use author icon later.
-const LOGO_URL = 'https://yt3.googleusercontent.com/ytc/AIdro_k6yB-G4pW9Z-f0000000000000000000000000000=s900-c-k-c0x00ffffff-no-rj'; // Placeholder or you can upload the image to discord and put the link here.
-
-// State to track last notified items
 let socialData = {
   lastYouTubeVideoId: null,
   isTwitchLive: false
 };
 
-// Load existing data if available
-if (fs.existsSync(DATA_FILE)) {
+async function loadData() {
   try {
-    socialData = JSON.parse(fs.readFileSync(DATA_FILE, 'utf-8'));
-  } catch (error) {
-    console.error('[SocialNotifier] Error reading social_data.json:', error);
+    const res = await query("SELECT value FROM bot_state WHERE key = 'social_data'");
+    if (res.rows.length > 0) {
+      socialData = res.rows[0].value;
+    }
+  } catch (err) {
+    console.error('[SocialNotifier] Error loading data from DB:', err.message);
   }
 }
 
-function saveData() {
-  fs.writeFileSync(DATA_FILE, JSON.stringify(socialData, null, 2));
+async function saveData() {
+  try {
+    await query(`
+      INSERT INTO bot_state (key, value) VALUES ('social_data', $1)
+      ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value
+    `, [socialData]);
+  } catch (err) {
+    console.error('[SocialNotifier] Error saving data to DB:', err.message);
+  }
 }
 
 // Hardcoded Channel ID for @mdarb3
@@ -93,7 +94,7 @@ async function checkYouTube(client) {
 
           // Update state
           socialData.lastYouTubeVideoId = videoId;
-          saveData();
+          await saveData();
         }
       }
     }
@@ -102,10 +103,11 @@ async function checkYouTube(client) {
   }
 }
 
-// Main task runner
-export function startSocialNotifier(client) {
+export async function startSocialNotifier(client) {
   console.log('[SocialNotifier] Starting social media notification task...');
   
+  await loadData();
+
   const runCheck = () => {
     checkYouTube(client);
   };
