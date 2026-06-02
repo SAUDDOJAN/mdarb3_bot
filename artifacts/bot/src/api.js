@@ -14,10 +14,10 @@ export async function handleDungeonsApi(req, res, parsedUrl) {
         const dungeon = DUNGEON_DATA[g.dungeon_name];
         
         let waitingCount = 0;
-        if (g.slot_tank && g.slot_tank.userId) waitingCount++;
-        if (g.slot_healer && g.slot_healer.userId) waitingCount++;
-        if (g.slot_dps1 && g.slot_dps1.userId) waitingCount++;
-        if (g.slot_dps2 && g.slot_dps2.userId) waitingCount++;
+        if (g.slot_tank && g.slot_tank.user_id) waitingCount++;
+        if (g.slot_healer && g.slot_healer.user_id) waitingCount++;
+        if (g.slot_dps1 && g.slot_dps1.user_id) waitingCount++;
+        if (g.slot_dps2 && g.slot_dps2.user_id) waitingCount++;
 
         return {
           id: g.id,
