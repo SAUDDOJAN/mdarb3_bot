@@ -6,7 +6,8 @@ import {
   ChannelType,
   AttachmentBuilder
 } from "discord.js";
-import { query } from "../database/index.js";
+import { query, createNotification } from "../database/index.js";
+import { emitNotification } from "../socket.js";
 import fs from "fs";
 import path from "path";
 
@@ -352,6 +353,22 @@ async function handleCreateGroup(interaction, dungeonName, difficulty) {
   );
   const groupId = dbRes.rows[0].id;
   console.log(`[LFG:Debug] Saved to DB with ID: ${groupId}`);
+
+  // Create global Notification for the Mobile App
+  const notificationData = {
+    id: groupId,
+    dungeon_name: dungeonName,
+    difficulty: difficulty,
+    leader: leaderData.name,
+    avatar: leaderData.avatar
+  };
+  const notifMsg = `بواسطة ${leaderData.name}`;
+  try {
+    const notif = await createNotification("dungeon", `مجموعة دنجن جديدة: ${dungeonName}`, notifMsg, notificationData);
+    emitNotification(notif);
+  } catch (err) {
+    console.error("[LFG] Failed to create global notification:", err);
+  }
 
   // Update message to carry exact group ID inside buttons
   const updatedRows = buildGroupButtons(groupId, inviteUrl);

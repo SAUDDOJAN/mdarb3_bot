@@ -24,6 +24,12 @@ function getFormattedContent(msg) {
   return text;
 }
 
+export function emitNotification(notification) {
+  if (io) {
+    io.emit("notification", notification);
+  }
+}
+
 export function initSocket(server) {
   io = new Server(server, {
     cors: {

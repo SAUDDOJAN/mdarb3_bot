@@ -27,6 +27,24 @@ export async function query(text, params) {
   }
 }
 
+// ─── Notifications Helpers ───────────────────────────────────────────────────
+
+export async function createNotification(type, title, message, data = {}) {
+  const result = await query(
+    `INSERT INTO notifications (type, title, message, data) VALUES ($1, $2, $3, $4) RETURNING *`,
+    [type, title, message, JSON.stringify(data)]
+  );
+  return result.rows[0];
+}
+
+export async function getNotifications(limit = 20) {
+  const result = await query(
+    `SELECT * FROM notifications ORDER BY created_at DESC LIMIT $1`,
+    [limit]
+  );
+  return result.rows;
+}
+
 export async function initDb() {
   await query(`
     CREATE TABLE IF NOT EXISTS guild_config (
@@ -55,6 +73,17 @@ export async function initDb() {
       last_xp_at TIMESTAMPTZ DEFAULT NOW(),
       created_at TIMESTAMPTZ DEFAULT NOW(),
       UNIQUE(user_id, guild_id)
+    )
+  `);
+
+  await query(`
+    CREATE TABLE IF NOT EXISTS notifications (
+      id SERIAL PRIMARY KEY,
+      type VARCHAR(50),
+      title TEXT,
+      message TEXT,
+      data JSONB,
+      created_at TIMESTAMPTZ DEFAULT NOW()
     )
   `);
 

@@ -1,4 +1,5 @@
 import { query } from "./database/index.js";
+import { getNotifications } from "./database/index.js";
 import client from "./client.js";
 import { DUNGEON_DATA } from "./modules/dungeonLfg.js";
 
@@ -48,6 +49,19 @@ export async function handleDungeonsApi(req, res, parsedUrl) {
       res.end(JSON.stringify({ success: false, error: err.message }));
     }
     return true; // Handled
+  }
+
+  // GET /api/notifications
+  if (req.method === "GET" && parsedUrl.pathname === "/api/notifications") {
+    try {
+      const notifs = await getNotifications(20);
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ success: true, data: notifs }));
+    } catch (err) {
+      res.writeHead(500);
+      res.end(JSON.stringify({ success: false, error: "Internal Server Error" }));
+    }
+    return true;
   }
 
   // Handle POST /api/dungeons/join
