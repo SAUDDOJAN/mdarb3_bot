@@ -107,6 +107,7 @@ export function startGw2EventCron(client) {
       // Remove BOM if present
       const cleanText = text.charCodeAt(0) === 0xFEFF ? text.slice(1) : text;
       const data = JSON.parse(cleanText);
+      const eventsData = data.events || data;
 
       // Current time in UTC
       const now = new Date();
@@ -114,35 +115,39 @@ export function startGw2EventCron(client) {
       const m = now.getUTCMinutes();
       const currentMinutes = h * 60 + m;
 
-      // Filter important categories
-      const IMPORTANT_CATS = ["Hardcore World Bosses", "World Bosses"];
+      // Filter important event groups by name
+      const IMPORTANT_NAMES = ["World bosses", "Hard world bosses", "Ley-Line Anomaly", "Auric Basin", "Tangled Depths", "Dragon's Stand", "Dragonstorm", "The Echovald Wilds", "Dragon's End"];
       
       const upcomingEvents = [];
 
-      Object.keys(data).forEach(key => {
-        const eventGroup = data[key];
-        if (!eventGroup || !IMPORTANT_CATS.includes(eventGroup.category)) return;
+      Object.keys(eventsData).forEach(key => {
+        const eventGroup = eventsData[key];
+        if (!eventGroup || !IMPORTANT_NAMES.includes(eventGroup.name)) return;
 
-        if (eventGroup.sequences && eventGroup.sequences.pattern) {
+        if (eventGroup.sequences && eventGroup.sequences.pattern && eventGroup.sequences.pattern.length > 0) {
           let timePointer = 0;
-          for (const seq of eventGroup.sequences.pattern) {
-            // seq.d is duration in minutes
-            // if it's an event (seq.r > 0), we check time
-            if (seq.r > 0 && eventGroup.segments[seq.r]) {
-              // Time diff
-              let diff = timePointer - currentMinutes;
-              // Wrap around daily schedule
-              if (diff < -120) diff += 1440;
-              
-              if (diff > 0 && diff <= 15) { // Notify 15 minutes before
-                upcomingEvents.push({
-                  name: eventGroup.segments[seq.r].name || eventGroup.name,
-                  minutesUntil: diff,
-                  id: `${key}-${timePointer}`
-                });
+          let iterations = 0;
+          while (timePointer <= 1440 && iterations < 100) {
+            iterations++;
+            for (const seq of eventGroup.sequences.pattern) {
+              // seq.d is duration in minutes
+              // if it's an event (seq.r > 0), we check time
+              if (seq.r > 0 && eventGroup.segments[seq.r]) {
+                // Time diff
+                let diff = timePointer - currentMinutes;
+                // Wrap around daily schedule
+                if (diff < -120) diff += 1440;
+                
+                if (diff > 0 && diff <= 15) { // Notify 15 minutes before
+                  upcomingEvents.push({
+                    name: eventGroup.segments[seq.r].name || eventGroup.name,
+                    minutesUntil: diff,
+                    id: `${key}-${timePointer}`
+                  });
+                }
               }
+              timePointer += seq.d;
             }
-            timePointer += seq.d;
           }
         }
       });
