@@ -18,13 +18,13 @@ function getDungeonImageAttachment(dungeonName) {
 
   if (fs.existsSync(pngPath)) {
     return {
-      attachment: new AttachmentBuilder(pngPath, { name: `${fileName}.png` }),
+      attachment: new AttachmentBuilder(fs.readFileSync(pngPath), { name: `${fileName}.png` }),
       thumbnailUrl: `attachment://${fileName}.png`,
       fileName: `${fileName}.png`
     };
   } else if (fs.existsSync(jpgPath)) {
     return {
-      attachment: new AttachmentBuilder(jpgPath, { name: `${fileName}.jpg` }),
+      attachment: new AttachmentBuilder(fs.readFileSync(jpgPath), { name: `${fileName}.jpg` }),
       thumbnailUrl: `attachment://${fileName}.jpg`,
       fileName: `${fileName}.jpg`
     };
