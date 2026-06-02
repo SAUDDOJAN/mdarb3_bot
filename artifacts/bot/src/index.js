@@ -40,9 +40,7 @@ const server = http.createServer((req, res) => {
           return;
         }
         
-        // Ensure members of these roles are cached (if not already)
-        // We will do a full member fetch once just in case, it helps accuracy
-        await mainGuild.members.fetch();
+        // Removed members.fetch() to prevent opcode 8 rate limit
         
         const tlMembers = mainGuild.roles.cache.get("1292754458492796982")?.members.size || 0;
         const aionMembers = mainGuild.roles.cache.get("1401376073077231702")?.members.size || 0;
@@ -172,6 +170,20 @@ async function main() {
 
   const { startGw2EventCron } = await import("./modules/guildwars2.js");
   startGw2EventCron(client);
+
+  client.once("ready", async () => {
+    console.log(`[Bot] Logged in as ${client.user.tag}`);
+    try {
+      const mainGuild = client.guilds.cache.get("861355983975874601");
+      if (mainGuild) {
+        console.log("[Bot] Fetching members on startup to populate cache...");
+        await mainGuild.members.fetch();
+        console.log("[Bot] Members cached successfully.");
+      }
+    } catch (e) {
+      console.error("[Bot] Failed to fetch members on startup:", e);
+    }
+  });
 
   await client.login(process.env.DISCORD_BOT_TOKEN);
 }

@@ -109,7 +109,7 @@ export async function handleDungeonsApi(req, res, parsedUrl) {
       } else {
         const mainGuild = await client.guilds.fetch("861355983975874601").catch(() => null);
         if (!mainGuild) throw new Error("Main guild not found");
-        await mainGuild.members.fetch();
+        // Removed members.fetch() to avoid rate limits. We will fetch on startup instead.
         const roleId = guildIdStr === "tl" ? "1292754458492796982" : "1511293343353667656";
         const role = mainGuild.roles.cache.get(roleId);
         if (!role) throw new Error("Role not found");
