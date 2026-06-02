@@ -171,6 +171,7 @@ async function handleGw2ClassSelect(interaction) {
           files: [attachment]
         });
       } else {
+        await interaction.followUp({ content: `لم أتمكن من العثور على الروم المخصص لإرسال البطاقة.`, ephemeral: true });
         console.error(`[GW2] Could not find or fetch the members channel: ${GW2_MEMBERS_CHANNEL_ID}`);
       }
     }
@@ -178,7 +179,9 @@ async function handleGw2ClassSelect(interaction) {
   } catch (error) {
     console.error("[GW2] Error adding role/card:", error);
     if (!interaction.replied) {
-      await interaction.reply({ content: "حدث خطأ أثناء إعطائك الرتبة. تأكد من صلاحيات البوت.", ephemeral: true });
+      await interaction.reply({ content: `حدث خطأ: ${error.message}`, ephemeral: true });
+    } else {
+      await interaction.followUp({ content: `حدث خطأ أثناء إنشاء البطاقة: ${error.message}`, ephemeral: true });
     }
   }
 }
