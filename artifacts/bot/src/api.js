@@ -123,7 +123,8 @@ export async function handleDungeonsApi(req, res, parsedUrl) {
         }
 
         // Fetch DB info to enrich with CP and Character Name
-        const dbRes = await query("SELECT user_id, character_name, class_name, combat_power as cp, profile_image as avatar FROM sage_recruitment");
+        // We use power_cards because it contains the up-to-date scraped profiles of members.
+        const dbRes = await query("SELECT user_id, character_name, class_name, combat_power as cp, profile_image as avatar FROM power_cards");
         const dbMap = new Map();
         dbRes.rows.forEach(r => dbMap.set(r.user_id, r));
 
