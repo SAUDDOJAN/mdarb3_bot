@@ -2,7 +2,7 @@ import { ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder, 
 
 const TL_JOIN_CHANNEL_ID = "1509250363939880990";
 const TL_MEMBERS_CHANNEL_ID = "1511464947425476799";
-const TL_MEMBER_ROLE_ID = ""; // ← أضف معرف رتبة عضو جيلد T&L هنا
+const TL_MEMBER_ROLE_ID = "1292754458492796982";
 
 // تخزين بيانات اللاعب بين خطوات النموذج
 const userSelections = new Map();
