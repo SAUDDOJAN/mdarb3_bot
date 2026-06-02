@@ -29,6 +29,21 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  // Serve static dungeon images
+  if (parsedUrl.pathname.startsWith("/assets/dungeons/")) {
+    const filePath = `.${decodeURIComponent(parsedUrl.pathname)}`;
+    fs.readFile(filePath, (err, data) => {
+      if (err) {
+        res.writeHead(404);
+        res.end("Not Found");
+        return;
+      }
+      res.writeHead(200, { "Content-Type": "image/png" });
+      res.end(data);
+    });
+    return;
+  }
+
   // Handle new Dungeon APIs
   handleDungeonsApi(req, res, parsedUrl).then(handled => {
     if (!handled) {
