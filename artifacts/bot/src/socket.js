@@ -5,6 +5,25 @@ const TARGET_CHANNEL_ID = "1294312574162178200";
 
 let io;
 
+function getFormattedContent(msg) {
+  if (!msg.content) return "";
+  let text = msg.content;
+  if (msg.mentions && msg.guild) {
+    msg.mentions.users.forEach(user => {
+      const member = msg.guild.members.cache.get(user.id);
+      const name = member ? member.displayName : (user.globalName || user.username);
+      text = text.replace(new RegExp(`<@!?${user.id}>`, 'g'), `@${name}`);
+    });
+    msg.mentions.roles.forEach(role => {
+      text = text.replace(new RegExp(`<@&${role.id}>`, 'g'), `@${role.name}`);
+    });
+    msg.mentions.channels.forEach(channel => {
+      text = text.replace(new RegExp(`<#${channel.id}>`, 'g'), `#${channel.name}`);
+    });
+  }
+  return text;
+}
+
 export function initSocket(server) {
   io = new Server(server, {
     cors: {
@@ -76,7 +95,7 @@ export function initSocket(server) {
           id: msg.id,
           senderId: msg.author.id,
           sender: msg.member ? msg.member.displayName : (msg.author.displayName || msg.author.username),
-          text: msg.cleanContent || msg.content,
+          text: getFormattedContent(msg),
           image: msg.attachments.first()?.url || null,
           avatar: msg.member?.displayAvatarURL() || msg.author.displayAvatarURL(),
           source: 'discord',
@@ -102,7 +121,7 @@ export function emitDiscordMessage(message) {
     id: message.id,
     senderId: message.author.id,
     sender: message.member ? message.member.displayName : (message.author.displayName || message.author.username),
-    text: message.cleanContent || message.content,
+    text: getFormattedContent(message),
     image: message.attachments.first()?.url || null,
     avatar: message.member?.displayAvatarURL() || message.author.displayAvatarURL(),
     source: 'discord',
