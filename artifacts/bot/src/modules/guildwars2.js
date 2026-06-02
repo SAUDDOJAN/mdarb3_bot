@@ -196,7 +196,7 @@ export async function handleInteraction(interaction) {
 }
 
 // Event Scheduler
-let lastEventNotified = null;
+const notifiedEvents = new Set();
 
 export function startGw2EventCron(client) {
   // Check every minute for upcoming events
@@ -248,10 +248,13 @@ export function startGw2EventCron(client) {
                 if (diff < -120) diff += 1440;
                 
                 if (diff > 0 && diff <= 15) { // Notify 15 minutes before
+                  // Make sure ID includes the day to reset automatically, or just clear the Set occasionally.
+                  // Since timePointer is daily, appending the day of month prevents infinite growth if we clear it daily.
+                  const day = now.getUTCDate();
                   upcomingEvents.push({
                     name: eventGroup.segments[seq.r].name || eventGroup.name,
                     minutesUntil: diff,
-                    id: `${key}-${timePointer}`
+                    id: `${key}-${timePointer}-day${day}`
                   });
                 }
               }
@@ -261,10 +264,17 @@ export function startGw2EventCron(client) {
         }
       });
 
+      // Clear the set periodically to prevent memory leaks (e.g., if day changes)
+      // Since we append `-day${now.getUTCDate()}` to the ID, old IDs won't match tomorrow's events.
+      // We can just keep the Set size small by deleting old entries if it gets too large.
+      if (notifiedEvents.size > 500) {
+        notifiedEvents.clear();
+      }
+
       // Filter and send
       for (const ev of upcomingEvents) {
-        if (lastEventNotified !== ev.id) {
-          lastEventNotified = ev.id;
+        if (!notifiedEvents.has(ev.id)) {
+          notifiedEvents.add(ev.id);
 
           const spawnTime = Math.floor((now.getTime() + ev.minutesUntil * 60000) / 1000);
           const embed = new EmbedBuilder()
