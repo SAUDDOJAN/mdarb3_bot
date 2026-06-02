@@ -51,7 +51,7 @@ export function initSocket(server) {
         const history = fetchedMessages.map(msg => ({
           id: msg.id,
           sender: msg.author.displayName || msg.author.username,
-          text: msg.content,
+          text: msg.cleanContent || msg.content,
           avatar: msg.author.displayAvatarURL(),
           source: 'discord',
           isMe: false,
@@ -75,7 +75,7 @@ export function emitDiscordMessage(message) {
   io.emit("discordMessage", {
     id: message.id,
     sender: message.author.displayName || message.author.username,
-    text: message.content,
+    text: message.cleanContent || message.content,
     avatar: message.author.displayAvatarURL(),
     source: 'discord',
     isMe: false,
