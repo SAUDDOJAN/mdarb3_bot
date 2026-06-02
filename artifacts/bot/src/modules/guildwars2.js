@@ -83,109 +83,43 @@ async function handleGw2ClassSelect(interaction) {
       ephemeral: true 
     });
 
-    // Draw Fancy Card — always send regardless of whether user already had the role
+    // Send Welcome Embed to members channel
     try {
-      const canvas = createCanvas(800, 300);
-      const ctx = canvas.getContext("2d");
-
-      // Background Gradient
-      const gradient = ctx.createLinearGradient(0, 0, 800, 300);
-      gradient.addColorStop(0, "#4a0000");
-      gradient.addColorStop(0.5, "#1a0000");
-      gradient.addColorStop(1, "#000000");
-      ctx.fillStyle = gradient;
-      ctx.fillRect(0, 0, 800, 300);
-
-      // Subtle glow
-      ctx.fillStyle = "rgba(255, 50, 50, 0.1)";
-      ctx.beginPath();
-      ctx.arc(800, 150, 300, 0, Math.PI * 2);
-      ctx.fill();
-
-      // Draw Avatar
-      const avatarX = 150;
-      const avatarY = 150;
-      const avatarRadius = 100;
-
-      let avatar;
+      const classEmoji = GW2_CLASSES.find(c => c.value === selectedClass)?.emoji || "⚔️";
       const avatarUrl = interaction.member.user.displayAvatarURL({ extension: "png", size: 256 });
-      try {
-        avatar = await loadImage(avatarUrl);
-      } catch (e) {
-        console.warn("[GW2] Could not load user avatar, using default. Error:", e.message);
-        avatar = await loadImage("https://cdn.discordapp.com/embed/avatars/0.png");
-      }
 
-      ctx.save();
-      ctx.beginPath();
-      ctx.arc(avatarX, avatarY, avatarRadius, 0, Math.PI * 2);
-      ctx.closePath();
-      ctx.clip();
-      ctx.drawImage(avatar, avatarX - avatarRadius, avatarY - avatarRadius, avatarRadius * 2, avatarRadius * 2);
-      ctx.restore();
+      const welcomeEmbed = new EmbedBuilder()
+        .setColor("#B70000")
+        .setTitle(`⚔️ مقاتل جديد انضم لقيلد Guild Wars 2!`)
+        .setDescription(`رحبو معانا بالبطل <@${interaction.user.id}>!\nإضافة قوية للقيلد بكلاس الـ **${selectedClass}** ${classEmoji} 🔥`)
+        .setThumbnail(avatarUrl)
+        .addFields(
+          { name: "👤 الاسم", value: `\`${interaction.user.username}\``, inline: true },
+          { name: "🎮 الكلاس", value: `${classEmoji} ${selectedClass}`, inline: true }
+        )
+        .setFooter({ text: "Guild Wars 2 • M3RGEEN Gaming Community" })
+        .setTimestamp();
 
-      // Avatar Border
-      ctx.beginPath();
-      ctx.arc(avatarX, avatarY, avatarRadius, 0, Math.PI * 2);
-      ctx.lineWidth = 8;
-      ctx.strokeStyle = "#ff3333";
-      ctx.stroke();
-
-      // Text
-      ctx.textAlign = "left";
-      ctx.textBaseline = "middle";
-      ctx.shadowColor = "rgba(0,0,0,0.8)";
-      ctx.shadowBlur = 5;
-      const textX = 300;
-
-      ctx.font = 'bold 40px "TajawalCustom", sans-serif';
-      ctx.fillStyle = "#ffffff";
-      ctx.fillText("مقاتل جديد في قيلد GW2!", textX, 100);
-
-      ctx.font = 'bold 52px "TajawalCustom", sans-serif';
-      ctx.fillStyle = "#ffcc00";
-      ctx.fillText(interaction.user.username, textX, 175);
-
-      ctx.font = '34px "TajawalCustom", sans-serif';
-      ctx.fillStyle = "#cccccc";
-      const classEmoji = GW2_CLASSES.find(c => c.value === selectedClass)?.emoji || "";
-      ctx.fillText(`الكلاس: ${selectedClass} ${classEmoji}`, textX, 240);
-
-      const buffer = canvas.toBuffer("image/png");
-      const attachment = new AttachmentBuilder(buffer, { name: "gw2_welcome.png" });
-
-      let membersChannel = interaction.guild.channels.cache.get(GW2_MEMBERS_CHANNEL_ID);
-      if (!membersChannel) {
-        try {
-          membersChannel = await interaction.guild.channels.fetch(GW2_MEMBERS_CHANNEL_ID);
-        } catch (fetchErr) {
-          console.error(`[GW2] Failed to fetch members channel ${GW2_MEMBERS_CHANNEL_ID}:`, fetchErr.message);
-          await interaction.followUp({ content: `❌ خطأ: لم أتمكن من الوصول للروم - ${fetchErr.message}`, ephemeral: true });
-          return;
-        }
-      }
+      // Use client.channels.fetch for reliability
+      const membersChannel = await interaction.client.channels.fetch(GW2_MEMBERS_CHANNEL_ID);
 
       if (!membersChannel) {
-        console.error(`[GW2] Members channel ${GW2_MEMBERS_CHANNEL_ID} is null after fetch`);
-        await interaction.followUp({ content: `❌ الروم ${GW2_MEMBERS_CHANNEL_ID} غير موجود أو البوت لا يملك صلاحية رؤيته.`, ephemeral: true });
+        await interaction.followUp({ content: `❌ الروم غير موجود.`, ephemeral: true });
         return;
       }
 
-      try {
-        await membersChannel.send({
-          content: `رحبو معانا بالبطل <@${interaction.user.id}>! إضافة قوية للقيلد بكلاس الـ **${selectedClass}**. ⚔️🔥`,
-          files: [attachment]
-        });
-        console.log(`[GW2] Welcome card sent for ${interaction.user.username}`);
-      } catch (sendErr) {
-        console.error(`[GW2] Failed to send card to members channel:`, sendErr.message);
-        await interaction.followUp({ content: `❌ فشل إرسال البطاقة للروم: ${sendErr.message}`, ephemeral: true });
-      }
+      console.log(`[GW2] Found channel: ${membersChannel.name} (type: ${membersChannel.type})`);
+      await membersChannel.send({ embeds: [welcomeEmbed] });
+      console.log(`[GW2] Welcome embed sent for ${interaction.user.username}`);
 
-    } catch (cardError) {
-      console.error("[GW2] Error drawing welcome card:", cardError);
-      await interaction.followUp({ content: `❌ خطأ أثناء رسم البطاقة: ${cardError.message}`, ephemeral: true });
+    } catch (embedError) {
+      console.error("[GW2] Error sending welcome embed:", embedError);
+      await interaction.followUp({ 
+        content: `❌ خطأ: ${embedError.message}\nCode: ${embedError.code || "N/A"}\nStatus: ${embedError.status || "N/A"}`, 
+        ephemeral: true 
+      });
     }
+
 
   } catch (error) {
     console.error("[GW2] Error adding role/card:", error);
