@@ -204,10 +204,13 @@ export async function createOrUpdateCard(client, guildId, userId, shugoUrl, over
   const {
     characterName, characterLevel, className, raceName,
     combatPower, serverName, region, abyss,
+    profileImage: gameProfileImage,
   } = scrapeResult.data;
 
-  // Fetch the member's Discord avatar — this is what Discord can always load
-  const profileImage = await resolveMemberAvatar(client, guildId, userId);
+  // ✅ Prefer the in-game character image from shugo.gg/plaync.
+  // Fall back to Discord avatar only when the scraper returns nothing.
+  const profileImage = gameProfileImage
+    ?? await resolveMemberAvatar(client, guildId, userId);
 
   // Persist card data (including abyss fields)
   await query(

@@ -289,7 +289,8 @@ async function handleCreateGroup(interaction, dungeonName, difficulty) {
     name: profile.name,
     className: profile.className,
     cp: profile.cp,
-    avatar: interaction.user.displayAvatarURL ? interaction.user.displayAvatarURL({ extension: 'png', size: 128 }) : null,
+    avatar: profile.profileImage
+      || (interaction.user.displayAvatarURL ? interaction.user.displayAvatarURL({ extension: 'png', size: 128 }) : null),
     is_leader: true
   };
 
@@ -499,7 +500,8 @@ async function handleJoinGroup(interaction, groupId) {
     name: profile.name,
     className: profile.className,
     cp: profile.cp,
-    avatar: interaction.user.displayAvatarURL ? interaction.user.displayAvatarURL({ extension: 'png', size: 128 }) : null,
+    avatar: profile.profileImage
+      || (interaction.user.displayAvatarURL ? interaction.user.displayAvatarURL({ extension: 'png', size: 128 }) : null),
     is_leader: false
   };
 
@@ -1047,14 +1049,15 @@ async function getPlayerProfile(guildId, userId) {
 
   // 2. Try recruits second
   res = await query(
-    "SELECT character_name, class_name, combat_power FROM recruits WHERE guild_id=$1 AND user_id=$2 AND status='accepted'",
+    "SELECT character_name, class_name, combat_power, profile_image FROM recruits WHERE guild_id=$1 AND user_id=$2 AND status='accepted'",
     [guildId, userId]
   );
   if (res.rows[0]) {
     return {
       name: res.rows[0].character_name,
       className: res.rows[0].class_name,
-      cp: res.rows[0].combat_power
+      cp: res.rows[0].combat_power,
+      profileImage: res.rows[0].profile_image
     };
   }
 
