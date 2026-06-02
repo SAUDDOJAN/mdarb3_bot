@@ -74,12 +74,13 @@ export function initSocket(server) {
         const fetchedMessages = await channel.messages.fetch({ limit: 50 });
         const history = fetchedMessages.map(msg => ({
           id: msg.id,
-          sender: msg.author.displayName || msg.author.username,
+          senderId: msg.author.id,
+          sender: msg.member ? msg.member.displayName : (msg.author.displayName || msg.author.username),
           text: msg.cleanContent || msg.content,
-          avatar: msg.author.displayAvatarURL(),
+          avatar: msg.member?.displayAvatarURL() || msg.author.displayAvatarURL(),
           source: 'discord',
           isMe: false,
-          timestamp: msg.createdTimestamp,
+          timestamp: msg.createdTimestamp
         })).reverse(); // Oldest first
 
         socket.emit("chatHistory", history);
@@ -98,10 +99,12 @@ export function emitDiscordMessage(message) {
   if (!io) return;
   io.emit("discordMessage", {
     id: message.id,
-    sender: message.author.displayName || message.author.username,
+    senderId: message.author.id,
+    sender: message.member ? message.member.displayName : (message.author.displayName || message.author.username),
     text: message.cleanContent || message.content,
-    avatar: message.author.displayAvatarURL(),
+    avatar: message.member?.displayAvatarURL() || message.author.displayAvatarURL(),
     source: 'discord',
     isMe: false,
+    timestamp: message.createdTimestamp
   });
 }
