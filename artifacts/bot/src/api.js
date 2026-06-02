@@ -102,9 +102,49 @@ export async function handleDungeonsApi(req, res, parsedUrl) {
     const guildIdStr = parsedUrl.pathname.split("/").pop();
     try {
       if (guildIdStr === "aion2") {
-        const dbRes = await query("SELECT user_id as id, discord_tag as name, character_name, class_name, combat_power as cp, profile_image as avatar FROM sage_recruitment WHERE status = 'accepted' ORDER BY combat_power DESC");
+        const mainGuild = await client.guilds.fetch("861355983975874601").catch(() => null);
+        if (!mainGuild) throw new Error("Main guild not found");
+
+        const pveRole = mainGuild.roles.cache.get("1401376073077231702");
+        const pvpRole = mainGuild.roles.cache.get("1499929678704807946");
+
+        const allAionMembers = new Map();
+
+        if (pveRole) {
+          pveRole.members.forEach(m => {
+            allAionMembers.set(m.id, { discordMember: m, branch: "PvE" });
+          });
+        }
+        if (pvpRole) {
+          pvpRole.members.forEach(m => {
+            // If they have both, mark as PvP or just overwrite
+            allAionMembers.set(m.id, { discordMember: m, branch: "PvP" });
+          });
+        }
+
+        // Fetch DB info to enrich with CP and Character Name
+        const dbRes = await query("SELECT user_id, character_name, class_name, combat_power as cp, profile_image as avatar FROM sage_recruitment");
+        const dbMap = new Map();
+        dbRes.rows.forEach(r => dbMap.set(r.user_id, r));
+
+        const finalMembers = [];
+        allAionMembers.forEach((data, userId) => {
+          const dbData = dbMap.get(userId) || {};
+          finalMembers.push({
+            id: userId,
+            name: dbData.character_name || data.discordMember.user.globalName || data.discordMember.user.username,
+            avatar: dbData.avatar || data.discordMember.user.displayAvatarURL({ extension: "png", size: 128 }),
+            class_name: dbData.class_name || "",
+            cp: dbData.cp || null,
+            role: data.branch
+          });
+        });
+
+        // Sort by CP descending
+        finalMembers.sort((a, b) => (b.cp || 0) - (a.cp || 0));
+
         res.writeHead(200, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ success: true, data: dbRes.rows }));
+        res.end(JSON.stringify({ success: true, data: finalMembers }));
         return true;
       } else {
         const mainGuild = await client.guilds.fetch("861355983975874601").catch(() => null);
@@ -195,7 +235,7 @@ export async function handleDungeonsApi(req, res, parsedUrl) {
 
         } else if (game === "aion2") {
           // Aion 2 complex join
-          const { shugoUrl, guildRoleId } = data;
+          const { shugoUrl, guildRoleId, branch } = data;
           const { scrapeProfile } = await import("./modules/scraper.js");
           const result = await scrapeProfile(shugoUrl);
           if (!result.success) throw new Error(result.error);
@@ -211,27 +251,27 @@ export async function handleDungeonsApi(req, res, parsedUrl) {
             `INSERT INTO sage_recruitment
                (user_id, discord_tag, character_name, character_level, class_name, combat_power,
                 race_name, server_name, profile_image, shugo_url, guild_role_id, guild_name,
-                status, character_data, source_discord_server, joined_at)
-             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'pending',$13,$14,NOW())
+                status, guild_branch, character_data, source_discord_server, joined_at)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'pending',$13,$14,$15,NOW())
              ON CONFLICT (user_id) DO UPDATE SET
                discord_tag=$2, character_name=$3, character_level=$4, class_name=$5,
                combat_power=$6, race_name=$7, server_name=$8, profile_image=$9, shugo_url=$10,
-               guild_role_id=$11, guild_name=$12, status='pending', character_data=$13,
+               guild_role_id=$11, guild_name=$12, status='pending', guild_branch=$13, character_data=$14,
                updated_at=NOW()
              RETURNING *`,
             [
               discordId, member.user.tag, characterName, characterLevel, className, combatPower || 0,
-              raceName, serverName, profileImage, shugoUrl, guildRoleId, "تم الانضمام عبر التطبيق", JSON.stringify(result.data), "M3RGEEN App"
+              raceName, serverName, profileImage, shugoUrl, guildRoleId, "تم الانضمام عبر التطبيق", branch || 'pve', JSON.stringify(result.data), "M3RGEEN App"
             ]
           );
 
-          // We'll just notify the admin channel 
-          const ALL_APP_CHANNEL_ID = "1508451380560531586";
-          const adminChannel = await client.channels.fetch(ALL_APP_CHANNEL_ID).catch(() => null);
+          // We notify the exact review channel: 1496262240058478792
+          const REVIEW_CHANNEL_ID = "1496262240058478792";
+          const adminChannel = await client.channels.fetch(REVIEW_CHANNEL_ID).catch(() => null);
           if (adminChannel) {
             const reviewEmbed = new EmbedBuilder()
-              .setColor(0xd4af37)
-              .setTitle("📋 طلب انضمام جديد من التطبيق — Siege Alliance")
+              .setColor(branch === 'pvp' ? '#D32F2F' : '#388E3C')
+              .setTitle(`📋 طلب انضمام جديد من التطبيق — ${branch === 'pvp' ? 'PvP' : 'PvE'}`)
               .setDescription(`👑 Applicant: <@${discordId}>\n[🔗 View Profile on shugo.gg](${shugoUrl})`)
               .addFields(
                 { name: "👤 Character", value: characterName ?? "—" },
@@ -243,8 +283,7 @@ export async function handleDungeonsApi(req, res, parsedUrl) {
             if (profileImage) reviewEmbed.setImage(profileImage);
             
             const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = await import("discord.js");
-            // App DB ID requires fetching the row id, but we can just use the user_id for simplicity here.
-            // Note: In sageController it uses appId, we can fetch it:
+            // App DB ID requires fetching the row id
             const appRow = await query("SELECT id FROM sage_recruitment WHERE user_id = $1", [discordId]);
             const appId = appRow.rows[0].id;
             
