@@ -32,7 +32,7 @@ export function initSocket(server) {
           });
         }
 
-        let contentText = data.text;
+        let contentText = data.rawText || data.text;
         
         if (data.replyTo) {
           const replyPreview = data.replyTo.text.length > 50 ? data.replyTo.text.substring(0, 50) + '...' : data.replyTo.text;
