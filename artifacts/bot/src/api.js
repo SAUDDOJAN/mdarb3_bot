@@ -377,6 +377,7 @@ export async function handleDungeonsApi(req, res, parsedUrl) {
                 .setCustomId(`recruit:reject:${discordId}:${appId}`)
                 .setLabel("❌ رفض")
                 .setStyle(ButtonStyle.Danger)
+            );
             await adminChannel.send({ embeds: [reviewEmbed], components: [reviewRow] });
 
             const confirmEmbed = new EmbedBuilder()
