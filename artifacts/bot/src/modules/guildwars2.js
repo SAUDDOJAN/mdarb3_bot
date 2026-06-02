@@ -160,12 +160,18 @@ async function handleGw2ClassSelect(interaction) {
       const buffer = canvas.toBuffer("image/png");
       const attachment = new AttachmentBuilder(buffer, { name: "gw2_welcome.png" });
 
-      const membersChannel = interaction.guild.channels.cache.get(GW2_MEMBERS_CHANNEL_ID);
+      let membersChannel = interaction.guild.channels.cache.get(GW2_MEMBERS_CHANNEL_ID);
+      if (!membersChannel) {
+        membersChannel = await interaction.guild.channels.fetch(GW2_MEMBERS_CHANNEL_ID).catch(() => null);
+      }
+
       if (membersChannel) {
         await membersChannel.send({
           content: `رحبو معانا بالبطل <@${interaction.user.id}>! إضافة قوية للقيلد بكلاس الـ **${selectedClass}**. ⚔️🔥`,
           files: [attachment]
         });
+      } else {
+        console.error(`[GW2] Could not find or fetch the members channel: ${GW2_MEMBERS_CHANNEL_ID}`);
       }
     }
 
