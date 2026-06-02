@@ -1033,14 +1033,15 @@ async function handleVoiceAccess(interaction, groupId) {
 async function getPlayerProfile(guildId, userId) {
   // 1. Try power_cards first
   let res = await query(
-    "SELECT character_name, class_name, combat_power FROM power_cards WHERE guild_id=$1 AND user_id=$2",
+    "SELECT character_name, class_name, combat_power, profile_image FROM power_cards WHERE guild_id=$1 AND user_id=$2",
     [guildId, userId]
   );
   if (res.rows[0]) {
     return {
       name: res.rows[0].character_name,
       className: res.rows[0].class_name,
-      cp: res.rows[0].combat_power
+      cp: res.rows[0].combat_power,
+      profileImage: res.rows[0].profile_image
     };
   }
 
