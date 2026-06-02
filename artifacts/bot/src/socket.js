@@ -32,8 +32,15 @@ export function initSocket(server) {
           });
         }
 
+        let contentText = data.text;
+        
+        if (data.replyTo) {
+          const replyPreview = data.replyTo.text.length > 50 ? data.replyTo.text.substring(0, 50) + '...' : data.replyTo.text;
+          contentText = `> **${data.replyTo.sender}:** ${replyPreview}\n\n${contentText}`;
+        }
+
         const payload = {
-          content: data.text,
+          content: contentText,
           username: data.username || "App User",
           avatarURL: data.avatar || "https://cdn.discordapp.com/embed/avatars/0.png",
         };
