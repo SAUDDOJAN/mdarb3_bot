@@ -288,6 +288,7 @@ async function handleCreateGroup(interaction, dungeonName, difficulty) {
     name: profile.name,
     className: profile.className,
     cp: profile.cp,
+    avatar: interaction.user.displayAvatarURL ? interaction.user.displayAvatarURL({ extension: 'png', size: 128 }) : null,
     is_leader: true
   };
 
@@ -481,6 +482,7 @@ async function handleJoinGroup(interaction, groupId) {
     name: profile.name,
     className: profile.className,
     cp: profile.cp,
+    avatar: interaction.user.displayAvatarURL ? interaction.user.displayAvatarURL({ extension: 'png', size: 128 }) : null,
     is_leader: false
   };
 
