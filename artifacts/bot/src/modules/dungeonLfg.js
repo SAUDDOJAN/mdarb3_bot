@@ -199,7 +199,9 @@ export async function handleLfgInteraction(interaction) {
   } catch (err) {
     console.error("[LFG:Interaction] Error:", err);
     if (!interaction.replied && !interaction.deferred) {
-      await interaction.reply({ content: "❌ حدث خطأ أثناء معالجة طلبك.", flags: 64 }).catch(() => {});
+      await interaction.reply({ content: `❌ حدث خطأ: ${err.message}`, flags: 64 }).catch(() => {});
+    } else {
+      await interaction.editReply({ content: `❌ حدث خطأ: ${err.message}` }).catch(() => {});
     }
   }
 }
