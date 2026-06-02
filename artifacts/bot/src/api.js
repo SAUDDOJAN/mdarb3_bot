@@ -252,17 +252,17 @@ export async function handleDungeonsApi(req, res, parsedUrl) {
             `INSERT INTO sage_recruitment
                (user_id, discord_tag, character_name, character_level, class_name, combat_power,
                 race_name, server_name, profile_image, shugo_url, guild_role_id, guild_name,
-                status, guild_branch, character_data, source_discord_server, joined_at)
-             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'pending',$13,$14,$15,NOW())
+                status, character_data, source_discord_server, joined_at)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'pending',$13,$14,NOW())
              ON CONFLICT (user_id) DO UPDATE SET
                discord_tag=$2, character_name=$3, character_level=$4, class_name=$5,
                combat_power=$6, race_name=$7, server_name=$8, profile_image=$9, shugo_url=$10,
-               guild_role_id=$11, guild_name=$12, status='pending', guild_branch=$13, character_data=$14,
+               guild_role_id=$11, guild_name=$12, status='pending', character_data=$13,
                updated_at=NOW()
              RETURNING *`,
             [
               discordId, member.user.tag, characterName, characterLevel, className, combatPower || 0,
-              raceName, serverName, profileImage, shugoUrl, guildRoleId, "تم الانضمام عبر التطبيق", branch || 'pve', JSON.stringify(result.data), "M3RGEEN App"
+              raceName, serverName, profileImage, shugoUrl, guildRoleId, "تم الانضمام عبر التطبيق", JSON.stringify(result.data), "M3RGEEN App"
             ]
           );
 
