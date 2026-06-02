@@ -12,25 +12,15 @@ import path from "path";
 
 // Helper to resolve local boss image attachments
 function getDungeonImageAttachment(dungeonName) {
-  const fileName = dungeonName.toLowerCase().replace(/[^a-z0-9]/g, "_");
-  const jpgPath = path.resolve(`assets/dungeons/${fileName}.jpg`);
-  const pngPath = path.resolve(`assets/dungeons/${fileName}.png`);
+  let fileName = dungeonName.toLowerCase().replace(/[^a-z0-9]/g, "_");
+  // Fix specific file names that have double underscores or mismatched names in git
+  if (fileName === "dying_dramata_s_nest") fileName = "dying_dramata__s_nest";
 
-  if (fs.existsSync(pngPath)) {
-    return {
-      attachment: new AttachmentBuilder(fs.readFileSync(pngPath), { name: `${fileName}.png` }),
-      thumbnailUrl: `attachment://${fileName}.png`,
-      fileName: `${fileName}.png`
-    };
-  } else if (fs.existsSync(jpgPath)) {
-    return {
-      attachment: new AttachmentBuilder(fs.readFileSync(jpgPath), { name: `${fileName}.jpg` }),
-      thumbnailUrl: `attachment://${fileName}.jpg`,
-      fileName: `${fileName}.jpg`
-    };
-  }
-
-  return null;
+  return {
+    attachment: null,
+    thumbnailUrl: `https://raw.githubusercontent.com/SAUDDOJAN/mdarb3_bot/main/artifacts/bot/assets/dungeons/${fileName}.jpg`,
+    fileName: `${fileName}.jpg`
+  };
 }
 
 // ─── Dungeon Data Configuration ──────────────────────────────────────────────
@@ -172,7 +162,7 @@ export async function sendDungeonPanel(interaction) {
     );
 
     const msgPayload = { embeds: [embed], components: [row] };
-    if (localImg) {
+    if (localImg && localImg.attachment) {
       msgPayload.files = [localImg.attachment];
     }
 
@@ -334,7 +324,7 @@ async function handleCreateGroup(interaction, dungeonName, difficulty) {
     embeds: [lfgEmbed],
     components: rows
   };
-  if (localImg) {
+  if (localImg && localImg.attachment) {
     msgPayload.files = [localImg.attachment];
   }
 
