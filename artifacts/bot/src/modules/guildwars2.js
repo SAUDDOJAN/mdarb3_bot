@@ -94,8 +94,8 @@ async function handleGw2ClassSelect(interaction) {
         .setDescription(`رحبو معانا بالبطل <@${interaction.user.id}>!\nإضافة قوية للقيلد بكلاس الـ **${selectedClass}** ${classEmoji} 🔥`)
         .setThumbnail(avatarUrl)
         .addFields(
-          { name: "الاسم", value: interaction.user.username, inline: true },
-          { name: "الكلاس", value: `${selectedClass} ${classEmoji}`, inline: true }
+          { name: "الاسم", value: interaction.user.username, inline: false },
+          { name: "الكلاس", value: `${selectedClass} ${classEmoji}`, inline: false }
         )
         .setFooter({ text: "Guild Wars 2 • M3RGEEN Gaming Community" })
         .setTimestamp();
