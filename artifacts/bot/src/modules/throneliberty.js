@@ -228,15 +228,16 @@ async function handleAgree(interaction) {
     .setColor("#8B0000")
     .setTitle("📋 بطاقة لاعب جديد — Throne and Liberty")
     .setThumbnail(avatarUrl)
-    .setDescription(`انضم إلى الجيلد: <@${interaction.user.id}>`)
-    .addFields(
-      { name: "👤 الاسم",           value: interaction.user.username, inline: false },
-      { name: "⚔️ الكلاس",          value: data.className,           inline: true  },
-      { name: "🗡️ الأسلحة",         value: data.weapons,             inline: true  },
-      { name: "🎮 أسلوب اللعب",     value: data.playstyle,           inline: true  },
-      { name: "📊 الوضع الحالي",    value: data.status,              inline: false },
-      { name: "📜 القوانين",         value: "✅ وافق على قوانين الجيلد", inline: false },
-    )
+    .setDescription([
+      `انضم إلى الجيلد: <@${interaction.user.id}>`,
+      ``,
+      `**الاسم:** ${interaction.user.username}`,
+      `**الكلاس:** ${data.className}`,
+      `**الأسلحة:** ${data.weapons}`,
+      `**أسلوب اللعب:** ${data.playstyle}`,
+      `**الوضع الحالي:** ${data.status}`,
+      `**القوانين:** ✅ وافق على قوانين الجيلد`,
+    ].join("\n"))
     .setFooter({ text: "Throne and Liberty • M3RGEEN Gaming Community" })
     .setTimestamp();
 
