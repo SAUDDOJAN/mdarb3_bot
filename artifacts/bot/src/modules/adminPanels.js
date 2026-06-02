@@ -16,9 +16,40 @@ import { sendEventPanel } from "./events.js";
 import { scrapeProfile } from "./scraper.js";
 import { startBattleMonitor } from "../tasks/battleMonitor.js";
 
+import { SlashCommandBuilder } from "discord.js";
+
 // ─── Guard ────────────────────────────────────────────────────────────────────
 function isAdmin(interaction) {
   return interaction.member?.permissions?.has(PermissionFlagsBits.Administrator);
+}
+
+// ─── Set Level Slash Command Definition ───────────────────────────────────────
+export const setLevelCommand = new SlashCommandBuilder()
+  .setName("setlevel")
+  .setDescription("تعديل مستوى العضو يدوياً (للمسؤولين فقط)")
+  .addUserOption(option => option.setName("user").setDescription("العضو المراد تعديل مستواه").setRequired(true))
+  .addIntegerOption(option => option.setName("level").setDescription("المستوى الجديد").setRequired(true));
+
+export async function handleSetLevel(interaction) {
+  if (!isAdmin(interaction)) {
+    return interaction.reply({ content: "❌ هذا الأمر مخصص للمسؤولين فقط.", flags: 64 });
+  }
+  const target = interaction.options.getUser("user");
+  const newLevel = interaction.options.getInteger("level");
+  const guildId = interaction.guildId;
+
+  // Calculate XP needed for the new level
+  const xpNeeded = 5 * newLevel * newLevel + 50 * newLevel + 100;
+
+  await query(
+    `INSERT INTO users (user_id, guild_id, xp, level, total_messages, last_xp_at) 
+     VALUES ($1, $2, $3, $4, 0, NOW()) 
+     ON CONFLICT (user_id, guild_id) 
+     DO UPDATE SET level = $4, xp = $3`,
+    [target.id, guildId, xpNeeded, newLevel]
+  );
+
+  await interaction.reply({ content: `✅ تم تعيين مستوى <@${target.id}> إلى **${newLevel}** بنجاح.` });
 }
 
 // ─── Class emojis for the select menu ─────────────────────────────────────────
@@ -28,6 +59,7 @@ const CLASS_EMOJI = {
   Ranger:       "<:Ranger:1504471982006341783>",
   Assassin:     "<:Assassin:1504471833695748156>",
   Spiritmaster: "<:Elementalist:1504471920219783209>",
+  Mentalist:    "<:Elementalist:1504471920219783209>",
   Sorcerer:     "<:Sorcerer:1504472006610124961>",
   Cleric:       "<:Cleric:1504471892755611678>",
   Chanter:      "<:Chanter:1504471867141128272>",
