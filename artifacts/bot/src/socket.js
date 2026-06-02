@@ -42,6 +42,28 @@ export function initSocket(server) {
       }
     });
 
+    socket.on("requestHistory", async () => {
+      try {
+        const channel = await client.channels.fetch(TARGET_CHANNEL_ID);
+        if (!channel) return;
+        
+        const fetchedMessages = await channel.messages.fetch({ limit: 50 });
+        const history = fetchedMessages.map(msg => ({
+          id: msg.id,
+          sender: msg.author.displayName || msg.author.username,
+          text: msg.content,
+          avatar: msg.author.displayAvatarURL(),
+          source: 'discord',
+          isMe: false,
+          timestamp: msg.createdTimestamp,
+        })).reverse(); // Oldest first
+
+        socket.emit("chatHistory", history);
+      } catch (err) {
+        console.error("[Socket.io] Error fetching history:", err);
+      }
+    });
+
     socket.on("disconnect", () => {
       console.log(`[Socket.io] App user disconnected: ${socket.id}`);
     });
