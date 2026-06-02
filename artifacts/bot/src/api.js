@@ -384,6 +384,13 @@ export async function handleDungeonsApi(req, res, parsedUrl) {
               .setDescription(`طلب انضمامك إلى **${branchLabel}** وصل للقيادة.\n\nسيتم مراجعته وسنرد عليك قريباً.\nشكراً لك! ⚔️`)
               .setTimestamp();
             await member.send({ embeds: [confirmEmbed] }).catch(() => {});
+
+            // In-app Notification for Application Submitted
+            await query("INSERT INTO notifications (type, title, message) VALUES ($1, $2, $3)", [
+              'recruitment',
+              `تم تقديم طلب انضمام (${branchLabel})`,
+              `تم إرسال طلب انضمام ${characterName} إلى قادة الفيلق، وبانتظار المراجعة.`
+            ]);
           }
         }
 

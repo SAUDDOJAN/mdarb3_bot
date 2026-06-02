@@ -551,6 +551,13 @@ async function acceptApplicant(interaction, userId, appId) {
     await welcomeChannel.send({ content: `ارحبوا بـ ${member} 🎉`, embeds: [welcomeEmbed] });
   }
 
+  // Insert in-app notification
+  await query("INSERT INTO notifications (type, title, message) VALUES ($1, $2, $3)", [
+    'recruitment',
+    `تم قبول الانضمام! 🎉`,
+    `تمت الموافقة على انضمام البطل ${app.character_name} لفيلق ${app.guild_branch === 'pvp' ? 'PvP' : 'PvE'}. أهلاً بك في العائلة! ⚔️`
+  ]).catch(err => console.error("Notification insert error:", err));
+
   // Update review card
   const updatedEmbed = EmbedBuilder.from(interaction.message.embeds[0])
     .setColor(0x57f287)
