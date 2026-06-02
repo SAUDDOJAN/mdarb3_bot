@@ -6,12 +6,13 @@ import client from "./client.js";
 import { initDb } from "./database/index.js";
 import { getSyncedChannels } from "./database/radar.js";
 import { initSocket, emitDiscordMessage } from "./socket.js";
+import { handleDungeonsApi } from "./api.js";
 
 const PORT = process.env.PORT || 3000;
 const server = http.createServer((req, res) => {
   // CORS Headers
   res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
 
   if (req.method === "OPTIONS") {
@@ -28,8 +29,19 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  res.writeHead(200, { "Content-Type": "application/json" });
-  res.end(JSON.stringify({ status: "ok", bot: client.isReady() ? "online" : "starting" }));
+  // Handle new Dungeon APIs
+  handleDungeonsApi(req, res, parsedUrl).then(handled => {
+    if (!handled) {
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ status: "ok", bot: client.isReady() ? "online" : "starting" }));
+    }
+  }).catch(err => {
+    console.error("[API] Uncaught API Error:", err);
+    if (!res.headersSent) {
+      res.writeHead(500);
+      res.end("Internal Server Error");
+    }
+  });
 });
 
 initSocket(server);

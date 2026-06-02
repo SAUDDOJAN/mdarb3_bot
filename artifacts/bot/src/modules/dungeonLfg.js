@@ -1038,3 +1038,38 @@ async function getPlayerProfile(guildId, userId) {
 
   return null;
 }
+
+// ─── API Integrations ────────────────────────────────────────────────────────
+export async function apiJoinGroup(groupId, userId, role, client) {
+  const { query } = await import("../database/index.js");
+  const res = await query("SELECT guild_id FROM dungeon_lfg_groups WHERE id=$1", [groupId]);
+  if (!res.rows[0]) return { success: false, error: "المجموعة غير موجودة" };
+  const guildId = res.rows[0].guild_id;
+
+  const guild = await client.guilds.fetch(guildId).catch(() => null);
+  if (!guild) return { success: false, error: "البوت غير متصل بالسيرفر" };
+
+  const user = await client.users.fetch(userId).catch(() => null);
+  if (!user) return { success: false, error: "المستخدم غير موجود" };
+
+  let replyMessage = "";
+  
+  const mockInteraction = {
+    user: user,
+    guildId: guildId,
+    guild: guild,
+    client: client,
+    deferReply: async () => {},
+    editReply: async ({ content }) => {
+      replyMessage = content;
+    }
+  };
+
+  await handleJoinGroup(mockInteraction, groupId);
+
+  if (replyMessage.includes("بنجاح")) {
+    return { success: true, message: replyMessage };
+  } else {
+    return { success: false, error: replyMessage.replace("❌ ", "") };
+  }
+}
