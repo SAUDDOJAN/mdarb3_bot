@@ -1,8 +1,19 @@
-import { ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder, EmbedBuilder } from "discord.js";
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder, EmbedBuilder, AttachmentBuilder } from "discord.js";
 import axios from "axios";
+import { createCanvas, loadImage, GlobalFonts } from "@napi-rs/canvas";
+import path from "path";
+
+// Register custom font to avoid missing font issues
+try {
+  const fontPath = path.join(process.cwd(), "assets", "Tajawal-Bold.ttf");
+  GlobalFonts.registerFromPath(fontPath, "TajawalCustom");
+} catch (e) {
+  console.error("Failed to load Tajawal font in GW2 module:", e);
+}
 
 const GW2_ROLE_ID = "1511293343353667656";
 const GW2_EVENTS_CHANNEL_ID = "1511298966707245077";
+const GW2_MEMBERS_CHANNEL_ID = "1511308034939289700";
 
 const GW2_CLASSES = [
   { label: "Warrior", value: "Warrior", emoji: "⚔️" },
@@ -66,14 +77,103 @@ async function handleGw2ClassSelect(interaction) {
   }
 
   try {
+    // If they already have the role, don't re-announce, just update the class maybe? 
+    // For now we just add the role and announce.
+    const isNew = !interaction.member.roles.cache.has(role.id);
     await interaction.member.roles.add(role);
     await interaction.reply({ 
       content: `تم منحك رتبة Guild Wars 2 بنجاح!\nالكلاس الذي اخترته: **${selectedClass}**. نتمنى لك وقتاً ممتعاً في Tyria!`, 
       ephemeral: true 
     });
+
+    if (isNew) {
+      // Draw Fancy Card
+      const canvas = createCanvas(800, 300);
+      const ctx = canvas.getContext("2d");
+
+      // Background Gradient
+      const gradient = ctx.createLinearGradient(0, 0, 800, 300);
+      gradient.addColorStop(0, "#4a0000"); // dark red
+      gradient.addColorStop(0.5, "#1a0000");
+      gradient.addColorStop(1, "#000000");
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, 0, 800, 300);
+
+      // Add a cool subtle glow/shapes
+      ctx.fillStyle = "rgba(255, 50, 50, 0.1)";
+      ctx.beginPath();
+      ctx.arc(800, 150, 300, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Draw Avatar
+      const avatarX = 150;
+      const avatarY = 150;
+      const avatarRadius = 100;
+
+      let avatar;
+      const avatarUrl = interaction.member.user.displayAvatarURL({ extension: "png", size: 256 });
+      try {
+        avatar = await loadImage(avatarUrl);
+      } catch (e) {
+        avatar = await loadImage("https://cdn.discordapp.com/embed/avatars/0.png");
+      }
+
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(avatarX, avatarY, avatarRadius, 0, Math.PI * 2);
+      ctx.closePath();
+      ctx.clip();
+      ctx.drawImage(avatar, avatarX - avatarRadius, avatarY - avatarRadius, avatarRadius * 2, avatarRadius * 2);
+      ctx.restore();
+
+      // Avatar Border
+      ctx.beginPath();
+      ctx.arc(avatarX, avatarY, avatarRadius, 0, Math.PI * 2);
+      ctx.lineWidth = 8;
+      ctx.strokeStyle = "#ff3333";
+      ctx.stroke();
+
+      // Text Formatting
+      ctx.font = 'bold 45px "TajawalCustom", sans-serif';
+      ctx.fillStyle = "#ffffff";
+      ctx.textAlign = "left";
+      ctx.textBaseline = "middle";
+      ctx.shadowColor = "rgba(0,0,0,0.8)";
+      ctx.shadowBlur = 5;
+      
+      const textX = 300;
+      // "مقاتل جديد انضم للقيلد!"
+      ctx.fillText("مقاتل جديد في قيلد GW2!", textX, 100);
+
+      // Username
+      ctx.font = 'bold 55px "TajawalCustom", sans-serif';
+      ctx.fillStyle = "#ffcc00"; // Gold
+      ctx.fillText(interaction.user.username, textX, 170);
+
+      // Class Name
+      ctx.font = '35px "TajawalCustom", sans-serif';
+      ctx.fillStyle = "#cccccc";
+      
+      const classEmoji = GW2_CLASSES.find(c => c.value === selectedClass)?.emoji || "";
+      ctx.fillText(`الكلاس: ${selectedClass} ${classEmoji}`, textX, 235);
+
+      const buffer = canvas.toBuffer("image/png");
+      const attachment = new AttachmentBuilder(buffer, { name: "gw2_welcome.png" });
+
+      const membersChannel = interaction.guild.channels.cache.get(GW2_MEMBERS_CHANNEL_ID);
+      if (membersChannel) {
+        await membersChannel.send({
+          content: `رحبو معانا بالبطل <@${interaction.user.id}>! إضافة قوية للقيلد بكلاس الـ **${selectedClass}**. ⚔️🔥`,
+          files: [attachment]
+        });
+      }
+    }
+
   } catch (error) {
-    console.error("[GW2] Error adding role:", error);
-    await interaction.reply({ content: "حدث خطأ أثناء إعطائك الرتبة. تأكد من صلاحيات البوت.", ephemeral: true });
+    console.error("[GW2] Error adding role/card:", error);
+    if (!interaction.replied) {
+      await interaction.reply({ content: "حدث خطأ أثناء إعطائك الرتبة. تأكد من صلاحيات البوت.", ephemeral: true });
+    }
   }
 }
 
