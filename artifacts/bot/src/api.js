@@ -244,55 +244,147 @@ export async function handleDungeonsApi(req, res, parsedUrl) {
           const { characterName, characterLevel, className, combatPower, profileImage, raceName, serverName } = result.data;
           
           // Double verification check if already exists
-          const dup = await query("SELECT user_id FROM sage_recruitment WHERE shugo_url = $1 AND user_id != $2", [shugoUrl, discordId]);
+          const dup = await query("SELECT user_id FROM recruits WHERE shugo_url = $1 AND user_id != $2 AND guild_id = '861355983975874601'", [shugoUrl, discordId]);
           if (dup.rowCount > 0) throw new Error("هذا الرابط مسجل مسبقاً لعضو آخر.");
 
           // Insert pending app
           await query(
-            `INSERT INTO sage_recruitment
-               (user_id, discord_tag, character_name, character_level, class_name, combat_power,
+            `INSERT INTO recruits
+               (guild_id, user_id, discord_tag, character_name, character_level, class_name, combat_power,
                 race_name, server_name, profile_image, shugo_url, guild_role_id, guild_name,
-                status, character_data, source_discord_server, joined_at)
-             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'pending',$13,$14,NOW())
-             ON CONFLICT (user_id) DO UPDATE SET
+                status, guild_branch, character_data, source_discord_server, joined_at)
+             VALUES ('861355983975874601',$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'pending',$13,$14,$15,NOW())
+             ON CONFLICT (guild_id, user_id) DO UPDATE SET
                discord_tag=$2, character_name=$3, character_level=$4, class_name=$5,
                combat_power=$6, race_name=$7, server_name=$8, profile_image=$9, shugo_url=$10,
-               guild_role_id=$11, guild_name=$12, status='pending', character_data=$13,
+               guild_role_id=$11, guild_name=$12, status='pending', guild_branch=$13, character_data=$14,
                updated_at=NOW()
              RETURNING *`,
             [
               discordId, member.user.tag, characterName, characterLevel, className, combatPower || 0,
-              raceName, serverName, profileImage, shugoUrl, guildRoleId, "تم الانضمام عبر التطبيق", JSON.stringify(result.data), "M3RGEEN App"
+              raceName, serverName, profileImage, shugoUrl, guildRoleId, "تم الانضمام عبر التطبيق", branch || 'pve', JSON.stringify(result.data), "M3RGEEN App"
             ]
           );
 
-          // We notify the exact review channel: 1496262240058478792
+          // Embed Formatting Helpers
+          const numFmt = (n) => Number(n).toLocaleString("en-US");
+          const fmtItem = (item, showSlot = true) => {
+            const prefix = item.enchant > 0 ? `+${item.enchant} ` : "";
+            const slot = showSlot && item.slot ? ` *(${item.slot})*` : "";
+            return `${prefix}${item.name}${slot}`;
+          };
+          const fmtGearSection = (items, showSlot = true) => {
+            if (!items || items.length === 0) return null;
+            return items.map((it) => fmtItem(it, showSlot)).join("\n");
+          };
+          const STAT_DISPLAY = {
+            str: { emoji: "💪", label: "Might" }, dex: { emoji: "🏃", label: "Dexterity" },
+            agi: { emoji: "🎯", label: "Precision" }, wis: { emoji: "🛡️", label: "Willpower" },
+            int: { emoji: "🧠", label: "Intelligence" }, con: { emoji: "❤️", label: "Constitution" },
+          };
+          const fmtBaseStats = (stats) => {
+            if (!stats) return null;
+            const order = ["str", "dex", "agi", "wis", "int", "con"];
+            const entries = order.map((k) => ({ ...STAT_DISPLAY[k], value: stats[k]?.value ?? null })).filter((e) => e.value !== null);
+            if (entries.length === 0) return null;
+            const lines = [];
+            for (let i = 0; i < entries.length; i += 2) {
+              const l = entries[i], r = entries[i + 1];
+              lines.push(`${l.emoji} **${l.label}**: \`${numFmt(l.value)}\`` + (r ? `　${r.emoji} **${r.label}**: \`${numFmt(r.value)}\`` : ""));
+            }
+            return lines.join("\n");
+          };
+          const fmtTitles = (titles) => {
+            if (!titles) return null;
+            const parts = [];
+            if (titles.active) parts.push(`**${String(titles.active).slice(0, 50)}**`);
+            if (titles.ownedCount) parts.push(`\`${titles.ownedCount}${titles.totalCount ? `/${titles.totalCount}` : ""} ألقاب\``);
+            return parts.length > 0 ? parts.join("  •  ") : null;
+          };
+
           const REVIEW_CHANNEL_ID = "1496262240058478792";
           const adminChannel = await client.channels.fetch(REVIEW_CHANNEL_ID).catch(() => null);
           if (adminChannel) {
+            const data = result.data;
+            const branchLabel = branch === 'pvp' ? "⚔️ PvP Guild" : "🛡️ PvE Guild";
+            const cpDisplay = combatPower > 0 ? numFmt(combatPower) : "—";
+            
+            const description =
+              `[🔗 عرض البروفايل على shugo.gg](${shugoUrl})\n` +
+              `👑 مقدم الطلب: <@${discordId}>\n` +
+              `🚩 القسم المطلوب: **${branchLabel}**`;
+
+            const infoBlock =
+              `👤 الاسم: **${characterName}**\n` +
+              `📊 المستوى: **${characterLevel}**\n` +
+              `⚔️ الكلاس: **${className ?? "—"}**\n` +
+              `🌍 السيرفر: **${serverName ?? "—"}**\n` +
+              `🧬 العرق: **${raceName ?? "—"}**\n` +
+              `🏆 الرتبة (Abyss): **${data.abyss_rank ?? "—"}** (${data.abyss_score?.toLocaleString() ?? 0})`;
+
+            const fields = [
+              { name: "معلومات الشخصية", value: infoBlock, inline: false },
+              { name: "قوة القتال (Combat Power) ⚔️", value: `★  **${cpDisplay}**  ★`, inline: false },
+            ];
+
+            const baseStats = fmtBaseStats(data.stats);
+            if (baseStats) fields.push({ name: "الخصائص الأساسية (Base Stats)", value: baseStats, inline: false });
+
+            const titles = fmtTitles(data.titles);
+            if (titles) fields.push({ name: "الألقاب (Titles)", value: titles, inline: false });
+
+            const gear = data.gear || {};
+            const weapons = fmtGearSection(gear.weapons);
+            if (weapons) fields.push({ name: "⚔️ الأسلحة (Weapons)", value: weapons, inline: false });
+
+            const armor = fmtGearSection(gear.armor);
+            if (armor) fields.push({ name: "🛡️ الدروع (Armor)", value: armor, inline: false });
+
+            const acc = fmtGearSection(gear.accessories);
+            if (acc) fields.push({ name: "💍 الإكسسوارات (Accessories)", value: acc, inline: false });
+
+            const arcana = fmtGearSection(gear.arcana, false);
+            if (arcana) fields.push({ name: "🔮 الأركانا (Arcana)", value: arcana, inline: false });
+
+            const runes = fmtGearSection(gear.runes, false);
+            if (runes) fields.push({ name: "💎 الرونز (Runes)", value: runes, inline: false });
+
+            fields.push({ name: "مقدّم الطلب", value: `👑 <@${discordId}>`, inline: false });
+
             const reviewEmbed = new EmbedBuilder()
-              .setColor(branch === 'pvp' ? '#D32F2F' : '#388E3C')
-              .setTitle(`📋 طلب انضمام جديد من التطبيق — ${branch === 'pvp' ? 'PvP' : 'PvE'}`)
-              .setDescription(`👑 Applicant: <@${discordId}>\n[🔗 View Profile on shugo.gg](${shugoUrl})`)
-              .addFields(
-                { name: "👤 Character", value: characterName ?? "—" },
-                { name: "📊 Level", value: String(characterLevel ?? "—") },
-                { name: "🎮 Class", value: className ?? "—" },
-                { name: "⚡ Combat Power (CP)", value: `★ **${combatPower || "—"}** ★` }
-              )
+              .setColor(branch === 'pvp' ? 0xed4245 : 0x57f287)
+              .setAuthor({ name: member.user.tag, iconURL: member.user.displayAvatarURL() })
+              .setTitle(`📋 طلب انضمام جديد (${branchLabel})`)
+              .setDescription(description)
+              .addFields(fields)
+              .setThumbnail(data.classIconUrl)
+              .setFooter({ text: `Discord ID: ${discordId}` })
               .setTimestamp();
+
             if (profileImage) reviewEmbed.setImage(profileImage);
             
             const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = await import("discord.js");
             // App DB ID requires fetching the row id
-            const appRow = await query("SELECT id FROM sage_recruitment WHERE user_id = $1", [discordId]);
+            const appRow = await query("SELECT id FROM recruits WHERE user_id = $1 AND guild_id = '861355983975874601'", [discordId]);
             const appId = appRow.rows[0].id;
-            
+
             const reviewRow = new ActionRowBuilder().addComponents(
-              new ButtonBuilder().setCustomId(`sage:accept:${discordId}:${appId}`).setLabel("✅ Accept").setStyle(ButtonStyle.Success),
-              new ButtonBuilder().setCustomId(`sage:reject:${discordId}:${appId}`).setLabel("❌ Reject").setStyle(ButtonStyle.Danger)
-            );
+              new ButtonBuilder()
+                .setCustomId(`recruit:accept:${discordId}:${appId}`)
+                .setLabel("✅ قبول")
+                .setStyle(ButtonStyle.Success),
+              new ButtonBuilder()
+                .setCustomId(`recruit:reject:${discordId}:${appId}`)
+                .setLabel("❌ رفض")
+                .setStyle(ButtonStyle.Danger)
             await adminChannel.send({ embeds: [reviewEmbed], components: [reviewRow] });
+
+            const confirmEmbed = new EmbedBuilder()
+              .setColor('#00D1FF')
+              .setTitle(`✅ تم تقديم طلبك بنجاح!`)
+              .setDescription(`طلب انضمامك إلى **${branchLabel}** وصل للقيادة.\n\nسيتم مراجعته وسنرد عليك قريباً.\nشكراً لك! ⚔️`)
+              .setTimestamp();
+            await member.send({ embeds: [confirmEmbed] }).catch(() => {});
           }
         }
 
