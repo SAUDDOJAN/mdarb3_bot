@@ -287,6 +287,7 @@ async function handleCreateGroup(interaction, dungeonName, difficulty) {
     user_id: interaction.user.id,
     name: profile.name,
     className: profile.className,
+    cp: profile.cp,
     is_leader: true
   };
 
@@ -479,6 +480,7 @@ async function handleJoinGroup(interaction, groupId) {
     user_id: userId,
     name: profile.name,
     className: profile.className,
+    cp: profile.cp,
     is_leader: false
   };
 
