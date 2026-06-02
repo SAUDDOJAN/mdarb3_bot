@@ -14,6 +14,7 @@ import * as sageGatekeeper from "../modules/sageGatekeeper.js";
 import * as verification from "../modules/verification.js";
 import * as social from "../modules/social.js";
 import * as guildwars2 from "../modules/guildwars2.js";
+import * as throneliberty from "../modules/throneliberty.js";
 
 const routers = {
   ticket: tickets.handleInteraction,
@@ -34,6 +35,7 @@ const routers = {
   verify: verification.handleInteraction,
   social: social.handleInteraction,
   gw2: guildwars2.handleInteraction,
+  throne: throneliberty.handleInteraction,
 };
 
 export async function route(interaction) {
