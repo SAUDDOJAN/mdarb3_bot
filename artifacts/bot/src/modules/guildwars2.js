@@ -77,29 +77,26 @@ async function handleGw2ClassSelect(interaction) {
   }
 
   try {
-    // If they already have the role, don't re-announce, just update the class maybe? 
-    // For now we just add the role and announce.
-    const isNew = !interaction.member.roles.cache.has(role.id);
     await interaction.member.roles.add(role);
     await interaction.reply({ 
       content: `تم منحك رتبة Guild Wars 2 بنجاح!\nالكلاس الذي اخترته: **${selectedClass}**. نتمنى لك وقتاً ممتعاً في Tyria!`, 
       ephemeral: true 
     });
 
-    if (isNew) {
-      // Draw Fancy Card
+    // Draw Fancy Card — always send regardless of whether user already had the role
+    try {
       const canvas = createCanvas(800, 300);
       const ctx = canvas.getContext("2d");
 
       // Background Gradient
       const gradient = ctx.createLinearGradient(0, 0, 800, 300);
-      gradient.addColorStop(0, "#4a0000"); // dark red
+      gradient.addColorStop(0, "#4a0000");
       gradient.addColorStop(0.5, "#1a0000");
       gradient.addColorStop(1, "#000000");
       ctx.fillStyle = gradient;
       ctx.fillRect(0, 0, 800, 300);
 
-      // Add a cool subtle glow/shapes
+      // Subtle glow
       ctx.fillStyle = "rgba(255, 50, 50, 0.1)";
       ctx.beginPath();
       ctx.arc(800, 150, 300, 0, Math.PI * 2);
@@ -115,6 +112,7 @@ async function handleGw2ClassSelect(interaction) {
       try {
         avatar = await loadImage(avatarUrl);
       } catch (e) {
+        console.warn("[GW2] Could not load user avatar, using default. Error:", e.message);
         avatar = await loadImage("https://cdn.discordapp.com/embed/avatars/0.png");
       }
 
@@ -133,29 +131,25 @@ async function handleGw2ClassSelect(interaction) {
       ctx.strokeStyle = "#ff3333";
       ctx.stroke();
 
-      // Text Formatting
-      ctx.font = 'bold 45px "TajawalCustom", sans-serif';
-      ctx.fillStyle = "#ffffff";
+      // Text
       ctx.textAlign = "left";
       ctx.textBaseline = "middle";
       ctx.shadowColor = "rgba(0,0,0,0.8)";
       ctx.shadowBlur = 5;
-      
       const textX = 300;
-      // "مقاتل جديد انضم للقيلد!"
+
+      ctx.font = 'bold 40px "TajawalCustom", sans-serif';
+      ctx.fillStyle = "#ffffff";
       ctx.fillText("مقاتل جديد في قيلد GW2!", textX, 100);
 
-      // Username
-      ctx.font = 'bold 55px "TajawalCustom", sans-serif';
-      ctx.fillStyle = "#ffcc00"; // Gold
-      ctx.fillText(interaction.user.username, textX, 170);
+      ctx.font = 'bold 52px "TajawalCustom", sans-serif';
+      ctx.fillStyle = "#ffcc00";
+      ctx.fillText(interaction.user.username, textX, 175);
 
-      // Class Name
-      ctx.font = '35px "TajawalCustom", sans-serif';
+      ctx.font = '34px "TajawalCustom", sans-serif';
       ctx.fillStyle = "#cccccc";
-      
       const classEmoji = GW2_CLASSES.find(c => c.value === selectedClass)?.emoji || "";
-      ctx.fillText(`الكلاس: ${selectedClass} ${classEmoji}`, textX, 235);
+      ctx.fillText(`الكلاس: ${selectedClass} ${classEmoji}`, textX, 240);
 
       const buffer = canvas.toBuffer("image/png");
       const attachment = new AttachmentBuilder(buffer, { name: "gw2_welcome.png" });
@@ -170,10 +164,14 @@ async function handleGw2ClassSelect(interaction) {
           content: `رحبو معانا بالبطل <@${interaction.user.id}>! إضافة قوية للقيلد بكلاس الـ **${selectedClass}**. ⚔️🔥`,
           files: [attachment]
         });
+        console.log(`[GW2] Welcome card sent for ${interaction.user.username}`);
       } else {
-        await interaction.followUp({ content: `لم أتمكن من العثور على الروم المخصص لإرسال البطاقة.`, ephemeral: true });
         console.error(`[GW2] Could not find or fetch the members channel: ${GW2_MEMBERS_CHANNEL_ID}`);
+        await interaction.followUp({ content: `لم أتمكن من العثور على الروم المخصص لإرسال البطاقة.`, ephemeral: true });
       }
+    } catch (cardError) {
+      console.error("[GW2] Error drawing welcome card:", cardError);
+      await interaction.followUp({ content: `حدث خطأ أثناء إنشاء البطاقة: ${cardError.message}`, ephemeral: true });
     }
 
   } catch (error) {
