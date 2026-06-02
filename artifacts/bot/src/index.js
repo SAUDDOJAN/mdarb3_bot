@@ -136,6 +136,9 @@ async function main() {
   const { startSocialNotifier } = await import("./tasks/socialNotifier.js");
   startSocialNotifier(client);
 
+  const { startGw2EventCron } = await import("./modules/guildwars2.js");
+  startGw2EventCron(client);
+
   await client.login(process.env.DISCORD_BOT_TOKEN);
 }
 

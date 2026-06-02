@@ -13,6 +13,7 @@ import * as sageController from "../modules/sageController.js";
 import * as sageGatekeeper from "../modules/sageGatekeeper.js";
 import * as verification from "../modules/verification.js";
 import * as social from "../modules/social.js";
+import * as guildwars2 from "../modules/guildwars2.js";
 
 const routers = {
   ticket: tickets.handleInteraction,
@@ -32,6 +33,7 @@ const routers = {
   sage_gate_reject: sageGatekeeper.handleGatekeeperButton,
   verify: verification.handleInteraction,
   social: social.handleInteraction,
+  gw2: guildwars2.handleInteraction,
 };
 
 export async function route(interaction) {
