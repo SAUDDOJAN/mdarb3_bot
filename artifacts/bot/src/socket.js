@@ -32,11 +32,28 @@ export function initSocket(server) {
           });
         }
 
-        await webhook.send({
+        const payload = {
           content: data.text,
           username: data.username || "App User",
           avatarURL: data.avatar || "https://cdn.discordapp.com/embed/avatars/0.png",
-        });
+        };
+
+        if (data.image) {
+          const matches = data.image.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+          if (matches && matches.length === 3) {
+            const buffer = Buffer.from(matches[2], 'base64');
+            let ext = 'png';
+            if (matches[1].includes('jpeg') || matches[1].includes('jpg')) ext = 'jpg';
+            else if (matches[1].includes('gif')) ext = 'gif';
+            
+            payload.files = [{
+              attachment: buffer,
+              name: `upload.${ext}`
+            }];
+          }
+        }
+
+        await webhook.send(payload);
       } catch (err) {
         console.error("[Socket.io] Error sending to discord:", err);
       }
