@@ -31,29 +31,35 @@ const server = http.createServer((req, res) => {
 
   // Guilds data for Expo App
   if (parsedUrl.pathname === "/api/guilds") {
-    try {
-      const mainGuild = client.guilds.cache.get("861355983975874601");
-      if (!mainGuild) {
-        res.writeHead(503, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ error: "Guild data not cached yet. Try again." }));
-        return;
-      }
-      
-      const tlMembers = mainGuild.roles.cache.get("1292754458492796982")?.members.size || 0;
-      const aionMembers = mainGuild.roles.cache.get("1401376073077231702")?.members.size || 0;
-      const gw2Members = mainGuild.roles.cache.get("1511293343353667656")?.members.size || 0;
+    (async () => {
+      try {
+        const mainGuild = await client.guilds.fetch("861355983975874601").catch(() => null);
+        if (!mainGuild) {
+          res.writeHead(503, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ error: "Guild data not cached yet. Try again." }));
+          return;
+        }
+        
+        // Ensure members of these roles are cached (if not already)
+        // We will do a full member fetch once just in case, it helps accuracy
+        await mainGuild.members.fetch();
+        
+        const tlMembers = mainGuild.roles.cache.get("1292754458492796982")?.members.size || 0;
+        const aionMembers = mainGuild.roles.cache.get("1401376073077231702")?.members.size || 0;
+        const gw2Members = mainGuild.roles.cache.get("1511293343353667656")?.members.size || 0;
 
-      res.writeHead(200, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({
-        tl: tlMembers,
-        aion2: aionMembers,
-        gw2: gw2Members
-      }));
-    } catch (err) {
-      console.error("[API] Error fetching guilds stats:", err);
-      res.writeHead(500, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ error: "Internal Server Error" }));
-    }
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({
+          tl: tlMembers,
+          aion2: aionMembers,
+          gw2: gw2Members
+        }));
+      } catch (err) {
+        console.error("[API] Error fetching guilds stats:", err);
+        res.writeHead(500, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Internal Server Error" }));
+      }
+    })();
     return;
   }
 
