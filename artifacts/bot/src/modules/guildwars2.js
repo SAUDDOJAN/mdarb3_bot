@@ -156,22 +156,35 @@ async function handleGw2ClassSelect(interaction) {
 
       let membersChannel = interaction.guild.channels.cache.get(GW2_MEMBERS_CHANNEL_ID);
       if (!membersChannel) {
-        membersChannel = await interaction.guild.channels.fetch(GW2_MEMBERS_CHANNEL_ID).catch(() => null);
+        try {
+          membersChannel = await interaction.guild.channels.fetch(GW2_MEMBERS_CHANNEL_ID);
+        } catch (fetchErr) {
+          console.error(`[GW2] Failed to fetch members channel ${GW2_MEMBERS_CHANNEL_ID}:`, fetchErr.message);
+          await interaction.followUp({ content: `❌ خطأ: لم أتمكن من الوصول للروم - ${fetchErr.message}`, ephemeral: true });
+          return;
+        }
       }
 
-      if (membersChannel) {
+      if (!membersChannel) {
+        console.error(`[GW2] Members channel ${GW2_MEMBERS_CHANNEL_ID} is null after fetch`);
+        await interaction.followUp({ content: `❌ الروم ${GW2_MEMBERS_CHANNEL_ID} غير موجود أو البوت لا يملك صلاحية رؤيته.`, ephemeral: true });
+        return;
+      }
+
+      try {
         await membersChannel.send({
           content: `رحبو معانا بالبطل <@${interaction.user.id}>! إضافة قوية للقيلد بكلاس الـ **${selectedClass}**. ⚔️🔥`,
           files: [attachment]
         });
         console.log(`[GW2] Welcome card sent for ${interaction.user.username}`);
-      } else {
-        console.error(`[GW2] Could not find or fetch the members channel: ${GW2_MEMBERS_CHANNEL_ID}`);
-        await interaction.followUp({ content: `لم أتمكن من العثور على الروم المخصص لإرسال البطاقة.`, ephemeral: true });
+      } catch (sendErr) {
+        console.error(`[GW2] Failed to send card to members channel:`, sendErr.message);
+        await interaction.followUp({ content: `❌ فشل إرسال البطاقة للروم: ${sendErr.message}`, ephemeral: true });
       }
+
     } catch (cardError) {
       console.error("[GW2] Error drawing welcome card:", cardError);
-      await interaction.followUp({ content: `حدث خطأ أثناء إنشاء البطاقة: ${cardError.message}`, ephemeral: true });
+      await interaction.followUp({ content: `❌ خطأ أثناء رسم البطاقة: ${cardError.message}`, ephemeral: true });
     }
 
   } catch (error) {
