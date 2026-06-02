@@ -208,7 +208,9 @@ export async function handleLfgInteraction(interaction) {
 
 // ─── 1. Group Creation ────────────────────────────────────────────────────────
 async function handleCreateGroup(interaction, dungeonName, difficulty) {
+  console.log(`[LFG:Debug] Starting handleCreateGroup for ${dungeonName} [${difficulty}]`);
   await interaction.deferReply({ flags: 64 });
+  console.log(`[LFG:Debug] Deferred reply`);
 
   const dungeon = DUNGEON_DATA[dungeonName];
   if (!dungeon) {
@@ -216,7 +218,9 @@ async function handleCreateGroup(interaction, dungeonName, difficulty) {
     return;
   }
 
+  console.log(`[LFG:Debug] Fetching profile for ${interaction.user.id}`);
   const profile = await getPlayerProfile(interaction.guildId, interaction.user.id);
+  console.log(`[LFG:Debug] Profile fetched:`, profile);
   if (!profile) {
     await interaction.editReply({ 
       content: "❌ لم نتمكن من العثور على بطاقة القوة الخاصة بك. يرجى التأكد من قبولك في القيلد وتسجيل ملفك الشخصي Shugo.gg أولاً!" 
@@ -248,10 +252,12 @@ async function handleCreateGroup(interaction, dungeonName, difficulty) {
     }
   }
 
+  console.log(`[LFG:Debug] Fetching guild config`);
   const configRes = await query(
     "SELECT event_lobby_channel_id, event_category_id, guild_role_id FROM guild_config WHERE guild_id = $1",
     [interaction.guildId]
   );
+  console.log(`[LFG:Debug] Config fetched`);
   const config = configRes.rows[0] || {};
   const isMainGuild = interaction.guildId === (process.env.MAIN_GUILD_ID || "861355983975874601");
 
@@ -260,12 +266,14 @@ async function handleCreateGroup(interaction, dungeonName, difficulty) {
 
   let vc;
   try {
+    console.log(`[LFG:Debug] Creating voice channel`);
     vc = await interaction.guild.channels.create({
       name: `🔊 LFG ${dungeonName} [${difficulty.toUpperCase()}]`,
       type: ChannelType.GuildVoice,
       parent: LFG_VOICE_CATEGORY,
       userLimit: 4
     });
+    console.log(`[LFG:Debug] Voice channel created: ${vc.id}`);
   } catch (vcErr) {
     console.error("[LFG] VC Creation failed:", vcErr);
     await interaction.editReply({ content: "❌ فشل البوت في إنشاء الروم الصوتي المؤقت. يرجى التحقق من صلاحيات البوت الإدارية." });
@@ -275,8 +283,10 @@ async function handleCreateGroup(interaction, dungeonName, difficulty) {
   // Create channel invite link (Arabic description)
   let inviteUrl = "";
   try {
-    const invite = await vc.createInvite({ maxAge: 0, maxUses: 0 });
-    inviteUrl = invite.url;
+    console.log(`[LFG:Debug] Creating invite`);
+    const invite = await vc.createInvite({ maxAge: 0, maxUses: 0 }).catch(() => null);
+    inviteUrl = invite ? invite.url : null;
+    console.log(`[LFG:Debug] Invite created: ${inviteUrl}`);
   } catch (invErr) {
     console.warn("[LFG] Invite creation failed:", invErr);
     inviteUrl = `https://discord.com/channels/${interaction.guildId}/${vc.id}`;
@@ -305,7 +315,9 @@ async function handleCreateGroup(interaction, dungeonName, difficulty) {
 
   // Post the active LFG Embed inside the current groups channel
   const groupsChannelId = config.event_lobby_channel_id || (isMainGuild ? "1496783538937135184" : null);
+  console.log(`[LFG:Debug] Fetching groups channel: ${groupsChannelId}`);
   const groupsChannel = groupsChannelId ? await interaction.guild.channels.fetch(groupsChannelId).catch(() => null) : null;
+  console.log(`[LFG:Debug] Groups channel fetched`);
 
   if (!groupsChannel) {
     await vc.delete().catch(() => {});
@@ -326,9 +338,12 @@ async function handleCreateGroup(interaction, dungeonName, difficulty) {
     msgPayload.files = [localImg.attachment];
   }
 
+  console.log(`[LFG:Debug] Sending groupMsg payload to channel ${groupsChannel.id}`);
   const groupMsg = await groupsChannel.send(msgPayload);
+  console.log(`[LFG:Debug] Sent groupMsg: ${groupMsg.id}`);
 
   // Save to DB
+  console.log(`[LFG:Debug] Saving to DB`);
   const dbRes = await query(
     `INSERT INTO dungeon_lfg_groups 
        (guild_id, dungeon_name, difficulty, leader_id, message_id, channel_id, voice_channel_id, voice_invite_url, slot_tank, slot_healer, slot_dps1, slot_dps2, status)
@@ -344,6 +359,7 @@ async function handleCreateGroup(interaction, dungeonName, difficulty) {
     ]
   );
   const groupId = dbRes.rows[0].id;
+  console.log(`[LFG:Debug] Saved to DB with ID: ${groupId}`);
 
   // Update message to carry exact group ID inside buttons
   const updatedRows = buildGroupButtons(groupId, inviteUrl);
@@ -412,9 +428,11 @@ async function handleCreateGroup(interaction, dungeonName, difficulty) {
     cleanUpEmptyLfg(interaction.client, groupId).catch(console.error);
   }, 60 * 60 * 1000);
 
+  console.log(`[LFG:Debug] Editing reply to user`);
   await interaction.editReply({
     content: `✅ تم إنشاء مجموعة دنجن **${dungeonName} [${difficulty.toUpperCase()}]** بنجاح!\nتم إرسال الإعلان في قناة <#${groupsChannelId}> وإنشاء الروم الصوتي المؤقت الخاص بكم.`
   });
+  console.log(`[LFG:Debug] DONE`);
 }
 
 // ─── 2. Joining LFG Group ────────────────────────────────────────────────────
