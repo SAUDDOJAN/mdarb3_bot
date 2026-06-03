@@ -395,10 +395,10 @@ async function handleMgmtRemoveButton(interaction) {
   await interaction.showModal(modal);
 }
 
-// ─── إزالة عضو من الإدارة عبر قائمة منسدلة ────────────────────────────────
-async function handleMgmtRemoveUserSelect(interaction) {
+// ─── معالجة المودل لإزالة عضو ────────────────────────────────────────────────
+async function handleMgmtRemoveModal(interaction) {
   await interaction.deferReply({ ephemeral: true });
-  const userId = interaction.values[0];
+  const userId = interaction.fields.getTextInputValue("userIdInput").trim();
 
   const { query } = await import("../database/index.js");
 
@@ -497,8 +497,6 @@ export async function handleInteraction(interaction) {
       await handleMgmtRemoveButton(interaction);
     } else if (customId === "tl:mgmt:remove_modal") {
       await handleMgmtRemoveModal(interaction);
-    } else if (customId === "tl:mgmt:user_select_remove") {
-      await handleMgmtRemoveUserSelect(interaction);
     } else if (customId === "tl:mgmt:list") {
       await handleMgmtListButton(interaction);
     }
