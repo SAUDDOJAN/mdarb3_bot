@@ -460,17 +460,14 @@ async function handleMgmtListButton(interaction) {
   await interaction.deferReply({ ephemeral: true });
 
   try {
-    const mainGuild = interaction.guild;
-    if (!mainGuild) throw new Error("Main guild not found.");
-
-    await mainGuild.members.fetch().catch(() => null); // Ensure members are cached, catch rate limit
-    const tlRole = await mainGuild.roles.fetch(TL_MEMBER_ROLE_ID).catch(() => null);
+    const { query } = await import("../database/index.js");
+    const res = await query("SELECT user_id FROM tl_recruits WHERE status = 'accepted'");
     
-    if (!tlRole) {
-      return interaction.editReply("❌ لم أتمكن من العثور على رتبة Throne and Liberty.");
+    if (res.rowCount === 0) {
+      return interaction.editReply("❌ لا يوجد أي أعضاء مقبولين في قاعدة البيانات حالياً.");
     }
 
-    const members = tlRole.members.map(m => `• <@${m.id}> (\`${m.id}\`)`);
+    const members = res.rows.map(r => `• <@${r.user_id}> (\`${r.user_id}\`)`);
     const count = members.length;
 
     let description = `**عدد الأعضاء:** ${count}\n\n`;
@@ -537,10 +534,10 @@ export async function updateTLMemberCount(client) {
     const membersChannel = await client.channels.fetch(TL_MEMBERS_CHANNEL_ID).catch(() => null);
     if (!membersChannel) return;
 
-    const mainGuild = membersChannel.guild;
-    await mainGuild.members.fetch().catch(() => null); // Ensure cache is populated, catch rate limit
-    const tlRole = await mainGuild.roles.fetch(TL_MEMBER_ROLE_ID).catch(() => null);
-    const count = tlRole ? tlRole.members.size : 0;
+    // Get count from Database instead of Discord Cache
+    const { query } = await import("../database/index.js");
+    const res = await query("SELECT COUNT(*) FROM tl_recruits WHERE status = 'accepted'");
+    const count = parseInt(res.rows[0].count, 10);
 
     await membersChannel.setName(`🔰｜ᵀʰʳᵒⁿᴺᴸᶦᵇʳᵗʸ-الاعضاء「${count}」`).catch(e => console.error("[TL] Name update err:", e));
   } catch (err) {
