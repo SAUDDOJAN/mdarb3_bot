@@ -461,7 +461,7 @@ export async function updateTLMemberCount(client) {
 
     const membersChannel = await client.channels.fetch(TL_MEMBERS_CHANNEL_ID).catch(() => null);
     if (membersChannel) {
-      await membersChannel.setName(`أعضاء-tl-「${count}」`).catch(e => console.error("[TL] Name update err:", e));
+      await membersChannel.setName(`🔰｜ᵀʰʳᵒⁿᴺᴸᶦᵇʳᵗʸ-الاعضاء「${count}」`).catch(e => console.error("[TL] Name update err:", e));
     }
   } catch (err) {
     console.error("[TL] Error updating member count:", err);
