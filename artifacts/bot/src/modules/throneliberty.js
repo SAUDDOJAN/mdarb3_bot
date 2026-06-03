@@ -443,7 +443,7 @@ async function handleMgmtListButton(interaction) {
     const mainGuild = interaction.guild;
     if (!mainGuild) throw new Error("Main guild not found.");
 
-    await mainGuild.members.fetch(); // Ensure all members are cached
+    await mainGuild.members.fetch().catch(() => null); // Ensure members are cached, catch rate limit
     const tlRole = await mainGuild.roles.fetch(TL_MEMBER_ROLE_ID).catch(() => null);
     
     if (!tlRole) {
@@ -520,7 +520,7 @@ export async function updateTLMemberCount(client) {
     if (!membersChannel) return;
 
     const mainGuild = membersChannel.guild;
-    await mainGuild.members.fetch(); // Ensure cache is populated
+    await mainGuild.members.fetch().catch(() => null); // Ensure cache is populated, catch rate limit
     const tlRole = await mainGuild.roles.fetch(TL_MEMBER_ROLE_ID).catch(() => null);
     const count = tlRole ? tlRole.members.size : 0;
 
