@@ -376,28 +376,10 @@ async function handleAppReject(interaction, userId) {
   await interaction.editReply({ embeds: [embed], components: [] });
 }
 
-// ─── إزالة عضو من الإدارة ──────────────────────────────────────────────────
-async function handleMgmtRemoveButton(interaction) {
-  const { ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } = await import("discord.js");
-
-  const modal = new ModalBuilder()
-    .setCustomId("tl:mgmt:remove_modal")
-    .setTitle("إزالة عضو من Throne and Liberty");
-
-  const idInput = new TextInputBuilder()
-    .setCustomId("userIdInput")
-    .setLabel("أيدي العضو (Discord ID)")
-    .setStyle(TextInputStyle.Short)
-    .setPlaceholder("مثال: 123456789012345678")
-    .setRequired(true);
-
-  modal.addComponents(new ActionRowBuilder().addComponents(idInput));
-  await interaction.showModal(modal);
-}
-
-async function handleMgmtRemoveModal(interaction) {
+// ─── إزالة عضو من الإدارة عبر قائمة منسدلة ────────────────────────────────
+async function handleMgmtRemoveUserSelect(interaction) {
   await interaction.deferReply({ ephemeral: true });
-  const userId = interaction.fields.getTextInputValue("userIdInput");
+  const userId = interaction.values[0];
 
   const { query } = await import("../database/index.js");
 
@@ -434,45 +416,6 @@ async function handleMgmtRemoveModal(interaction) {
   await interaction.editReply({ embeds: [embed] });
 }
 
-// ─── عرض قائمة الأعضاء ──────────────────────────────────────────────────────
-async function handleMgmtListButton(interaction) {
-  await interaction.deferReply({ ephemeral: true });
-
-  try {
-    const mainGuild = await interaction.client.guilds.fetch("861355983975874601").catch(() => null);
-    if (!mainGuild) throw new Error("Main guild not found.");
-
-    await mainGuild.members.fetch(); // Ensure all members are cached
-    const tlRole = await mainGuild.roles.fetch(TL_MEMBER_ROLE_ID).catch(() => null);
-    
-    if (!tlRole) {
-      return interaction.editReply("❌ لم أتمكن من العثور على رتبة Throne and Liberty.");
-    }
-
-    const members = tlRole.members.map(m => `• <@${m.id}> (\`${m.id}\`)`);
-    const count = members.length;
-
-    let description = `**عدد الأعضاء:** ${count}\n\n`;
-    description += members.join("\n");
-
-    // Discord embed limit is 4096 characters for description
-    if (description.length > 4000) {
-      description = description.substring(0, 4000) + "\n... (تم قص القائمة لطولها)";
-    }
-
-    const embed = new EmbedBuilder()
-      .setColor("#2B2D31")
-      .setTitle("🛡️ أعضاء جيلد Throne and Liberty")
-      .setDescription(description)
-      .setTimestamp();
-
-    await interaction.editReply({ embeds: [embed] });
-  } catch (err) {
-    console.error("[TL] Error listing members:", err);
-    await interaction.editReply("❌ حدث خطأ أثناء محاولة جلب الأعضاء.");
-  }
-}
-
 // ─── الموجه الرئيسي ─────────────────────────────────────────────────────────
 export async function handleInteraction(interaction) {
   const customId = interaction.customId;
@@ -492,12 +435,8 @@ export async function handleInteraction(interaction) {
       await handleAppAccept(interaction, customId.split(":")[2]);
     } else if (customId.startsWith("tl:reject:")) {
       await handleAppReject(interaction, customId.split(":")[2]);
-    } else if (customId === "tl:mgmt:remove") {
-      await handleMgmtRemoveButton(interaction);
-    } else if (customId === "tl:mgmt:remove_modal") {
-      await handleMgmtRemoveModal(interaction);
-    } else if (customId === "tl:mgmt:list") {
-      await handleMgmtListButton(interaction);
+    } else if (customId === "tl:mgmt:user_select_remove") {
+      await handleMgmtRemoveUserSelect(interaction);
     }
   } catch (err) {
     console.error(`[TL] Error handling interaction "${customId}":`, err);
