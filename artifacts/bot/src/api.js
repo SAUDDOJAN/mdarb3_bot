@@ -229,12 +229,19 @@ export async function handleDungeonsApi(req, res, parsedUrl) {
 
         if (game === "tl") {
           const { className, playstyle, status } = data;
-          
-          // Check if already applied
+
           const { query } = await import("./database/index.js");
+
+          // Check current status and give clear Arabic messages
           const existing = await query("SELECT status FROM tl_recruits WHERE user_id = $1", [discordId]);
-          if (existing.rowCount > 0 && existing.rows[0].status !== 'rejected') {
-            throw new Error(`لقد قدمت طلبك مسبقاً وحالته: ${existing.rows[0].status}`);
+          if (existing.rowCount > 0) {
+            const currentStatus = existing.rows[0].status;
+            if (currentStatus === 'pending') {
+              throw new Error("⏳ طلبك قيد المراجعة حالياً، يرجى الانتظار حتى يتم البت فيه.");
+            } else if (currentStatus === 'accepted') {
+              throw new Error("✅ أنت عضو في الجيلد بالفعل!");
+            }
+            // 'rejected' → allow re-apply
           }
 
           // Insert or Update pending request
@@ -291,8 +298,14 @@ export async function handleDungeonsApi(req, res, parsedUrl) {
           const { selectedClass } = data;
           if (!selectedClass) throw new Error("يجب اختيار الكلاس");
 
+          // Check if already in guild (has the GW2 role)
+          const GW2_ROLE_ID = "1511293343353667656";
+          if (member.roles.cache.has(GW2_ROLE_ID)) {
+            throw new Error("✅ أنت عضو في جيلد Guild Wars 2 بالفعل!");
+          }
+
           // Add GW2 role
-          await member.roles.add("1511293343353667656");
+          await member.roles.add(GW2_ROLE_ID);
 
           // Build welcome embed (same style as Discord bot)
           const welcomeEmbed = new EmbedBuilder()
