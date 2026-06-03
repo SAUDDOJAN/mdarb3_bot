@@ -232,14 +232,14 @@ export async function handleDungeonsApi(req, res, parsedUrl) {
 
           const { query } = await import("./database/index.js");
 
-          // Check current status - if already pending or accepted, return success silently without spamming
+          // Check current status and give clear Arabic messages
           const existing = await query("SELECT status FROM tl_recruits WHERE user_id = $1", [discordId]);
           if (existing.rowCount > 0) {
             const currentStatus = existing.rows[0].status;
-            if (currentStatus === 'pending' || currentStatus === 'accepted') {
-              res.writeHead(200, { "Content-Type": "application/json" });
-              res.end(JSON.stringify({ success: true }));
-              return true;
+            if (currentStatus === 'pending') {
+              throw new Error("⏳ طلبك قيد المراجعة حالياً، يرجى الانتظار حتى يتم البت فيه.");
+            } else if (currentStatus === 'accepted') {
+              throw new Error("✅ أنت عضو في الجيلد بالفعل!");
             }
           }
 
@@ -300,10 +300,7 @@ export async function handleDungeonsApi(req, res, parsedUrl) {
           // Check if already in guild (has the GW2 role)
           const GW2_ROLE_ID = "1511293343353667656";
           if (member.roles.cache.has(GW2_ROLE_ID)) {
-            // Return success silently without sending duplicate embed
-            res.writeHead(200, { "Content-Type": "application/json" });
-            res.end(JSON.stringify({ success: true }));
-            return true;
+            throw new Error("✅ أنت عضو في جيلد Guild Wars 2 بالفعل!");
           }
 
           // Add GW2 role
@@ -501,15 +498,8 @@ export async function handleDungeonsApi(req, res, parsedUrl) {
         res.end(JSON.stringify({ success: true }));
       } catch (err) {
         console.error("[API] Error handling join:", err);
-        
-        // Some frontends fail to parse the body of a 4xx response or don't display it.
-        // We will return 200 OK with success: false for logical business errors (like already registered),
-        // so the app can easily read `data.error` and show it to the user.
-        const isLogicalError = err.message?.startsWith("✅") || err.message?.startsWith("⏳") || err.message?.includes("مسجل مسبقاً");
-        
-        const statusCode = isLogicalError ? 200 : 400;
-        
-        res.writeHead(statusCode, { "Content-Type": "application/json" });
+        // The mobile app specifically expects HTTP 400 to display the error message properly (like Aion 2 does)
+        res.writeHead(400, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ success: false, error: err.message }));
       }
     });
