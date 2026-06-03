@@ -289,22 +289,30 @@ export async function handleDungeonsApi(req, res, parsedUrl) {
 
         } else if (game === "gw2") {
           const { selectedClass } = data;
-          await member.roles.add("1511293343353667656"); // GW2 Role
-          
+          if (!selectedClass) throw new Error("يجب اختيار الكلاس");
+
+          // Add GW2 role
+          await member.roles.add("1511293343353667656");
+
+          // Build welcome embed (same style as Discord bot)
           const welcomeEmbed = new EmbedBuilder()
             .setColor("#B70000")
             .setTitle(`⚔️ مقاتل جديد انضم لقيلد Guild Wars 2!`)
             .setDescription(`رحبو معانا بالبطل <@${discordId}> القادم من التطبيق!\nإضافة قوية للقيلد بكلاس الـ **${selectedClass}** 🔥`)
             .setThumbnail(member.user.displayAvatarURL({ extension: "png" }))
             .addFields(
-              { name: "الاسم", value: member.user.username, inline: false },
-              { name: "الكلاس", value: `${selectedClass}`, inline: false }
+              { name: "الاسم", value: member.user.username, inline: true },
+              { name: "الكلاس", value: selectedClass, inline: true }
             )
             .setFooter({ text: "Guild Wars 2 • M3RGEEN Gaming Community" })
             .setTimestamp();
 
           const membersChannel = await client.channels.fetch("1511308034939289700").catch(() => null);
           if (membersChannel) await membersChannel.send({ embeds: [welcomeEmbed] });
+
+          // Update member count channel name
+          const { updateGW2MemberCount } = await import("./modules/guildwars2.js");
+          await updateGW2MemberCount(client);
 
         } else if (game === "aion2") {
           // Aion 2 complex join

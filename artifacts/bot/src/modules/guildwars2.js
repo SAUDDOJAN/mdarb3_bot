@@ -110,7 +110,9 @@ async function handleGw2ClassSelect(interaction) {
 
       console.log(`[GW2] Found channel: ${membersChannel.name} (type: ${membersChannel.type})`);
       await membersChannel.send({ embeds: [welcomeEmbed] });
-      console.log(`[GW2] Welcome embed sent for ${interaction.user.username}`);
+
+      // Update member count channel name
+      await updateGW2MemberCount(interaction.client);
 
     } catch (embedError) {
       console.error("[GW2] Error sending welcome embed:", embedError);
@@ -137,6 +139,28 @@ export async function handleInteraction(interaction) {
     await handleGw2JoinButton(interaction);
   } else if (customId === "gw2:class_select") {
     await handleGw2ClassSelect(interaction);
+  }
+}
+
+// ─── تحديث عداد أعضاء GW2 في اسم الروم ──────────────────────────────────────
+export async function updateGW2MemberCount(client) {
+  try {
+    const GW2_ROLE_ID_CONST = "1511293343353667656";
+    const GW2_COUNT_CHANNEL_ID = "1511308034939289700";
+
+    const channel = await client.channels.fetch(GW2_COUNT_CHANNEL_ID).catch(() => null);
+    if (!channel) return;
+
+    const guild = channel.guild;
+    await guild.members.fetch().catch(() => null);
+    const role = await guild.roles.fetch(GW2_ROLE_ID_CONST).catch(() => null);
+    const count = role ? role.members.size : 0;
+
+    await channel.setName(`🐉・اعضاء-القيلد「${count}」`).catch(e =>
+      console.error("[GW2] Channel name update error:", e)
+    );
+  } catch (err) {
+    console.error("[GW2] Error updating member count:", err);
   }
 }
 

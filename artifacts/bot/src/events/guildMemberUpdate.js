@@ -74,5 +74,18 @@ export default {
         }
       }
     }
+
+    // ── 4. Guild Wars 2 Member Count Sync ─────────────────────────────────────
+    const GW2_ROLE_ID = "1511293343353667656";
+    const hadGW2 = oldMember.roles.cache.has(GW2_ROLE_ID);
+    const hasGW2 = newMember.roles.cache.has(GW2_ROLE_ID);
+    if (hadGW2 !== hasGW2) {
+      try {
+        const { updateGW2MemberCount } = await import("../modules/guildwars2.js");
+        await updateGW2MemberCount(newMember.client);
+      } catch (err) {
+        console.error("[GW2] Error triggering count update from guildMemberUpdate:", err);
+      }
+    }
   },
 };

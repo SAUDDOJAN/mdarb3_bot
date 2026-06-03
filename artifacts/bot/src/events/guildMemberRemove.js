@@ -23,6 +23,17 @@ export default {
       }
     }
 
+    // ── Guild Wars 2 Member Count Sync ──────────────────────────────────────
+    const GW2_ROLE_ID = "1511293343353667656";
+    if (member.roles.cache.has(GW2_ROLE_ID)) {
+      try {
+        const { updateGW2MemberCount } = await import("../modules/guildwars2.js");
+        await updateGW2MemberCount(client);
+      } catch (err) {
+        console.error("[GW2] Error triggering count update from guildMemberRemove:", err);
+      }
+    }
+
     try {
       const res = await query(
         "SELECT farewell_channel_id FROM guild_config WHERE guild_id = $1",
