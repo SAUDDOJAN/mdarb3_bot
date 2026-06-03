@@ -401,14 +401,6 @@ async function handleMgmtRemoveModal(interaction) {
 
   const { query } = await import("../database/index.js");
 
-  // Fetch from DB
-  const res = await query("SELECT * FROM tl_recruits WHERE user_id = $1", [userId]);
-  if (res.rowCount === 0) {
-    return interaction.editReply({ content: "❌ لم يتم العثور على اللاعب في قاعدة بيانات Throne and Liberty." });
-  }
-
-  const charName = res.rows[0].discord_tag; // Or username if we had it
-  
   // Wipe DB
   await query("DELETE FROM tl_recruits WHERE user_id = $1", [userId]);
 
@@ -434,12 +426,51 @@ async function handleMgmtRemoveModal(interaction) {
     .setTitle("✅ تمت إزالة العضو")
     .setDescription(
       `تم تنفيذ الإجراءات التالية على (<@${userId}>):\n\n` +
-      `🗑️ تم حذف جميع بياناته وتقدمه من قاعدة بيانات Throne and Liberty.\n${rolesRemovedText}`
+      `🗑️ تم حذف بياناته وتقدمه من قاعدة بيانات Throne and Liberty (إن وُجدت).\n${rolesRemovedText}`
     )
     .setFooter({ text: `تم الإجراء بواسطة: ${interaction.user.username}` })
     .setTimestamp();
 
   await interaction.editReply({ embeds: [embed] });
+}
+
+// ─── عرض قائمة الأعضاء ──────────────────────────────────────────────────────
+async function handleMgmtListButton(interaction) {
+  await interaction.deferReply({ ephemeral: true });
+
+  try {
+    const mainGuild = await interaction.client.guilds.fetch("861355983975874601").catch(() => null);
+    if (!mainGuild) throw new Error("Main guild not found.");
+
+    await mainGuild.members.fetch(); // Ensure all members are cached
+    const tlRole = await mainGuild.roles.fetch(TL_MEMBER_ROLE_ID).catch(() => null);
+    
+    if (!tlRole) {
+      return interaction.editReply("❌ لم أتمكن من العثور على رتبة Throne and Liberty.");
+    }
+
+    const members = tlRole.members.map(m => `• <@${m.id}> (\`${m.id}\`)`);
+    const count = members.length;
+
+    let description = `**عدد الأعضاء:** ${count}\n\n`;
+    description += members.join("\n");
+
+    // Discord embed limit is 4096 characters for description
+    if (description.length > 4000) {
+      description = description.substring(0, 4000) + "\n... (تم قص القائمة لطولها)";
+    }
+
+    const embed = new EmbedBuilder()
+      .setColor("#2B2D31")
+      .setTitle("🛡️ أعضاء جيلد Throne and Liberty")
+      .setDescription(description)
+      .setTimestamp();
+
+    await interaction.editReply({ embeds: [embed] });
+  } catch (err) {
+    console.error("[TL] Error listing members:", err);
+    await interaction.editReply("❌ حدث خطأ أثناء محاولة جلب الأعضاء.");
+  }
 }
 
 // ─── الموجه الرئيسي ─────────────────────────────────────────────────────────
@@ -465,6 +496,8 @@ export async function handleInteraction(interaction) {
       await handleMgmtRemoveButton(interaction);
     } else if (customId === "tl:mgmt:remove_modal") {
       await handleMgmtRemoveModal(interaction);
+    } else if (customId === "tl:mgmt:list") {
+      await handleMgmtListButton(interaction);
     }
   } catch (err) {
     console.error(`[TL] Error handling interaction "${customId}":`, err);
@@ -480,9 +513,12 @@ export async function handleInteraction(interaction) {
 // ─── تحديث اسم الروم لعدد الأعضاء ───────────────────────────────────────────
 export async function updateTLMemberCount(client) {
   try {
-    const { query } = await import("../database/index.js");
-    const res = await query("SELECT COUNT(*) FROM tl_recruits WHERE status='accepted'");
-    const count = res.rows[0].count;
+    const mainGuild = await client.guilds.fetch("861355983975874601").catch(() => null);
+    if (!mainGuild) return;
+
+    await mainGuild.members.fetch(); // Ensure cache is populated
+    const tlRole = await mainGuild.roles.fetch(TL_MEMBER_ROLE_ID).catch(() => null);
+    const count = tlRole ? tlRole.members.size : 0;
 
     const membersChannel = await client.channels.fetch(TL_MEMBERS_CHANNEL_ID).catch(() => null);
     if (membersChannel) {

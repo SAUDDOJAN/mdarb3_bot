@@ -17,7 +17,11 @@ export default {
       new ButtonBuilder()
         .setCustomId("tl:mgmt:remove")
         .setLabel("إزالة عضو ❌")
-        .setStyle(ButtonStyle.Danger)
+        .setStyle(ButtonStyle.Danger),
+      new ButtonBuilder()
+        .setCustomId("tl:mgmt:list")
+        .setLabel("عرض الأعضاء 📜")
+        .setStyle(ButtonStyle.Secondary)
     );
 
     await interaction.channel.send({ embeds: [embed], components: [row] });
