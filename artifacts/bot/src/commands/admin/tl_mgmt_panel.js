@@ -1,4 +1,4 @@
-import { SlashCommandBuilder, PermissionFlagsBits, ActionRowBuilder, UserSelectMenuBuilder, EmbedBuilder } from "discord.js";
+import { SlashCommandBuilder, PermissionFlagsBits, ActionRowBuilder, UserSelectMenuBuilder, EmbedBuilder, ButtonBuilder, ButtonStyle } from "discord.js";
 import { updateTLMemberCount } from "../../modules/throneliberty.js";
 
 export default {
@@ -29,7 +29,7 @@ export default {
       new ButtonBuilder()
         .setCustomId("tl:mgmt:list")
         .setLabel("عرض جميع الأعضاء 📜")
-        .setStyle(1) // Primary
+        .setStyle(ButtonStyle.Primary)
     );
 
     await interaction.channel.send({ embeds: [embed], components: [selectRow, buttonRow] });
