@@ -62,6 +62,16 @@ export async function getWikiArticles() {
   return result.rows;
 }
 
+export async function updateWikiArticle(id, game, title, content, date_tag) {
+  const result = await query(
+    `UPDATE wiki_articles 
+     SET game = $1, title = $2, content = $3, date_tag = $4, updated_at = NOW() 
+     WHERE id = $5 RETURNING *`,
+    [game, title, content, date_tag, id]
+  );
+  return result.rows[0];
+}
+
 export async function initDb() {
   await query(`
     CREATE TABLE IF NOT EXISTS guild_config (

@@ -549,7 +549,7 @@ export async function handleDungeonsApi(req, res, parsedUrl) {
 
   // Wiki API Endpoints
   if (parsedUrl.pathname === "/api/wiki") {
-    const { getWikiArticles, createWikiArticle } = await import("./database/index.js");
+    const { getWikiArticles, createWikiArticle, updateWikiArticle } = await import("./database/index.js");
 
     if (req.method === "GET") {
       try {
@@ -588,6 +588,31 @@ export async function handleDungeonsApi(req, res, parsedUrl) {
       });
       return true;
     }
+
+    if (req.method === "PUT") {
+      let body = "";
+      req.on("data", chunk => body += chunk.toString());
+      req.on("end", async () => {
+        try {
+          const data = JSON.parse(body);
+          const { id, game, title, content, date_tag } = data;
+          
+          if (!id || !game || !title || !content) {
+            throw new Error("ID, game, title, and content are required.");
+          }
+
+          const updatedArticle = await updateWikiArticle(id, game, title, content, date_tag || "تحديث جديد");
+          
+          res.writeHead(200, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ success: true, data: updatedArticle }));
+        } catch (err) {
+          console.error("[API] Error updating wiki article:", err);
+          res.writeHead(400, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ success: false, error: err.message }));
+        }
+      });
+      return true;
+    }
   }
 
   // Admin Wiki Editor Route
@@ -603,18 +628,35 @@ export async function handleDungeonsApi(req, res, parsedUrl) {
           body { font-family: Tahoma, Arial; background: #0F121A; color: #E0E0E0; margin: 0; padding: 20px; }
           .container { max-width: 800px; margin: 0 auto; background: #1A1D27; padding: 30px; border-radius: 8px; border-top: 4px solid #D3B070; }
           h1 { color: #D3B070; text-align: center; }
+          .header-actions { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
           label { display: block; margin-top: 15px; color: #00D1FF; font-weight: bold; }
           input, select, textarea { width: 100%; padding: 10px; margin-top: 5px; border-radius: 4px; border: 1px solid #303645; background: #0F121A; color: white; font-family: inherit; box-sizing: border-box; }
-          textarea { height: 300px; direction: rtl; }
+          textarea { height: 400px; direction: rtl; }
           button { margin-top: 20px; width: 100%; padding: 12px; background: #D3B070; color: #0F121A; border: none; font-weight: bold; font-size: 16px; border-radius: 4px; cursor: pointer; }
           button:hover { background: #e0be7d; }
+          .btn-secondary { background: #303645; color: #fff; width: auto; padding: 8px 15px; margin-top: 0; }
+          .btn-secondary:hover { background: #4a5265; }
           #message { margin-top: 15px; text-align: center; font-weight: bold; }
+          .hidden { display: none; }
         </style>
       </head>
       <body>
         <div class="container">
-          <h1>إضافة مقال جديد في الويكي</h1>
+          <div class="header-actions">
+            <h1 id="pageTitle">إضافة مقال جديد</h1>
+            <button class="btn-secondary" id="toggleModeBtn">تعديل مقال سابق</button>
+          </div>
+          
+          <div id="editSelector" class="hidden">
+            <label>اختر المقال لتعديله:</label>
+            <select id="articleSelect">
+              <option value="">جاري التحميل...</option>
+            </select>
+          </div>
+
           <form id="wikiForm">
+            <input type="hidden" id="articleId" value="">
+            
             <label>اللعبة:</label>
             <select id="game" required>
               <option value="Aion 2">Aion 2</option>
@@ -634,17 +676,73 @@ export async function handleDungeonsApi(req, res, parsedUrl) {
             <label>كلمة المرور للإدارة:</label>
             <input type="password" id="password" required>
 
-            <button type="submit">نشر المقال (OTA) 🚀</button>
+            <button type="submit" id="submitBtn">نشر المقال (OTA) 🚀</button>
             <div id="message"></div>
           </form>
         </div>
 
         <script>
-          document.getElementById('wikiForm').addEventListener('submit', async (e) => {
+          let isEditMode = false;
+          let allArticles = [];
+
+          const toggleModeBtn = document.getElementById('toggleModeBtn');
+          const editSelector = document.getElementById('editSelector');
+          const pageTitle = document.getElementById('pageTitle');
+          const submitBtn = document.getElementById('submitBtn');
+          const articleSelect = document.getElementById('articleSelect');
+          const form = document.getElementById('wikiForm');
+
+          toggleModeBtn.addEventListener('click', async () => {
+            isEditMode = !isEditMode;
+            if (isEditMode) {
+              toggleModeBtn.innerText = 'إلغاء التعديل (إضافة جديد)';
+              pageTitle.innerText = 'تعديل مقال سابق';
+              submitBtn.innerText = 'تحديث المقال (OTA) 🔄';
+              editSelector.classList.remove('hidden');
+              await loadArticles();
+            } else {
+              toggleModeBtn.innerText = 'تعديل مقال سابق';
+              pageTitle.innerText = 'إضافة مقال جديد';
+              submitBtn.innerText = 'نشر المقال (OTA) 🚀';
+              editSelector.classList.add('hidden');
+              form.reset();
+              document.getElementById('articleId').value = '';
+              document.getElementById('date_tag').value = 'تحديث جديد';
+            }
+          });
+
+          async function loadArticles() {
+            try {
+              const res = await fetch('/api/wiki');
+              const json = await res.json();
+              if (json.success) {
+                allArticles = json.data;
+                articleSelect.innerHTML = '<option value="">-- اختر المقال --</option>';
+                allArticles.forEach(a => {
+                  articleSelect.innerHTML += \`<option value="\${a.id}">[\${a.game}] \${a.title}</option>\`;
+                });
+              }
+            } catch (err) {
+              alert('خطأ في جلب المقالات');
+            }
+          }
+
+          articleSelect.addEventListener('change', (e) => {
+            const id = e.target.value;
+            if (!id) return;
+            const article = allArticles.find(a => a.id == id);
+            if (article) {
+              document.getElementById('articleId').value = article.id;
+              document.getElementById('game').value = article.game;
+              document.getElementById('title').value = article.title;
+              document.getElementById('date_tag').value = article.date_tag || 'تم التحديث';
+              document.getElementById('content').value = article.content;
+            }
+          });
+
+          form.addEventListener('submit', async (e) => {
             e.preventDefault();
             const password = document.getElementById('password').value;
-            // A simple client side check just to prevent accidental submissions.
-            // The real security can be checked on backend if needed, but for now it's secret URL + pass.
             if (password !== 'm3rgeen2026') {
               document.getElementById('message').style.color = '#ff4444';
               document.getElementById('message').innerText = 'كلمة المرور خاطئة!';
@@ -658,21 +756,28 @@ export async function handleDungeonsApi(req, res, parsedUrl) {
               content: document.getElementById('content').value
             };
 
+            const id = document.getElementById('articleId').value;
+            if (isEditMode && id) {
+              data.id = id;
+            }
+
             document.getElementById('message').style.color = '#00D1FF';
-            document.getElementById('message').innerText = 'جاري النشر...';
+            document.getElementById('message').innerText = 'جاري المعالجة...';
 
             try {
               const res = await fetch('/api/wiki', {
-                method: 'POST',
+                method: isEditMode ? 'PUT' : 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(data)
               });
               const json = await res.json();
               if (json.success) {
                 document.getElementById('message').style.color = '#00ff66';
-                document.getElementById('message').innerText = 'تم نشر المقال بنجاح! متاح الآن في التطبيق.';
-                document.getElementById('title').value = '';
-                document.getElementById('content').value = '';
+                document.getElementById('message').innerText = isEditMode ? 'تم تحديث المقال بنجاح!' : 'تم نشر المقال بنجاح!';
+                if (!isEditMode) {
+                  document.getElementById('title').value = '';
+                  document.getElementById('content').value = '';
+                }
               } else {
                 throw new Error(json.error);
               }
