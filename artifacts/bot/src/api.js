@@ -339,6 +339,17 @@ export async function handleDungeonsApi(req, res, parsedUrl) {
           const dup = await query("SELECT user_id FROM recruits WHERE shugo_url = $1 AND user_id != $2 AND guild_id = '861355983975874601'", [shugoUrl, discordId]);
           if (dup.rowCount > 0) throw new Error("هذا الرابط مسجل مسبقاً لعضو آخر.");
 
+          // Check user's own status (like TL)
+          const existingUser = await query("SELECT status FROM recruits WHERE user_id = $1 AND guild_id = '861355983975874601'", [discordId]);
+          if (existingUser.rowCount > 0) {
+            const currentStatus = existingUser.rows[0].status;
+            if (currentStatus === 'pending') {
+              throw new Error("⏳ طلبك قيد المراجعة حالياً، يرجى الانتظار حتى يتم البت فيه.");
+            } else if (currentStatus === 'accepted') {
+              throw new Error("✅ أنت عضو في الجيلد بالفعل!");
+            }
+          }
+
           // Insert pending app
           await query(
             `INSERT INTO recruits
