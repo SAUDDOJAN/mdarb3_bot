@@ -293,6 +293,21 @@ export async function handleDungeonsApi(req, res, parsedUrl) {
             console.log(`Could not send DM to ${discordId}`);
           }
 
+          // In-app Notification for TL
+          try {
+            const { createNotification } = await import('./database/index.js');
+            const { emitNotification } = await import('./socket.js');
+            const newNotif = await createNotification(
+              'tl_recruitment',
+              `تم تقديم طلب انضمام (Throne & Liberty)`,
+              `تم إرسال طلب انضمامك للكلاس ${className} وبانتظار مراجعة الإدارة.`,
+              { target_user_id: discordId }
+            );
+            emitNotification('notification', newNotif);
+          } catch(e) {
+            console.error("TL notification error:", e);
+          }
+
         } else if (game === "gw2") {
           const { selectedClass } = data;
           if (!selectedClass) throw new Error("يجب اختيار الكلاس");
@@ -325,6 +340,21 @@ export async function handleDungeonsApi(req, res, parsedUrl) {
           // Update member count channel name
           const { updateGW2MemberCount } = await import("./modules/guildwars2.js");
           await updateGW2MemberCount(client);
+
+          // In-app Notification for GW2
+          try {
+            const { createNotification } = await import('./database/index.js');
+            const { emitNotification } = await import('./socket.js');
+            const newNotif = await createNotification(
+              'gw2_recruitment',
+              `تم الانضمام (Guild Wars 2) ⚔️`,
+              `أهلاً بك في Tyria! تم قبولك وتعيين الرتبة للكلاس ${selectedClass} بنجاح.`,
+              { target_user_id: discordId }
+            );
+            emitNotification('notification', newNotif);
+          } catch(e) {
+            console.error("GW2 notification error:", e);
+          }
 
         } else if (game === "aion2") {
           // Aion 2 complex join
