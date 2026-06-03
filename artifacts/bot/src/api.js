@@ -499,10 +499,16 @@ export async function handleDungeonsApi(req, res, parsedUrl) {
         res.end(JSON.stringify({ success: true }));
       } catch (err) {
         console.error("[API] Error handling join:", err);
-        // 409 = already a member / duplicate, 400 = other validation error
-        const statusCode = (err.message?.startsWith("✅") || err.message?.startsWith("⏳")) ? 409 : 400;
+        
+        // Some frontends fail to parse the body of a 4xx response or don't display it.
+        // We will return 200 OK with success: false for logical business errors (like already registered),
+        // so the app can easily read `data.error` and show it to the user.
+        const isLogicalError = err.message?.startsWith("✅") || err.message?.startsWith("⏳") || err.message?.includes("مسجل مسبقاً");
+        
+        const statusCode = isLogicalError ? 200 : 400;
+        
         res.writeHead(statusCode, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ success: false, error: err.message, alreadyMember: statusCode === 409 }));
+        res.end(JSON.stringify({ success: false, error: err.message }));
       }
     });
     return true;
