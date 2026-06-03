@@ -460,20 +460,19 @@ async function handleMgmtListButton(interaction) {
   await interaction.deferReply({ ephemeral: true });
 
   try {
-    const { query } = await import("../database/index.js");
-    const res = await query("SELECT user_id FROM tl_recruits WHERE status = 'accepted'");
-    
-    if (res.rowCount === 0) {
-      return interaction.editReply("❌ لا يوجد أي أعضاء مقبولين في قاعدة البيانات حالياً.");
+    await interaction.guild.members.fetch().catch(() => null);
+    const tlRole = await interaction.guild.roles.fetch(TL_MEMBER_ROLE_ID).catch(() => null);
+
+    if (!tlRole || tlRole.members.size === 0) {
+      return interaction.editReply("❌ لا يوجد أي أعضاء يحملون رتبة Throne and Liberty حالياً.");
     }
 
-    const members = res.rows.map(r => `• <@${r.user_id}> (\`${r.user_id}\`)`);
+    const members = tlRole.members.map(m => `• <@${m.id}> (\`${m.id}\`)`);
     const count = members.length;
 
     let description = `**عدد الأعضاء:** ${count}\n\n`;
     description += members.join("\n");
 
-    // Discord embed limit is 4096 characters for description
     if (description.length > 4000) {
       description = description.substring(0, 4000) + "\n... (تم قص القائمة لطولها)";
     }
@@ -534,10 +533,11 @@ export async function updateTLMemberCount(client) {
     const membersChannel = await client.channels.fetch(TL_MEMBERS_CHANNEL_ID).catch(() => null);
     if (!membersChannel) return;
 
-    // Get count from Database instead of Discord Cache
-    const { query } = await import("../database/index.js");
-    const res = await query("SELECT COUNT(*) FROM tl_recruits WHERE status = 'accepted'");
-    const count = parseInt(res.rows[0].count, 10);
+    // Use Discord role members count (same as GW2 system)
+    const guild = membersChannel.guild;
+    await guild.members.fetch().catch(() => null); // refresh cache, ignore rate limit
+    const tlRole = await guild.roles.fetch(TL_MEMBER_ROLE_ID).catch(() => null);
+    const count = tlRole ? tlRole.members.size : 0;
 
     await membersChannel.setName(`🔰｜ᵀʰʳᵒⁿᴺᴸᶦᵇʳᵗʸ-الاعضاء「${count}」`).catch(e => console.error("[TL] Name update err:", e));
   } catch (err) {
