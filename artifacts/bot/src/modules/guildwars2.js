@@ -171,7 +171,7 @@ export function startGw2EventCron(client) {
   // Check every minute for upcoming events
   setInterval(async () => {
     try {
-      const channel = client.channels.cache.get(GW2_EVENTS_CHANNEL_ID);
+      const channel = await client.channels.fetch(GW2_EVENTS_CHANNEL_ID).catch(() => null);
       if (!channel) return;
 
       const response = await axios.get("https://wiki.guildwars2.com/wiki/Widget:Event_timer/data.json?action=raw", {
