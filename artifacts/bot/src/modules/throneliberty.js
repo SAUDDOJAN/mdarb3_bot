@@ -402,6 +402,26 @@ async function handleMgmtRemoveModal(interaction) {
 
   const { query } = await import("../database/index.js");
 
+  // Fetch message_id to delete the embed card if it exists
+  let embedDeletedText = "";
+  try {
+    const res = await query("SELECT message_id FROM tl_recruits WHERE user_id = $1", [userId]);
+    const messageId = res.rows[0]?.message_id;
+    
+    if (messageId) {
+      const channel = await interaction.client.channels.fetch(TL_MEMBERS_CHANNEL_ID).catch(() => null);
+      if (channel) {
+        const msg = await channel.messages.fetch(messageId).catch(() => null);
+        if (msg) {
+          await msg.delete().catch(() => {});
+          embedDeletedText = "\n🗑️ تم حذف بطاقة اللاعب من روم الأعضاء.";
+        }
+      }
+    }
+  } catch (err) {
+    console.error("[TL] Error deleting recruit card message:", err);
+  }
+
   // Wipe DB
   await query("DELETE FROM tl_recruits WHERE user_id = $1", [userId]);
 
@@ -427,7 +447,7 @@ async function handleMgmtRemoveModal(interaction) {
     .setTitle("✅ تمت إزالة العضو")
     .setDescription(
       `تم تنفيذ الإجراءات التالية على (<@${userId}>):\n\n` +
-      `🗑️ تم حذف بياناته وتقدمه من قاعدة بيانات Throne and Liberty (إن وُجدت).\n${rolesRemovedText}`
+      `🗑️ تم حذف بياناته وتقدمه من قاعدة بيانات Throne and Liberty (إن وُجدت).\n${rolesRemovedText}${embedDeletedText}`
     )
     .setFooter({ text: `تم الإجراء بواسطة: ${interaction.user.username}` })
     .setTimestamp();
