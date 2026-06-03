@@ -16,16 +16,23 @@ export default {
     const embed = new EmbedBuilder()
       .setColor("#8B0000")
       .setTitle("🛡️ لوحة إدارة Throne and Liberty")
-      .setDescription("هذه اللوحة مخصصة لإدارة أعضاء جيلد Throne and Liberty.\n\nاستخدم القائمة المنسدلة أدناه للبحث واختيار العضو المراد إزالته. سيتم مسح كافة بياناته وسحب رتبة TL منه مع إبقائه برتبة المعرقين.")
+      .setDescription("هذه اللوحة مخصصة لإدارة أعضاء جيلد Throne and Liberty.\n\nاستخدم القائمة المنسدلة أدناه للبحث واختيار العضو المراد إزالته، أو اضغط على زر عرض الأعضاء لرؤية القائمة الكاملة.")
       .setFooter({ text: "Throne and Liberty • M3RGEEN Admin Panel" });
 
-    const row = new ActionRowBuilder().addComponents(
+    const selectRow = new ActionRowBuilder().addComponents(
       new UserSelectMenuBuilder()
         .setCustomId("tl:mgmt:user_select_remove")
         .setPlaceholder("ابحث واختر العضو للإزالة...")
     );
 
-    await interaction.channel.send({ embeds: [embed], components: [row] });
+    const buttonRow = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId("tl:mgmt:list")
+        .setLabel("عرض جميع الأعضاء 📜")
+        .setStyle(1) // Primary
+    );
+
+    await interaction.channel.send({ embeds: [embed], components: [selectRow, buttonRow] });
     await interaction.editReply({ content: "✅ تم إرسال لوحة الإدارة وتحديث عداد الأعضاء بنجاح." });
   },
 };
