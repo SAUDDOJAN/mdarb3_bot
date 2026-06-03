@@ -151,86 +151,64 @@ export function startGw2EventCron(client) {
       if (!channel) return;
 
       const response = await axios.get("https://wiki.guildwars2.com/wiki/Widget:Event_timer/data.json?action=raw", {
-        headers: {
-          "User-Agent": "M3RGEEN-Discord-Bot/1.0"
-        },
-        responseType: 'text' // to handle BOM easily
+        headers: { "User-Agent": "M3RGEEN-Discord-Bot/1.0" },
+        responseType: 'text'
       });
       
       const text = response.data;
-      // Remove BOM if present
       const cleanText = text.charCodeAt(0) === 0xFEFF ? text.slice(1) : text;
       const data = JSON.parse(cleanText);
       const eventsData = data.events || data;
 
-      // Current time in UTC
+      // Current time in UTC (minutes since midnight)
       const now = new Date();
-      const h = now.getUTCHours();
-      const m = now.getUTCMinutes();
-      const currentMinutes = h * 60 + m;
+      const currentMinutes = now.getUTCHours() * 60 + now.getUTCMinutes();
+      const day = now.getUTCDate();
 
-      // Filter important event groups by name
-      const IMPORTANT_NAMES = ["World bosses", "Hard world bosses", "Ley-Line Anomaly", "Auric Basin", "Tangled Depths", "Dragon's Stand", "Dragonstorm", "The Echovald Wilds", "Dragon's End"];
-      
-      const upcomingEvents = [];
+      const IMPORTANT_NAMES = [
+        "World bosses", "Hard world bosses", "Ley-Line Anomaly",
+        "Auric Basin", "Tangled Depths", "Dragon's Stand",
+        "Dragonstorm", "The Echovald Wilds", "Dragon's End"
+      ];
 
-      Object.keys(eventsData).forEach(key => {
+      for (const key of Object.keys(eventsData)) {
         const eventGroup = eventsData[key];
-        if (!eventGroup || !IMPORTANT_NAMES.includes(eventGroup.name)) return;
+        if (!eventGroup || !IMPORTANT_NAMES.includes(eventGroup.name)) continue;
+        if (!eventGroup.sequences?.pattern?.length) continue;
 
-        if (eventGroup.sequences && eventGroup.sequences.pattern && eventGroup.sequences.pattern.length > 0) {
-          let timePointer = 0;
-          let iterations = 0;
-          while (timePointer <= 1440 && iterations < 100) {
-            iterations++;
-            for (const seq of eventGroup.sequences.pattern) {
-              // seq.d is duration in minutes
-              // if it's an event (seq.r > 0), we check time
-              if (seq.r > 0 && eventGroup.segments[seq.r]) {
-                // Time diff
-                let diff = timePointer - currentMinutes;
-                // Wrap around daily schedule
-                if (diff < -120) diff += 1440;
-                
-                if (diff > 0 && diff <= 15) { // Notify 15 minutes before
-                  // Make sure ID includes the day to reset automatically, or just clear the Set occasionally.
-                  // Since timePointer is daily, appending the day of month prevents infinite growth if we clear it daily.
-                  const day = now.getUTCDate();
-                  upcomingEvents.push({
-                    name: eventGroup.segments[seq.r].name || eventGroup.name,
-                    minutesUntil: diff,
-                    id: `${key}-${timePointer}-day${day}`
-                  });
-                }
+        // Walk through the schedule once — sum up durations to get absolute start times
+        let timePointer = 0;
+        for (const seq of eventGroup.sequences.pattern) {
+          if (seq.r > 0 && eventGroup.segments[seq.r]) {
+            // diff = minutes until this event starts
+            let diff = timePointer - currentMinutes;
+            // Wrap: if the event already passed today but is within the next-day window
+            if (diff < 0) diff += 1440;
+
+            // Only notify when exactly 4-5 minutes away (catches the 1-minute polling window)
+            if (diff >= 4 && diff <= 5) {
+              const eventId = `${key}-${timePointer}-day${day}`;
+              if (!notifiedEvents.has(eventId)) {
+                notifiedEvents.add(eventId);
+
+                const spawnTime = Math.floor((now.getTime() + diff * 60000) / 1000);
+                const embed = new EmbedBuilder()
+                  .setTitle("⚠️ انتبه! حدث مهم قادم في Guild Wars 2")
+                  .setDescription(`الحدث **${eventGroup.segments[seq.r].name || eventGroup.name}** سيبدأ قريباً!`)
+                  .addFields({ name: "وقت البدء", value: `<t:${spawnTime}:R>` })
+                  .setColor("#FFD700");
+
+                await channel.send({ content: `<@&${GW2_ROLE_ID}>`, embeds: [embed] });
               }
-              timePointer += seq.d;
             }
           }
-        }
-      });
-
-      // Clear the set periodically to prevent memory leaks (e.g., if day changes)
-      // Since we append `-day${now.getUTCDate()}` to the ID, old IDs won't match tomorrow's events.
-      // We can just keep the Set size small by deleting old entries if it gets too large.
-      if (notifiedEvents.size > 500) {
-        notifiedEvents.clear();
-      }
-
-      // Filter and send
-      for (const ev of upcomingEvents) {
-        if (!notifiedEvents.has(ev.id)) {
-          notifiedEvents.add(ev.id);
-
-          const spawnTime = Math.floor((now.getTime() + ev.minutesUntil * 60000) / 1000);
-          const embed = new EmbedBuilder()
-            .setTitle("⚠️ انتبه! حدث مهم قادم في Guild Wars 2")
-            .setDescription(`الحدث **${ev.name}** سيبدأ قريباً!`)
-            .addFields({ name: "وقت البدء", value: `<t:${spawnTime}:R>` })
-            .setColor("#FFD700");
-
-          await channel.send({ content: `<@&${GW2_ROLE_ID}>`, embeds: [embed] });
+          timePointer += seq.d;
+          if (timePointer >= 1440) break; // Don't go beyond one day
         }
       }
+
+      // Clear old IDs to prevent memory bloat
+      if (notifiedEvents.size > 500) notifiedEvents.clear();
 
     } catch (e) {
       console.error("[GW2] Error in background task:", e.message);
