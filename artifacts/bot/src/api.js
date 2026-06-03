@@ -123,10 +123,17 @@ export async function handleDungeonsApi(req, res, parsedUrl) {
         }
 
         // Fetch DB info to enrich with CP and Character Name
-        // We use power_cards because it contains the up-to-date scraped profiles of members.
-        const dbRes = await query("SELECT user_id, character_name, class_name, combat_power as cp, profile_image as avatar FROM power_cards");
+        // We use power_cards and recruits to cover all accepted members.
+        const [powerRes, recruitsRes] = await Promise.all([
+          query("SELECT user_id, character_name, class_name, combat_power as cp, profile_image as avatar FROM power_cards"),
+          query("SELECT user_id, character_name, class_name, combat_power as cp, profile_image as avatar FROM recruits WHERE status='accepted'")
+        ]);
+        
         const dbMap = new Map();
-        dbRes.rows.forEach(r => dbMap.set(r.user_id, r));
+        // Recruits as base
+        recruitsRes.rows.forEach(r => dbMap.set(r.user_id, r));
+        // Power cards overwrite recruits (since they are usually more updated)
+        powerRes.rows.forEach(r => dbMap.set(r.user_id, r));
 
         const finalMembers = [];
         allAionMembers.forEach((data, userId) => {
