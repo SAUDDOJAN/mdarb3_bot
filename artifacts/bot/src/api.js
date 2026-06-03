@@ -199,7 +199,7 @@ export async function handleDungeonsApi(req, res, parsedUrl) {
         const { EmbedBuilder } = await import("discord.js");
 
         if (game === "tl") {
-          const { className, weapons, playstyle, status } = data;
+          const { className, playstyle, status } = data;
           await member.roles.add("1292754458492796982"); // TL Role
           
           const cardEmbed = new EmbedBuilder()
@@ -210,8 +210,7 @@ export async function handleDungeonsApi(req, res, parsedUrl) {
               `انضم إلى الجيلد عبر التطبيق: <@${discordId}>`,
               ``,
               `**الاسم:** ${member.user.username}`,
-              `**الكلاس:** ${className}`,
-              `**الأسلحة:** ${weapons}`,
+              `**الكلاس والأسلحة:** ${className}`,
               `**أسلوب اللعب:** ${playstyle}`,
               `**الوضع الحالي:** ${status}`,
               `**القوانين:** ✅ وافق على قوانين الجيلد`,
