@@ -62,10 +62,12 @@ export default {
     // ── 3. Throne and Liberty Member Count Sync ────────────────────────────────
     if (newMember.guild.id === "861355983975874601") {
       const TL_MEMBER_ROLE_ID = "1292754458492796982";
-      const hadRole = oldMember.roles.cache.has(TL_MEMBER_ROLE_ID);
-      const hasRole = newMember.roles.cache.has(TL_MEMBER_ROLE_ID);
+      const oldHasTL = oldMember.roles.cache.has(TL_MEMBER_ROLE_ID);
+      const newHasTL = newMember.roles.cache.has(TL_MEMBER_ROLE_ID);
 
-      if (hadRole !== hasRole) {
+      // Use size difference as fallback when cache might be stale
+      const tlRoleChanged = oldHasTL !== newHasTL || oldMember.roles.cache.size !== newMember.roles.cache.size;
+      if (tlRoleChanged && (oldHasTL || newHasTL)) {
         try {
           const { updateTLMemberCount } = await import("../modules/throneliberty.js");
           await updateTLMemberCount(newMember.client);
@@ -76,10 +78,16 @@ export default {
     }
 
     // ── 4. Guild Wars 2 Member Count Sync ─────────────────────────────────────
+    // Compare role sets — Discord.js cache is unreliable for oldMember roles
+    // so we detect any role change by checking set difference
     const GW2_ROLE_ID = "1511293343353667656";
-    const hadGW2 = oldMember.roles.cache.has(GW2_ROLE_ID);
-    const hasGW2 = newMember.roles.cache.has(GW2_ROLE_ID);
-    if (hadGW2 !== hasGW2) {
+    const oldRoleIds = new Set(oldMember.roles.cache.keys());
+    const newRoleIds = new Set(newMember.roles.cache.keys());
+    const rolesChanged =
+      [...oldRoleIds].some(id => !newRoleIds.has(id)) ||
+      [...newRoleIds].some(id => !oldRoleIds.has(id));
+
+    if (rolesChanged && (newRoleIds.has(GW2_ROLE_ID) || oldRoleIds.has(GW2_ROLE_ID))) {
       try {
         const { updateGW2MemberCount } = await import("../modules/guildwars2.js");
         await updateGW2MemberCount(newMember.client);
