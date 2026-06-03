@@ -156,7 +156,7 @@ export async function updateGW2MemberCount(client) {
     const role = await guild.roles.fetch(GW2_ROLE_ID_CONST).catch(() => null);
     const count = role ? role.members.size : 0;
 
-    await channel.setName(`「${count}」・🐉اعضاء-القيلد`).catch(e =>
+    await channel.setName(`🐉・اعضاء-القيلد「${count}」`).catch(e =>
       console.error("[GW2] Channel name update error:", e)
     );
   } catch (err) {
