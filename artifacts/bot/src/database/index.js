@@ -45,6 +45,23 @@ export async function getNotifications(limit = 20) {
   return result.rows;
 }
 
+// ─── Wiki Helpers ────────────────────────────────────────────────────────────
+
+export async function createWikiArticle(game, title, content, date_tag) {
+  const result = await query(
+    `INSERT INTO wiki_articles (game, title, content, date_tag) VALUES ($1, $2, $3, $4) RETURNING *`,
+    [game, title, content, date_tag]
+  );
+  return result.rows[0];
+}
+
+export async function getWikiArticles() {
+  const result = await query(
+    `SELECT * FROM wiki_articles ORDER BY created_at DESC`
+  );
+  return result.rows;
+}
+
 export async function initDb() {
   await query(`
     CREATE TABLE IF NOT EXISTS guild_config (
@@ -243,6 +260,18 @@ export async function initDb() {
       alert_type TEXT NOT NULL,
       created_at TIMESTAMPTZ DEFAULT NOW(),
       UNIQUE(guild_id, user_id, alert_type)
+    )
+  `);
+
+  await query(`
+    CREATE TABLE IF NOT EXISTS wiki_articles (
+      id SERIAL PRIMARY KEY,
+      game TEXT NOT NULL,
+      title TEXT NOT NULL,
+      content TEXT NOT NULL,
+      date_tag TEXT,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      updated_at TIMESTAMPTZ DEFAULT NOW()
     )
   `);
 

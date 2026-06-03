@@ -547,5 +547,146 @@ export async function handleDungeonsApi(req, res, parsedUrl) {
     return true;
   }
 
+  // Wiki API Endpoints
+  if (parsedUrl.pathname === "/api/wiki") {
+    const { getWikiArticles, createWikiArticle } = await import("./database/index.js");
+
+    if (req.method === "GET") {
+      try {
+        const articles = await getWikiArticles();
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ success: true, data: articles }));
+      } catch (err) {
+        console.error("[API] Error fetching wiki articles:", err);
+        res.writeHead(500, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ success: false, error: err.message }));
+      }
+      return true;
+    }
+
+    if (req.method === "POST") {
+      let body = "";
+      req.on("data", chunk => body += chunk.toString());
+      req.on("end", async () => {
+        try {
+          const data = JSON.parse(body);
+          const { game, title, content, date_tag } = data;
+          
+          if (!game || !title || !content) {
+            throw new Error("Game, title, and content are required.");
+          }
+
+          const newArticle = await createWikiArticle(game, title, content, date_tag || "تحديث جديد");
+          
+          res.writeHead(200, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ success: true, data: newArticle }));
+        } catch (err) {
+          console.error("[API] Error creating wiki article:", err);
+          res.writeHead(400, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ success: false, error: err.message }));
+        }
+      });
+      return true;
+    }
+  }
+
+  // Admin Wiki Editor Route
+  if (req.method === "GET" && parsedUrl.pathname === "/admin/wiki") {
+    res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+    res.end(`
+      <!DOCTYPE html>
+      <html dir="rtl" lang="ar">
+      <head>
+        <meta charset="UTF-8">
+        <title>إدارة الويكي - M3RGEEN</title>
+        <style>
+          body { font-family: Tahoma, Arial; background: #0F121A; color: #E0E0E0; margin: 0; padding: 20px; }
+          .container { max-width: 800px; margin: 0 auto; background: #1A1D27; padding: 30px; border-radius: 8px; border-top: 4px solid #D3B070; }
+          h1 { color: #D3B070; text-align: center; }
+          label { display: block; margin-top: 15px; color: #00D1FF; font-weight: bold; }
+          input, select, textarea { width: 100%; padding: 10px; margin-top: 5px; border-radius: 4px; border: 1px solid #303645; background: #0F121A; color: white; font-family: inherit; box-sizing: border-box; }
+          textarea { height: 300px; direction: rtl; }
+          button { margin-top: 20px; width: 100%; padding: 12px; background: #D3B070; color: #0F121A; border: none; font-weight: bold; font-size: 16px; border-radius: 4px; cursor: pointer; }
+          button:hover { background: #e0be7d; }
+          #message { margin-top: 15px; text-align: center; font-weight: bold; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <h1>إضافة مقال جديد في الويكي</h1>
+          <form id="wikiForm">
+            <label>اللعبة:</label>
+            <select id="game" required>
+              <option value="Aion 2">Aion 2</option>
+              <option value="Throne and Liberty">Throne and Liberty</option>
+              <option value="Guild Wars 2">Guild Wars 2</option>
+            </select>
+
+            <label>عنوان المقال:</label>
+            <input type="text" id="title" placeholder="مثال: دليل تجميع الذهب..." required>
+
+            <label>وقت النشر التقديري:</label>
+            <input type="text" id="date_tag" value="تحديث جديد" required>
+
+            <label>المحتوى (Markdown):</label>
+            <textarea id="content" placeholder="# عنوان كبير\\n\\nاكتب النص هنا..." required></textarea>
+
+            <label>كلمة المرور للإدارة:</label>
+            <input type="password" id="password" required>
+
+            <button type="submit">نشر المقال (OTA) 🚀</button>
+            <div id="message"></div>
+          </form>
+        </div>
+
+        <script>
+          document.getElementById('wikiForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const password = document.getElementById('password').value;
+            // A simple client side check just to prevent accidental submissions.
+            // The real security can be checked on backend if needed, but for now it's secret URL + pass.
+            if (password !== 'm3rgeen2026') {
+              document.getElementById('message').style.color = '#ff4444';
+              document.getElementById('message').innerText = 'كلمة المرور خاطئة!';
+              return;
+            }
+
+            const data = {
+              game: document.getElementById('game').value,
+              title: document.getElementById('title').value,
+              date_tag: document.getElementById('date_tag').value,
+              content: document.getElementById('content').value
+            };
+
+            document.getElementById('message').style.color = '#00D1FF';
+            document.getElementById('message').innerText = 'جاري النشر...';
+
+            try {
+              const res = await fetch('/api/wiki', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+              });
+              const json = await res.json();
+              if (json.success) {
+                document.getElementById('message').style.color = '#00ff66';
+                document.getElementById('message').innerText = 'تم نشر المقال بنجاح! متاح الآن في التطبيق.';
+                document.getElementById('title').value = '';
+                document.getElementById('content').value = '';
+              } else {
+                throw new Error(json.error);
+              }
+            } catch (err) {
+              document.getElementById('message').style.color = '#ff4444';
+              document.getElementById('message').innerText = 'خطأ: ' + err.message;
+            }
+          });
+        </script>
+      </body>
+      </html>
+    `);
+    return true;
+  }
+
   return false; // Not handled
 }
