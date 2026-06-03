@@ -58,5 +58,21 @@ export default {
         console.error("[SageOnboarding] Error during triage:", error);
       }
     }
+
+    // ── 3. Throne and Liberty Member Count Sync ────────────────────────────────
+    if (newMember.guild.id === "861355983975874601") {
+      const TL_MEMBER_ROLE_ID = "1292754458492796982";
+      const hadRole = oldMember.roles.cache.has(TL_MEMBER_ROLE_ID);
+      const hasRole = newMember.roles.cache.has(TL_MEMBER_ROLE_ID);
+
+      if (hadRole !== hasRole) {
+        try {
+          const { updateTLMemberCount } = await import("../modules/throneliberty.js");
+          await updateTLMemberCount(newMember.client);
+        } catch (err) {
+          console.error("[TL] Error triggering count update from guildMemberUpdate:", err);
+        }
+      }
+    }
   },
 };

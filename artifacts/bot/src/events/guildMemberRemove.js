@@ -10,6 +10,19 @@ export default {
       console.error("[MemberRemove] Data cleanup error:", e)
     );
 
+    // ── Throne and Liberty Member Count Sync ────────────────────────────────
+    if (member.guild.id === "861355983975874601") {
+      const TL_MEMBER_ROLE_ID = "1292754458492796982";
+      if (member.roles.cache.has(TL_MEMBER_ROLE_ID)) {
+        try {
+          const { updateTLMemberCount } = await import("../modules/throneliberty.js");
+          await updateTLMemberCount(client);
+        } catch (err) {
+          console.error("[TL] Error triggering count update from guildMemberRemove:", err);
+        }
+      }
+    }
+
     try {
       const res = await query(
         "SELECT farewell_channel_id FROM guild_config WHERE guild_id = $1",
