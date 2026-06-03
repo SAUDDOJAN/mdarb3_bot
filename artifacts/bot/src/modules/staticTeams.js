@@ -18,6 +18,7 @@ const CLASS_DATA = {
   Ranger:       { emoji: "<:Ranger:1504471982006341783>", nameAr: "رينجر" },
   Assassin:     { emoji: "<:Assassin:1504471833695748156>", nameAr: "أساسن" },
   Spiritmaster: { emoji: "<:Elementalist:1504471920219783209>", nameAr: "سبيريت ماستر" },
+  Mentalist:    { emoji: "<:Elementalist:1504471920219783209>", nameAr: "سبيريت ماستر" },
   Sorcerer:     { emoji: "<:Sorcerer:1504472006610124961>", nameAr: "ساحر" },
   Cleric:       { emoji: "<:Cleric:1504471892755611678>", nameAr: "كليريك" },
   Chanter:      { emoji: "<:Chanter:1504471867141128272>", nameAr: "تشانتر" },

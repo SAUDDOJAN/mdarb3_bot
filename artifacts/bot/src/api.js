@@ -180,6 +180,35 @@ export async function handleDungeonsApi(req, res, parsedUrl) {
     }
   }
 
+  // Get TL Status
+  if (req.method === "GET" && parsedUrl.pathname === "/api/guilds/tl/status") {
+    const discordId = parsedUrl.query.discordId;
+    if (!discordId) {
+      res.writeHead(400, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ success: false, error: "Discord ID is required" }));
+      return true;
+    }
+
+    try {
+      const { query } = await import("./database/index.js");
+      const result = await query("SELECT status FROM tl_recruits WHERE user_id = $1", [discordId]);
+      
+      if (result.rowCount > 0) {
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ success: true, status: result.rows[0].status }));
+      } else {
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ success: true, status: "none" }));
+      }
+      return true;
+    } catch (err) {
+      console.error("[API] Error fetching TL status:", err);
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ success: false, error: err.message }));
+      return true;
+    }
+  }
+
   // Handle Join POST APIs
   if (req.method === "POST" && parsedUrl.pathname.startsWith("/api/join/")) {
     const game = parsedUrl.pathname.split("/").pop();
@@ -200,26 +229,60 @@ export async function handleDungeonsApi(req, res, parsedUrl) {
 
         if (game === "tl") {
           const { className, playstyle, status } = data;
-          await member.roles.add("1292754458492796982"); // TL Role
+          
+          // Check if already applied
+          const { query } = await import("./database/index.js");
+          const existing = await query("SELECT status FROM tl_recruits WHERE user_id = $1", [discordId]);
+          if (existing.rowCount > 0 && existing.rows[0].status !== 'rejected') {
+            throw new Error(`لقد قدمت طلبك مسبقاً وحالته: ${existing.rows[0].status}`);
+          }
+
+          // Insert or Update pending request
+          await query(
+            `INSERT INTO tl_recruits (user_id, discord_tag, class_name, playstyle, game_status, status)
+             VALUES ($1, $2, $3, $4, $5, 'pending')
+             ON CONFLICT (user_id) DO UPDATE SET
+               discord_tag = $2, class_name = $3, playstyle = $4, game_status = $5, status = 'pending', updated_at = NOW()`,
+            [discordId, member.user.tag, className, playstyle, status]
+          );
+          
+          const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = await import("discord.js");
           
           const cardEmbed = new EmbedBuilder()
             .setColor("#8B0000")
-            .setTitle("📋 بطاقة لاعب جديد — Throne and Liberty")
+            .setTitle("📋 طلب انضمام جديد — Throne and Liberty")
             .setThumbnail(member.user.displayAvatarURL({ extension: "png" }))
             .setDescription([
-              `انضم إلى الجيلد عبر التطبيق: <@${discordId}>`,
+              `مقدم الطلب: <@${discordId}>`,
               ``,
               `**الاسم:** ${member.user.username}`,
               `**الكلاس والأسلحة:** ${className}`,
               `**أسلوب اللعب:** ${playstyle}`,
               `**الوضع الحالي:** ${status}`,
-              `**القوانين:** ✅ وافق على قوانين الجيلد`,
             ].join("\n"))
             .setFooter({ text: "Throne and Liberty • M3RGEEN Gaming Community" })
             .setTimestamp();
 
-          const membersChannel = await client.channels.fetch("1511464947425476799").catch(() => null);
-          if (membersChannel) await membersChannel.send({ embeds: [cardEmbed] });
+          const row = new ActionRowBuilder().addComponents(
+            new ButtonBuilder().setCustomId(`tl:accept:${discordId}`).setLabel("قبول ✅").setStyle(ButtonStyle.Success),
+            new ButtonBuilder().setCustomId(`tl:reject:${discordId}`).setLabel("رفض ❌").setStyle(ButtonStyle.Danger)
+          );
+
+          // Send to Review Channel (1511534262380265533)
+          const reviewChannel = await client.channels.fetch("1511534262380265533").catch(() => null);
+          if (reviewChannel) await reviewChannel.send({ embeds: [cardEmbed], components: [row] });
+
+          // Send DM to the user
+          try {
+            const dmEmbed = new EmbedBuilder()
+              .setColor("#FEE75C")
+              .setTitle("⏳ طلب الانضمام قيد المراجعة")
+              .setDescription("تم إرسال طلب انضمامك لجيلد Throne and Liberty للإدارة بنجاح. يرجى الانتظار لحين الموافقة وسيصلك إشعار بالنتيجة.")
+              .setTimestamp();
+            await member.send({ embeds: [dmEmbed] });
+          } catch (err) {
+            console.log(`Could not send DM to ${discordId}`);
+          }
 
         } else if (game === "gw2") {
           const { selectedClass } = data;

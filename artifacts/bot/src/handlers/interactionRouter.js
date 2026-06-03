@@ -36,6 +36,7 @@ const routers = {
   social: social.handleInteraction,
   gw2: guildwars2.handleInteraction,
   throne: throneliberty.handleInteraction,
+  tl: throneliberty.handleInteraction,
 };
 
 export async function route(interaction) {

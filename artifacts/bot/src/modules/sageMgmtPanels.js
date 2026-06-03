@@ -17,6 +17,7 @@ const CLASS_EMOJI = {
   Ranger:       "<:Ranger:1504471982006341783>",
   Assassin:     "<:Assassin:1504471833695748156>",
   Spiritmaster: "<:Elementalist:1504471920219783209>",
+  Mentalist:    "<:Elementalist:1504471920219783209>",
   Sorcerer:     "<:Sorcerer:1504472006610124961>",
   Cleric:       "<:Cleric:1504471892755611678>",
   Chanter:      "<:Chanter:1504471867141128272>",

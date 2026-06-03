@@ -192,6 +192,23 @@ export async function initDb() {
   `);
 
   await query(`
+    CREATE TABLE IF NOT EXISTS tl_recruits (
+      id SERIAL PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      discord_tag TEXT NOT NULL,
+      class_name TEXT,
+      playstyle TEXT,
+      game_status TEXT,
+      status TEXT DEFAULT 'pending',
+      reviewed_by TEXT,
+      accepted_at TIMESTAMPTZ,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      updated_at TIMESTAMPTZ DEFAULT NOW(),
+      UNIQUE(user_id)
+    )
+  `);
+
+  await query(`
     CREATE TABLE IF NOT EXISTS alliance_members (
       id SERIAL PRIMARY KEY,
       guild_id TEXT NOT NULL,

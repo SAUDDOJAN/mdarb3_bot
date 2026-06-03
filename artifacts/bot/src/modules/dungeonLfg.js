@@ -115,8 +115,12 @@ export async function sendDungeonPanel(interaction) {
   // Send main System Message
   const systemEmbed = new EmbedBuilder()
     .setColor(0xd4af37)
+    .setTitle("📌 نظام الدنجنات التلقائي")
     .setDescription(
-      "مرحبا بكم في نظام البحث عن المجموعات التلقائي. اختر الدنجن المناسب لمستوى قوتك الحالي (CP) لتشكيل فريقك فوراً ومنع الشللية، تذكر أن دعمك لأعضاء قيلدك يمنحك 5 نقاط PvE نشاط!"
+      "يتم تحديد دورك تلقائياً عند الانضمام:\n" +
+      "• **🛡️ تانك / 🏥 هيلر / ⚔️ DPS** (حسب تخصصك المسجل).\n" +
+      "• **Gladiator**: تدخل كـ **DPS** تلقائياً، وتكون **تانك** فقط إذا كانت خانة التانك فارغة.\n" +
+      "• **انضمام Templar**: إذا انضم تانك رئيسي، يُنقل الـ **Gladiator** تلقائياً إلى خانة الـ **DPS** الشاغرة."
     );
 
   await channel.send({ embeds: [systemEmbed] });
@@ -807,7 +811,8 @@ export async function handleLfgVoiceLeave(client, member, channelId) {
     console.log(`[LFG:Voice] Awarded 10pts to ${member.user.tag} for staying ${session.duration_minutes}m`);
   }
 
-  if (channel.members.size === 0) {
+  const channel = member.guild.channels.cache.get(channelId);
+  if (channel && channel.members.size === 0) {
     cleanUpEmptyLfg(client, groupId).catch(e => console.error("[LFG:Voice] Auto cleanup error:", e));
   }
 }

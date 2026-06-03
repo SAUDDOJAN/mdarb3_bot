@@ -261,6 +261,118 @@ async function handleAgree(interaction) {
   });
 }
 
+// ─── قبول الطلب من الإدارة ──────────────────────────────────────────────────
+async function handleAppAccept(interaction, userId) {
+  await interaction.deferUpdate();
+  const { query } = await import("../database/index.js");
+  const { emitNotification } = await import("../socket.js");
+
+  // Check if pending
+  const res = await query("SELECT * FROM tl_recruits WHERE user_id = $1 AND status = 'pending'", [userId]);
+  if (res.rowCount === 0) {
+    return interaction.editReply({ content: "❌ الطلب غير موجود أو تمت معالجته مسبقاً.", components: [] });
+  }
+
+  const member = await interaction.guild.members.fetch(userId).catch(() => null);
+  if (!member) {
+    return interaction.editReply({ content: "❌ لم يتم العثور على العضو في السيرفر.", components: [] });
+  }
+
+  // Update DB
+  await query("UPDATE tl_recruits SET status='accepted', reviewed_by=$1, accepted_at=NOW() WHERE user_id=$2", [interaction.user.id, userId]);
+
+  // Give Role
+  if (TL_MEMBER_ROLE_ID) {
+    await member.roles.add(TL_MEMBER_ROLE_ID).catch(e => console.error("[TL] Role add error:", e));
+  }
+
+  // DM User
+  try {
+    const dmEmbed = new EmbedBuilder()
+      .setColor("#57F287")
+      .setTitle("🎉 تهانينا! تم قبول طلبك")
+      .setDescription("تم قبول انضمامك لجيلد Throne and Liberty رسمياً. مرحباً بك في الفيلق! ⚔️")
+      .setTimestamp();
+    await member.send({ embeds: [dmEmbed] });
+  } catch (e) {
+    console.error(`[TL] Could not DM user ${userId}`);
+  }
+
+  // Emit to App
+  try {
+    const { createNotification } = await import("../database/index.js");
+    const newNotif = await createNotification(
+      "tl_recruitment",
+      userId,
+      "🎉 تم قبولك!",
+      "تمت الموافقة على انضمامك لجيلد Throne and Liberty.",
+      "throne_liberty"
+    );
+    emitNotification(userId, newNotif);
+  } catch (e) {
+    console.error("[TL] Could not emit socket notification:", e);
+  }
+
+  const embed = EmbedBuilder.from(interaction.message.embeds[0])
+    .setColor("#57F287")
+    .addFields({ name: "النتيجة", value: `✅ تم القبول بواسطة <@${interaction.user.id}>` });
+
+  await interaction.editReply({ embeds: [embed], components: [] });
+
+  // Send to members channel
+  try {
+    const membersChannel = await interaction.client.channels.fetch(TL_MEMBERS_CHANNEL_ID);
+    if (membersChannel) {
+      await membersChannel.send({ embeds: [embed] });
+    }
+  } catch (e) {}
+}
+
+// ─── رفض الطلب من الإدارة ──────────────────────────────────────────────────
+async function handleAppReject(interaction, userId) {
+  await interaction.deferUpdate();
+  const { query } = await import("../database/index.js");
+  const { emitNotification } = await import("../socket.js");
+
+  const res = await query("SELECT * FROM tl_recruits WHERE user_id = $1 AND status = 'pending'", [userId]);
+  if (res.rowCount === 0) {
+    return interaction.editReply({ content: "❌ الطلب غير موجود أو تمت معالجته مسبقاً.", components: [] });
+  }
+
+  await query("UPDATE tl_recruits SET status='rejected', reviewed_by=$1 WHERE user_id=$2", [interaction.user.id, userId]);
+
+  const member = await interaction.guild.members.fetch(userId).catch(() => null);
+  if (member) {
+    try {
+      const dmEmbed = new EmbedBuilder()
+        .setColor("#ED4245")
+        .setTitle("❌ تم رفض طلب الانضمام")
+        .setDescription("نأسف، تم رفض طلب انضمامك لجيلد Throne and Liberty من قِبل الإدارة.")
+        .setTimestamp();
+      await member.send({ embeds: [dmEmbed] });
+    } catch (e) {}
+  }
+
+  // Emit to App
+  try {
+    const { createNotification } = await import("../database/index.js");
+    const newNotif = await createNotification(
+      "tl_recruitment",
+      userId,
+      "❌ تم الرفض",
+      "نأسف، تم رفض طلب انضمامك لجيلد Throne and Liberty.",
+      "throne_liberty"
+    );
+    emitNotification(userId, newNotif);
+  } catch (e) {}
+
+  const embed = EmbedBuilder.from(interaction.message.embeds[0])
+    .setColor("#ED4245")
+    .addFields({ name: "النتيجة", value: `❌ تم الرفض بواسطة <@${interaction.user.id}>` });
+
+  await interaction.editReply({ embeds: [embed], components: [] });
+}
+
 // ─── الموجه الرئيسي ─────────────────────────────────────────────────────────
 export async function handleInteraction(interaction) {
   const customId = interaction.customId;
@@ -276,6 +388,10 @@ export async function handleInteraction(interaction) {
       await handleStatus(interaction);
     } else if (customId === "throne:agree") {
       await handleAgree(interaction);
+    } else if (customId.startsWith("tl:accept:")) {
+      await handleAppAccept(interaction, customId.split(":")[2]);
+    } else if (customId.startsWith("tl:reject:")) {
+      await handleAppReject(interaction, customId.split(":")[2]);
     }
   } catch (err) {
     console.error(`[TL] Error handling interaction "${customId}":`, err);
