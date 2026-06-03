@@ -440,7 +440,7 @@ async function handleMgmtListButton(interaction) {
   await interaction.deferReply({ ephemeral: true });
 
   try {
-    const mainGuild = await interaction.client.guilds.fetch("861355983975874601").catch(() => null);
+    const mainGuild = interaction.guild;
     if (!mainGuild) throw new Error("Main guild not found.");
 
     await mainGuild.members.fetch(); // Ensure all members are cached
@@ -470,7 +470,7 @@ async function handleMgmtListButton(interaction) {
     await interaction.editReply({ embeds: [embed] });
   } catch (err) {
     console.error("[TL] Error listing members:", err);
-    await interaction.editReply("❌ حدث خطأ أثناء محاولة جلب الأعضاء.");
+    await interaction.editReply(`❌ حدث خطأ أثناء محاولة جلب الأعضاء:\n\`\`\`js\n${err.message}\n\`\`\``);
   }
 }
 
@@ -516,17 +516,15 @@ export async function handleInteraction(interaction) {
 // ─── تحديث اسم الروم لعدد الأعضاء ───────────────────────────────────────────
 export async function updateTLMemberCount(client) {
   try {
-    const mainGuild = await client.guilds.fetch("861355983975874601").catch(() => null);
-    if (!mainGuild) return;
+    const membersChannel = await client.channels.fetch(TL_MEMBERS_CHANNEL_ID).catch(() => null);
+    if (!membersChannel) return;
 
+    const mainGuild = membersChannel.guild;
     await mainGuild.members.fetch(); // Ensure cache is populated
     const tlRole = await mainGuild.roles.fetch(TL_MEMBER_ROLE_ID).catch(() => null);
     const count = tlRole ? tlRole.members.size : 0;
 
-    const membersChannel = await client.channels.fetch(TL_MEMBERS_CHANNEL_ID).catch(() => null);
-    if (membersChannel) {
-      await membersChannel.setName(`🔰｜ᵀʰʳᵒⁿᴺᴸᶦᵇʳᵗʸ-الاعضاء「${count}」`).catch(e => console.error("[TL] Name update err:", e));
-    }
+    await membersChannel.setName(`🔰｜ᵀʰʳᵒⁿᴺᴸᶦᵇʳᵗʸ-الاعضاء「${count}」`).catch(e => console.error("[TL] Name update err:", e));
   } catch (err) {
     console.error("[TL] Error updating member count:", err);
   }
