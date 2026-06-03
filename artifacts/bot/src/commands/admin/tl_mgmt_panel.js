@@ -8,6 +8,8 @@ export default {
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
   async execute(interaction) {
+    await interaction.deferReply({ ephemeral: true });
+
     // Update count immediately when panel is generated
     await updateTLMemberCount(interaction.client);
 
@@ -24,6 +26,6 @@ export default {
     );
 
     await interaction.channel.send({ embeds: [embed], components: [row] });
-    await interaction.reply({ content: "✅ تم إرسال لوحة الإدارة وتحديث عداد الأعضاء بنجاح.", ephemeral: true });
+    await interaction.editReply({ content: "✅ تم إرسال لوحة الإدارة وتحديث عداد الأعضاء بنجاح." });
   },
 };
