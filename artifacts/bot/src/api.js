@@ -499,8 +499,10 @@ export async function handleDungeonsApi(req, res, parsedUrl) {
         res.end(JSON.stringify({ success: true }));
       } catch (err) {
         console.error("[API] Error handling join:", err);
-        res.writeHead(400, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ success: false, error: err.message }));
+        // 409 = already a member / duplicate, 400 = other validation error
+        const statusCode = (err.message?.startsWith("✅") || err.message?.startsWith("⏳")) ? 409 : 400;
+        res.writeHead(statusCode, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ success: false, error: err.message, alreadyMember: statusCode === 409 }));
       }
     });
     return true;
