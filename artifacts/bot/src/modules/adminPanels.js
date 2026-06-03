@@ -432,13 +432,22 @@ async function handleRemoveMember(interaction, userId) {
 
   const member = await interaction.guild.members.fetch(userId).catch(() => null);
 
-  const configRes    = await query("SELECT legion_role_id FROM guild_config WHERE guild_id=$1", [interaction.guildId]);
+  const configRes    = await query("SELECT guild_role_id, legion_role_id FROM guild_config WHERE guild_id=$1", [interaction.guildId]);
+  const guildRoleId  = configRes.rows[0]?.guild_role_id;
   const legionRoleId = configRes.rows[0]?.legion_role_id;
 
-  if (member && legionRoleId) {
-    await member.roles
-      .remove(legionRoleId, "Admin panel: member removal")
-      .catch((e) => console.warn(`[AdminPanels] Role remove failed for ${userId}:`, e.message));
+  let rolesRemoved = false;
+  if (member) {
+    const rolesToRemove = [];
+    if (guildRoleId) rolesToRemove.push(guildRoleId);
+    if (legionRoleId) rolesToRemove.push(legionRoleId);
+    
+    if (rolesToRemove.length > 0) {
+      await member.roles
+        .remove(rolesToRemove, "Admin panel: member removal")
+        .then(() => rolesRemoved = true)
+        .catch((e) => console.warn(`[AdminPanels] Role remove failed for ${userId}:`, e.message));
+    }
   }
 
   await removeMemberAllData(interaction.client, interaction.guild, userId);
@@ -448,8 +457,8 @@ async function handleRemoveMember(interaction, userId) {
     .setTitle("✅ تمت إزالة العضو")
     .setDescription(
       `تم تنفيذ الإجراءات التالية على **${charName}** (<@${userId}>):\n\n` +
-      `${legionRoleId ? "• ✅ تمت إزالة دور Legion\n" : ""}` +
-      "• ✅ تم حذف بطاقة Power Radar\n" +
+      `${rolesRemoved ? "• ✅ تمت إزالة رتب Aion 2 (PvE & PvP)\n" : "• ⚠️ لم يتم إزالة الرتب (العضو مفقود أو لا يملك رتب)\n"}` +
+      `• ✅ تم حذف بطاقة Power Radar\n` +
       "• ✅ تم مسح النقاط وسجل الفعاليات\n" +
       "• ✅ تم تحديث سجل التجنيد إلى `left`"
     )
