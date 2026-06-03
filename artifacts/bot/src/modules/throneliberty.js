@@ -376,6 +376,25 @@ async function handleAppReject(interaction, userId) {
   await interaction.editReply({ embeds: [embed], components: [] });
 }
 
+// ─── إزالة عضو من الإدارة ──────────────────────────────────────────────────
+async function handleMgmtRemoveButton(interaction) {
+  const { ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } = await import("discord.js");
+
+  const modal = new ModalBuilder()
+    .setCustomId("tl:mgmt:remove_modal")
+    .setTitle("إزالة عضو من Throne and Liberty");
+
+  const idInput = new TextInputBuilder()
+    .setCustomId("userIdInput")
+    .setLabel("أيدي العضو (Discord ID)")
+    .setStyle(TextInputStyle.Short)
+    .setPlaceholder("مثال: 123456789012345678")
+    .setRequired(true);
+
+  modal.addComponents(new ActionRowBuilder().addComponents(idInput));
+  await interaction.showModal(modal);
+}
+
 // ─── إزالة عضو من الإدارة عبر قائمة منسدلة ────────────────────────────────
 async function handleMgmtRemoveUserSelect(interaction) {
   await interaction.deferReply({ ephemeral: true });
@@ -474,6 +493,10 @@ export async function handleInteraction(interaction) {
       await handleAppAccept(interaction, customId.split(":")[2]);
     } else if (customId.startsWith("tl:reject:")) {
       await handleAppReject(interaction, customId.split(":")[2]);
+    } else if (customId === "tl:mgmt:remove") {
+      await handleMgmtRemoveButton(interaction);
+    } else if (customId === "tl:mgmt:remove_modal") {
+      await handleMgmtRemoveModal(interaction);
     } else if (customId === "tl:mgmt:user_select_remove") {
       await handleMgmtRemoveUserSelect(interaction);
     } else if (customId === "tl:mgmt:list") {
