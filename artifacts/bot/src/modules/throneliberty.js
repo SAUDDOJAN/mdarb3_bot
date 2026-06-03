@@ -319,6 +319,9 @@ async function handleAppAccept(interaction, userId) {
 
   await interaction.editReply({ embeds: [embed], components: [] });
 
+  // Update member count
+  await updateTLMemberCount(interaction.client);
+
   // Send to members channel
   try {
     const membersChannel = await interaction.client.channels.fetch(TL_MEMBERS_CHANNEL_ID);
@@ -373,6 +376,72 @@ async function handleAppReject(interaction, userId) {
   await interaction.editReply({ embeds: [embed], components: [] });
 }
 
+// ─── إزالة عضو من الإدارة ──────────────────────────────────────────────────
+async function handleMgmtRemoveButton(interaction) {
+  const { ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } = await import("discord.js");
+
+  const modal = new ModalBuilder()
+    .setCustomId("tl:mgmt:remove_modal")
+    .setTitle("إزالة عضو من Throne and Liberty");
+
+  const idInput = new TextInputBuilder()
+    .setCustomId("userIdInput")
+    .setLabel("أيدي العضو (Discord ID)")
+    .setStyle(TextInputStyle.Short)
+    .setPlaceholder("مثال: 123456789012345678")
+    .setRequired(true);
+
+  modal.addComponents(new ActionRowBuilder().addComponents(idInput));
+  await interaction.showModal(modal);
+}
+
+async function handleMgmtRemoveModal(interaction) {
+  await interaction.deferReply({ ephemeral: true });
+  const userId = interaction.fields.getTextInputValue("userIdInput");
+
+  const { query } = await import("../database/index.js");
+
+  // Fetch from DB
+  const res = await query("SELECT * FROM tl_recruits WHERE user_id = $1", [userId]);
+  if (res.rowCount === 0) {
+    return interaction.editReply({ content: "❌ لم يتم العثور على اللاعب في قاعدة بيانات Throne and Liberty." });
+  }
+
+  const charName = res.rows[0].discord_tag; // Or username if we had it
+  
+  // Wipe DB
+  await query("DELETE FROM tl_recruits WHERE user_id = $1", [userId]);
+
+  // Remove Role
+  let rolesRemovedText = "";
+  const member = await interaction.guild.members.fetch(userId).catch(() => null);
+  if (member) {
+    if (TL_MEMBER_ROLE_ID && member.roles.cache.has(TL_MEMBER_ROLE_ID)) {
+      await member.roles.remove(TL_MEMBER_ROLE_ID).catch(() => {});
+      rolesRemovedText = "✅ تم سحب رتبة Throne and Liberty بنجاح.\n(العضو باقٍ برتبة المعرقين).";
+    } else {
+      rolesRemovedText = "⚠️ لم يتم العثور على رتبة Throne and Liberty لدى العضو.";
+    }
+  } else {
+    rolesRemovedText = "⚠️ العضو غير متواجد في السيرفر حالياً ليتسنى سحب الرتبة منه.";
+  }
+
+  // Update Count
+  await updateTLMemberCount(interaction.client);
+
+  const embed = new EmbedBuilder()
+    .setColor("#ED4245")
+    .setTitle("✅ تمت إزالة العضو")
+    .setDescription(
+      `تم تنفيذ الإجراءات التالية على (<@${userId}>):\n\n` +
+      `🗑️ تم حذف جميع بياناته وتقدمه من قاعدة بيانات Throne and Liberty.\n${rolesRemovedText}`
+    )
+    .setFooter({ text: `تم الإجراء بواسطة: ${interaction.user.username}` })
+    .setTimestamp();
+
+  await interaction.editReply({ embeds: [embed] });
+}
+
 // ─── الموجه الرئيسي ─────────────────────────────────────────────────────────
 export async function handleInteraction(interaction) {
   const customId = interaction.customId;
@@ -392,6 +461,10 @@ export async function handleInteraction(interaction) {
       await handleAppAccept(interaction, customId.split(":")[2]);
     } else if (customId.startsWith("tl:reject:")) {
       await handleAppReject(interaction, customId.split(":")[2]);
+    } else if (customId === "tl:mgmt:remove") {
+      await handleMgmtRemoveButton(interaction);
+    } else if (customId === "tl:mgmt:remove_modal") {
+      await handleMgmtRemoveModal(interaction);
     }
   } catch (err) {
     console.error(`[TL] Error handling interaction "${customId}":`, err);
@@ -402,4 +475,54 @@ export async function handleInteraction(interaction) {
       await interaction.reply(reply).catch(() => {});
     }
   }
+}
+
+// ─── تحديث اسم الروم لعدد الأعضاء ───────────────────────────────────────────
+export async function updateTLMemberCount(client) {
+  try {
+    const { query } = await import("../database/index.js");
+    const res = await query("SELECT COUNT(*) FROM tl_recruits WHERE status='accepted'");
+    const count = res.rows[0].count;
+
+    const membersChannel = await client.channels.fetch(TL_MEMBERS_CHANNEL_ID).catch(() => null);
+    if (membersChannel) {
+      await membersChannel.setName(`أعضاء-tl-「${count}」`).catch(e => console.error("[TL] Name update err:", e));
+    }
+  } catch (err) {
+    console.error("[TL] Error updating member count:", err);
+  }
+}
+
+// ─── Cron Job للحذف التلقائي ───────────────────────────────────────────────
+export function startTlCleanupCron(client) {
+  setInterval(async () => {
+    try {
+      const { query } = await import("../database/index.js");
+      // Find rows where status is not pending and accepted_at is > 24 hours ago, and message_id is not null
+      const res = await query(`
+        SELECT user_id, message_id 
+        FROM tl_recruits 
+        WHERE status != 'pending' 
+        AND message_id IS NOT NULL 
+        AND accepted_at < NOW() - INTERVAL '24 hours'
+      `);
+
+      if (res.rowCount > 0) {
+        const reviewChannel = await client.channels.fetch("1511534262380265533").catch(() => null);
+        if (reviewChannel) {
+          for (const row of res.rows) {
+            try {
+              const msg = await reviewChannel.messages.fetch(row.message_id);
+              if (msg) await msg.delete();
+            } catch (e) {
+              // Message might be already deleted
+            }
+            await query("UPDATE tl_recruits SET message_id = NULL WHERE user_id = $1", [row.user_id]);
+          }
+        }
+      }
+    } catch (err) {
+      console.error("[TL Cleanup Cron] Error:", err.message);
+    }
+  }, 60 * 60 * 1000); // Check every hour
 }

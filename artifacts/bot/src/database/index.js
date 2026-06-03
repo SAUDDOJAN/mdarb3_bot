@@ -209,6 +209,11 @@ export async function initDb() {
   `);
 
   await query(`
+    ALTER TABLE tl_recruits
+    ADD COLUMN IF NOT EXISTS message_id TEXT
+  `);
+
+  await query(`
     CREATE TABLE IF NOT EXISTS alliance_members (
       id SERIAL PRIMARY KEY,
       guild_id TEXT NOT NULL,

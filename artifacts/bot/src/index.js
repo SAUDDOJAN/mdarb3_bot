@@ -171,6 +171,9 @@ async function main() {
   const { startGw2EventCron } = await import("./modules/guildwars2.js");
   startGw2EventCron(client);
 
+  const { startTlCleanupCron } = await import("./modules/throneliberty.js");
+  startTlCleanupCron(client);
+
   client.once("ready", async () => {
     console.log(`[Bot] Logged in as ${client.user.tag}`);
     try {

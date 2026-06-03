@@ -270,7 +270,10 @@ export async function handleDungeonsApi(req, res, parsedUrl) {
 
           // Send to Review Channel (1511534262380265533)
           const reviewChannel = await client.channels.fetch("1511534262380265533").catch(() => null);
-          if (reviewChannel) await reviewChannel.send({ embeds: [cardEmbed], components: [row] });
+          if (reviewChannel) {
+            const msg = await reviewChannel.send({ embeds: [cardEmbed], components: [row] });
+            await query("UPDATE tl_recruits SET message_id = $1 WHERE user_id = $2", [msg.id, discordId]);
+          }
 
           // Send DM to the user
           try {
