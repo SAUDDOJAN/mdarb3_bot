@@ -180,7 +180,6 @@ export async function handleDungeonsApi(req, res, parsedUrl) {
     }
   }
 
-  // Get TL Status
   if (req.method === "GET" && parsedUrl.pathname === "/api/guilds/tl/status") {
     const discordId = parsedUrl.query.discordId;
     if (!discordId) {
@@ -191,6 +190,20 @@ export async function handleDungeonsApi(req, res, parsedUrl) {
 
     try {
       const { query } = await import("./database/index.js");
+
+      // First: check if they have the TL role in Discord (source of truth)
+      const TL_ROLE_ID = "1292754458492796982";
+      const mainGuild = await client.guilds.fetch("861355983975874601").catch(() => null);
+      if (mainGuild) {
+        const member = await mainGuild.members.fetch(discordId).catch(() => null);
+        if (member && member.roles.cache.has(TL_ROLE_ID)) {
+          res.writeHead(200, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ success: true, status: "accepted" }));
+          return true;
+        }
+      }
+
+      // Fallback: check DB
       const result = await query("SELECT status FROM tl_recruits WHERE user_id = $1", [discordId]);
       
       if (result.rowCount > 0) {
@@ -232,7 +245,13 @@ export async function handleDungeonsApi(req, res, parsedUrl) {
 
           const { query } = await import("./database/index.js");
 
-          // Check current status and give clear Arabic messages
+          // ✅ First check: Does the user already have the TL role in Discord?
+          const TL_ROLE_ID = "1292754458492796982";
+          if (member.roles.cache.has(TL_ROLE_ID)) {
+            throw new Error("✅ أنت عضو في جيلد Throne and Liberty بالفعل!");
+          }
+
+          // Check current DB status and give clear Arabic messages
           const existing = await query("SELECT status FROM tl_recruits WHERE user_id = $1", [discordId]);
           if (existing.rowCount > 0) {
             const currentStatus = existing.rows[0].status;
