@@ -45,6 +45,30 @@ export async function getNotifications(limit = 20) {
   return result.rows;
 }
 
+// ─── Push Tokens Helpers ───────────────────────────────────────────────────────
+
+export async function savePushToken(user_id, token, platform) {
+  const result = await query(
+    `INSERT INTO push_tokens (user_id, token, platform) 
+     VALUES ($1, $2, $3)
+     ON CONFLICT (user_id, token) 
+     DO UPDATE SET updated_at = NOW(), platform = $3
+     RETURNING *`,
+    [user_id, token, platform]
+  );
+  return result.rows[0];
+}
+
+export async function getPushTokens(user_id) {
+  const result = await query(`SELECT * FROM push_tokens WHERE user_id = $1`, [user_id]);
+  return result.rows;
+}
+
+export async function getAllPushTokens() {
+  const result = await query(`SELECT * FROM push_tokens`);
+  return result.rows;
+}
+
 // ─── Wiki Helpers ────────────────────────────────────────────────────────────
 
 export async function createWikiArticle(game, title, content, date_tag) {
@@ -111,6 +135,16 @@ export async function initDb() {
       message TEXT,
       data JSONB,
       created_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+
+  await query(`
+    CREATE TABLE IF NOT EXISTS push_tokens (
+      user_id TEXT NOT NULL,
+      token TEXT NOT NULL,
+      platform TEXT NOT NULL,
+      updated_at TIMESTAMPTZ DEFAULT NOW(),
+      PRIMARY KEY (user_id, token)
     )
   `);
 

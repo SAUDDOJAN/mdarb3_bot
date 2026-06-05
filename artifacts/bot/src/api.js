@@ -222,6 +222,48 @@ export async function handleDungeonsApi(req, res, parsedUrl) {
     }
   }
 
+  // Handle Push Notifications APIs
+  if (req.method === "POST" && parsedUrl.pathname === "/api/push/register") {
+    let body = "";
+    req.on("data", chunk => body += chunk.toString());
+    req.on("end", async () => {
+      try {
+        const { discordId, token, platform } = JSON.parse(body);
+        if (!discordId || !token || !platform) {
+          res.writeHead(400, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ success: false, error: "Missing parameters" }));
+          return;
+        }
+
+        const { savePushToken } = await import("./database/index.js");
+        const tokenString = typeof token === 'object' ? JSON.stringify(token) : token;
+        await savePushToken(discordId, tokenString, platform);
+
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ success: true }));
+      } catch (err) {
+        console.error("[API] Error registering push token:", err);
+        res.writeHead(500, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ success: false, error: "Internal Server Error" }));
+      }
+    });
+    return true;
+  }
+
+  if (req.method === "GET" && parsedUrl.pathname === "/api/push/vapid-public-key") {
+    try {
+      const { getVapidKeys } = await import("./services/push.js");
+      const keys = await getVapidKeys();
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ success: true, publicKey: keys.publicKey }));
+    } catch (err) {
+      console.error("[API] Error fetching VAPID keys:", err);
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ success: false, error: "Internal Server Error" }));
+    }
+    return true;
+  }
+
   // Handle Join POST APIs
   if (req.method === "POST" && parsedUrl.pathname.startsWith("/api/join/")) {
     const game = parsedUrl.pathname.split("/").pop();

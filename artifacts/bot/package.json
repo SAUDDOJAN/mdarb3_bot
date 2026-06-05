@@ -18,10 +18,12 @@
     "cheerio": "^1.2.0",
     "discord.js": "^14.18.0",
     "dotenv": "^16.5.0",
+    "expo-server-sdk": "^6.1.0",
     "express": "^5",
     "openai": "^6.37.0",
     "pg": "^8.16.0",
     "rss-parser": "^3.13.0",
-    "socket.io": "^4.8.3"
+    "socket.io": "^4.8.3",
+    "web-push": "^3.6.7"
   }
 }

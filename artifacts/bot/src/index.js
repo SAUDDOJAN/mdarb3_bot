@@ -7,6 +7,7 @@ import { initDb } from "./database/index.js";
 import { getSyncedChannels } from "./database/radar.js";
 import { initSocket, emitDiscordMessage } from "./socket.js";
 import { handleDungeonsApi } from "./api.js";
+import { initPush, handleChatPush } from "./services/push.js";
 
 const PORT = process.env.PORT || 3000;
 const server = http.createServer((req, res) => {
@@ -108,6 +109,7 @@ client.on("messageCreate", (message) => {
   // Real-time Chat Sync with App for General Channel
   if (message.channel.id === "1294312574162178200") {
     emitDiscordMessage(message);
+    handleChatPush(message);
   }
 
   const syncedData = getSyncedChannels();
@@ -176,6 +178,12 @@ async function main() {
 
   client.once("ready", async () => {
     console.log(`[Bot] Logged in as ${client.user.tag}`);
+    initDb();
+    initPush();
+    
+    const { setupGameTimers } = await import("./tasks/timers.js").catch(() => ({ setupGameTimers: () => {} }));
+    setupGameTimers();
+
     try {
       const mainGuild = client.guilds.cache.get("861355983975874601");
       if (mainGuild) {
