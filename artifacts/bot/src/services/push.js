@@ -115,6 +115,7 @@ export async function handleChatPush(message) {
   } catch (err) {
     console.error("[Push] Error handling chat push:", err);
   }
+}
 
 export async function broadcastPushNotification(title, body, data = {}) {
   try {
