@@ -624,6 +624,32 @@ export async function initDb() {
   `);
   await query(`CREATE INDEX IF NOT EXISTS idx_dvc_sess_user ON dungeon_vc_sessions(user_id)`);
 
+  // Push Notifications Preferences
+  await query(`
+    CREATE TABLE IF NOT EXISTS user_push_preferences (
+      user_id TEXT PRIMARY KEY,
+      notify_dungeons BOOLEAN DEFAULT true,
+      notify_events BOOLEAN DEFAULT true,
+      notify_rifts BOOLEAN DEFAULT true,
+      notify_siege BOOLEAN DEFAULT true,
+      updated_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+
+  // Scheduled Reminders
+  await query(`
+    CREATE TABLE IF NOT EXISTS scheduled_reminders (
+      id SERIAL PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      title TEXT NOT NULL,
+      body TEXT NOT NULL,
+      trigger_at TIMESTAMPTZ NOT NULL,
+      status TEXT DEFAULT 'pending',
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+  await query(`CREATE INDEX IF NOT EXISTS idx_sched_rem_status_time ON scheduled_reminders(status, trigger_at)`);
+
   console.log("[DB] All tables initialized.");
 }
 

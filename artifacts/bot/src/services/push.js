@@ -117,9 +117,13 @@ export async function handleChatPush(message) {
   }
 }
 
-export async function broadcastPushNotification(title, body, data = {}) {
+export async function broadcastPushNotification(title, body, data = {}, prefKey = null) {
   try {
-    const result = await query("SELECT user_id, token, platform FROM push_tokens");
+    let queryStr = "SELECT pt.user_id, pt.token, pt.platform FROM push_tokens pt";
+    if (prefKey) {
+      queryStr += ` LEFT JOIN user_push_preferences pp ON pt.user_id = pp.user_id WHERE pp.${prefKey} = true OR pp.${prefKey} IS NULL`;
+    }
+    const result = await query(queryStr);
     if (result.rows.length === 0) return;
 
     // Group by platform
@@ -175,3 +179,18 @@ export async function broadcastPushNotification(title, body, data = {}) {
     console.error("[Push] Error in broadcastPushNotification:", err);
   }
 }
+
+export async function checkScheduledReminders() {
+  try {
+    const res = await query("SELECT * FROM scheduled_reminders WHERE status = 'pending' AND trigger_at <= NOW()");
+    for (const reminder of res.rows) {
+      // Send the push notification
+      await sendPushNotification(reminder.user_id, reminder.title, reminder.body, { type: 'reminder' });
+      // Update status
+      await query("UPDATE scheduled_reminders SET status = 'completed' WHERE id = $1", [reminder.id]);
+    }
+  } catch (err) {
+    console.error("[Push] Error checking scheduled reminders:", err);
+  }
+}
+

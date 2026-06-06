@@ -104,13 +104,13 @@ const SAGE_HUB_CHANNEL_ID = "1507706953521041509";
 
 // المزامنة المتعددة الأوتوماتيكية عبر ملف JSON الموحد
 client.on("messageCreate", (message) => {
-  if (message.author.bot || message.webhookId || message.applicationId === client.user.id) return;
-
-  // Real-time Chat Sync with App for General Channel
+  // Real-time Chat Sync with App for General Channel (Allowing bots like Assistant to show in app and trigger push)
   if (message.channel.id === "1294312574162178200") {
     emitDiscordMessage(message);
     handleChatPush(message);
   }
+
+  if (message.author.bot || message.webhookId || message.applicationId === client.user.id) return;
 
   const syncedData = getSyncedChannels();
   const syncedChannelIds = Object.values(syncedData);
@@ -183,6 +183,16 @@ async function main() {
     
     const { setupGameTimers } = await import("./tasks/timers.js").catch(() => ({ setupGameTimers: () => {} }));
     setupGameTimers();
+
+    // Start scheduled reminders checker
+    setInterval(async () => {
+      try {
+        const { checkScheduledReminders } = await import("./services/push.js");
+        await checkScheduledReminders();
+      } catch (err) {
+        console.error("[Bot] Error in reminder checker loop:", err);
+      }
+    }, 60 * 1000);
 
     try {
       const mainGuild = client.guilds.cache.get("861355983975874601");

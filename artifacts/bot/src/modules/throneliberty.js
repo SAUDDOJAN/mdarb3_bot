@@ -303,12 +303,13 @@ async function handleAppAccept(interaction, userId) {
     const { createNotification } = await import("../database/index.js");
     const newNotif = await createNotification(
       "tl_recruitment",
-      userId,
       "🎉 تم قبولك!",
       "تمت الموافقة على انضمامك لجيلد Throne and Liberty.",
-      "throne_liberty"
+      { target_user_id: userId }
     );
     emitNotification(userId, newNotif);
+    const { sendPushNotification } = await import("../services/push.js");
+    await sendPushNotification(userId, "🎉 تم قبولك!", "تمت الموافقة على انضمامك لجيلد Throne and Liberty.", { type: "alliance" });
   } catch (e) {
     console.error("[TL] Could not emit socket notification:", e);
   }
@@ -361,12 +362,13 @@ async function handleAppReject(interaction, userId) {
     const { createNotification } = await import("../database/index.js");
     const newNotif = await createNotification(
       "tl_recruitment",
-      userId,
       "❌ تم الرفض",
-      "نأسف، تم رفض طلب انضمامك لجيلد Throne and Liberty.",
-      "throne_liberty"
+      "نأسف، لم يتم قبول طلبك للانضمام لجيلد Throne and Liberty.",
+      { target_user_id: userId }
     );
     emitNotification(userId, newNotif);
+    const { sendPushNotification } = await import("../services/push.js");
+    await sendPushNotification(userId, "❌ تم الرفض", "نأسف، تم رفض طلب انضمامك لجيلد Throne and Liberty.", { type: "alliance" });
   } catch (e) {}
 
   const embed = EmbedBuilder.from(interaction.message.embeds[0])

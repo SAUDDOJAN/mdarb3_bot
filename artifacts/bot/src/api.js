@@ -223,6 +223,89 @@ export async function handleDungeonsApi(req, res, parsedUrl) {
   }
 
   // Handle Push Notifications APIs
+  if (req.method === "GET" && parsedUrl.pathname === "/api/push/preferences") {
+    const discordId = parsedUrl.query.discordId;
+    if (!discordId) {
+      res.writeHead(400, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ success: false, error: "Discord ID is required" }));
+      return true;
+    }
+    try {
+      const { query } = await import("./database/index.js");
+      const prefRes = await query("SELECT * FROM user_push_preferences WHERE user_id = $1", [discordId]);
+      if (prefRes.rowCount > 0) {
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ success: true, preferences: prefRes.rows[0] }));
+      } else {
+        // Default preferences
+        const defaults = { notify_dungeons: true, notify_events: true, notify_rifts: true, notify_siege: true };
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ success: true, preferences: defaults }));
+      }
+    } catch (err) {
+      console.error("[API] Error fetching preferences:", err);
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ success: false, error: err.message }));
+    }
+    return true;
+  }
+
+  if (req.method === "POST" && parsedUrl.pathname === "/api/push/preferences") {
+    let body = "";
+    req.on("data", chunk => body += chunk.toString());
+    req.on("end", async () => {
+      try {
+        const { discordId, notify_dungeons, notify_events, notify_rifts, notify_siege } = JSON.parse(body);
+        if (!discordId) {
+          res.writeHead(400, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ success: false, error: "Missing Discord ID" }));
+          return;
+        }
+        const { query } = await import("./database/index.js");
+        await query(
+          `INSERT INTO user_push_preferences (user_id, notify_dungeons, notify_events, notify_rifts, notify_siege, updated_at)
+           VALUES ($1, $2, $3, $4, $5, NOW())
+           ON CONFLICT (user_id) DO UPDATE SET
+             notify_dungeons = $2, notify_events = $3, notify_rifts = $4, notify_siege = $5, updated_at = NOW()`,
+          [discordId, !!notify_dungeons, !!notify_events, !!notify_rifts, !!notify_siege]
+        );
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ success: true }));
+      } catch (err) {
+        console.error("[API] Error saving preferences:", err);
+        res.writeHead(500, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ success: false, error: "Internal Server Error" }));
+      }
+    });
+    return true;
+  }
+
+  if (req.method === "POST" && parsedUrl.pathname === "/api/reminders/schedule") {
+    let body = "";
+    req.on("data", chunk => body += chunk.toString());
+    req.on("end", async () => {
+      try {
+        const { discordId, title, message, triggerAt } = JSON.parse(body);
+        if (!discordId || !title || !message || !triggerAt) {
+          res.writeHead(400, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ success: false, error: "Missing parameters" }));
+          return;
+        }
+        const { query } = await import("./database/index.js");
+        await query(
+          `INSERT INTO scheduled_reminders (user_id, title, body, trigger_at, status) VALUES ($1, $2, $3, $4, 'pending')`,
+          [discordId, title, message, new Date(triggerAt)]
+        );
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ success: true }));
+      } catch (err) {
+        console.error("[API] Error scheduling reminder:", err);
+        res.writeHead(500, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ success: false, error: "Internal Server Error" }));
+      }
+    });
+    return true;
+  }
   if (req.method === "POST" && parsedUrl.pathname === "/api/push/register") {
     let body = "";
     req.on("data", chunk => body += chunk.toString());

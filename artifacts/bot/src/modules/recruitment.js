@@ -562,6 +562,8 @@ async function acceptApplicant(interaction, userId, appId) {
       { target_user_id: app.user_id }
     );
     emitNotification(newNotif);
+    const { sendPushNotification } = await import('../services/push.js');
+    await sendPushNotification(app.user_id, "🎉 تم قبولك!", `أهلاً بك في الفيلق! تم قبول انضمام شخصيتك ${app.character_name} بنجاح.`, { type: "alliance" });
   } catch (err) {
     console.error("Notification insert error:", err);
   }
@@ -607,6 +609,23 @@ async function rejectApplicant(interaction, userId, appId) {
       )
       .setTimestamp();
     await member.send({ embeds: [rejectDm] }).catch(() => {});
+  }
+
+  // Insert in-app notification & Push
+  try {
+    const { createNotification } = await import('../database/index.js');
+    const { emitNotification } = await import('../socket.js');
+    const newNotif = await createNotification(
+      'recruitment',
+      `❌ تم الرفض`,
+      `نأسف، لم يتم قبول طلب انضمام شخصيتك ${app.character_name} في الوقت الحالي.`,
+      { target_user_id: app.user_id }
+    );
+    emitNotification(newNotif);
+    const { sendPushNotification } = await import('../services/push.js');
+    await sendPushNotification(app.user_id, "❌ تم الرفض", `نأسف، لم يتم قبول طلب انضمام شخصيتك ${app.character_name} في الوقت الحالي.`, { type: "alliance" });
+  } catch (err) {
+    console.error("Notification insert error:", err);
   }
 
   const updatedEmbed = EmbedBuilder.from(interaction.message.embeds[0])
