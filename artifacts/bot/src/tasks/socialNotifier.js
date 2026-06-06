@@ -31,7 +31,7 @@ async function saveData() {
     await query(`
       INSERT INTO bot_state (key, value) VALUES ('social_data', $1)
       ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value
-    `, [socialData]);
+    `, [JSON.stringify(socialData)]);
   } catch (err) {
     console.error('[SocialNotifier] Error saving data to DB:', err.message);
   }
@@ -49,52 +49,66 @@ async function checkYouTube(client) {
     const feed = await parser.parseURL(feedUrl);
 
     if (feed.items && feed.items.length > 0) {
-      const latestVideo = feed.items[0];
-      const videoId = latestVideo.id.replace('yt:video:', '');
+      // Check the latest 3 videos (oldest first so we announce in order)
+      const itemsToCheck = feed.items.slice(0, 3).reverse();
 
-      // Check if this is a new video
-      if (socialData.lastYouTubeVideoId !== videoId) {
-        console.log(`[SocialNotifier] New YouTube video detected: ${latestVideo.title}`);
-        
-        // Notify Discord
-        const channel = await client.channels.fetch(NOTIFY_CHANNEL_ID);
-        if (channel) {
-          let roleCount = 0;
-          if (channel.guild) {
-            try {
-              await channel.guild.members.fetch();
-              const role = channel.guild.roles.cache.get(NOTIFY_ROLE_ID);
-              if (role) roleCount = role.members.size;
-            } catch (err) {
-              console.error('[SocialNotifier] Error fetching role for count:', err);
+      for (const latestVideo of itemsToCheck) {
+        const videoId = latestVideo.id.replace('yt:video:', '');
+        const pubDate = new Date(latestVideo.pubDate);
+        const now = new Date();
+        const hoursOld = (now - pubDate) / (1000 * 60 * 60);
+
+        // Make sure socialData has announcedVideos array
+        if (!socialData.announcedVideos) {
+          socialData.announcedVideos = socialData.lastYouTubeVideoId ? [socialData.lastYouTubeVideoId] : [];
+        }
+
+        // Check if this is a new video and less than 24 hours old
+        if (!socialData.announcedVideos.includes(videoId) && hoursOld < 24) {
+          console.log(`[SocialNotifier] New YouTube video detected: ${latestVideo.title}`);
+          
+          // Notify Discord
+          const channel = await client.channels.fetch(NOTIFY_CHANNEL_ID);
+          if (channel) {
+            let roleCount = 0;
+            if (channel.guild) {
+              try {
+                await channel.guild.members.fetch();
+                const role = channel.guild.roles.cache.get(NOTIFY_ROLE_ID);
+                if (role) roleCount = role.members.size;
+              } catch (err) {
+                console.error('[SocialNotifier] Error fetching role for count:', err);
+              }
             }
+
+            const embed = new EmbedBuilder()
+              .setColor('#FF0000') // YouTube Red
+              .setAuthor({ name: feed.title || 'Mdarb3 | مدربة', iconURL: LOGO_URL, url: YOUTUBE_CHANNEL_URL })
+              .setTitle(latestVideo.title)
+              .setURL(latestVideo.link)
+              .setImage(`https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`) // Video Thumbnail
+              .setFooter({ text: 'YouTube', iconURL: 'https://cdn-icons-png.flaticon.com/512/1384/1384060.png' })
+              .setTimestamp(pubDate);
+
+            const subscribeButton = new ButtonBuilder()
+              .setCustomId('social:subscribe')
+              .setLabel(`🔔 اشترك بالإشعارات (${roleCount})`)
+              .setStyle(ButtonStyle.Primary);
+
+            const row = new ActionRowBuilder().addComponents(subscribeButton);
+
+            await channel.send({
+              content: `<@&${NOTIFY_ROLE_ID}> مقطع جديد نزل يا معرقين لحقوا عليه! 🔥\n${latestVideo.link}`,
+              embeds: [embed],
+              components: [row]
+            });
+
+            // Update state
+            socialData.announcedVideos.push(videoId);
+            if (socialData.announcedVideos.length > 10) socialData.announcedVideos.shift();
+            socialData.lastYouTubeVideoId = videoId; // fallback for older logic
+            await saveData();
           }
-
-          const embed = new EmbedBuilder()
-            .setColor('#FF0000') // YouTube Red
-            .setAuthor({ name: feed.title || 'Mdarb3 | مدربة', iconURL: LOGO_URL, url: YOUTUBE_CHANNEL_URL })
-            .setTitle(latestVideo.title)
-            .setURL(latestVideo.link)
-            .setImage(`https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`) // Video Thumbnail
-            .setFooter({ text: 'YouTube', iconURL: 'https://cdn-icons-png.flaticon.com/512/1384/1384060.png' })
-            .setTimestamp(new Date(latestVideo.pubDate));
-
-          const subscribeButton = new ButtonBuilder()
-            .setCustomId('social:subscribe')
-            .setLabel(`🔔 اشترك بالإشعارات (${roleCount})`)
-            .setStyle(ButtonStyle.Primary);
-
-          const row = new ActionRowBuilder().addComponents(subscribeButton);
-
-          await channel.send({
-            content: `<@&${NOTIFY_ROLE_ID}> مقطع جديد نزل يا معرقين لحقوا عليه! 🔥\n${latestVideo.link}`,
-            embeds: [embed],
-            components: [row]
-          });
-
-          // Update state
-          socialData.lastYouTubeVideoId = videoId;
-          await saveData();
         }
       }
     }
