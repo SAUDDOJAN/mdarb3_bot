@@ -75,8 +75,12 @@ export function initSocket(server) {
           if (matches && matches.length === 3) {
             const buffer = Buffer.from(matches[2], 'base64');
             let ext = 'png';
-            if (matches[1].includes('jpeg') || matches[1].includes('jpg')) ext = 'jpg';
-            else if (matches[1].includes('gif')) ext = 'gif';
+            const mimeType = matches[1].toLowerCase();
+            if (mimeType.includes('jpeg') || mimeType.includes('jpg')) ext = 'jpg';
+            else if (mimeType.includes('gif')) ext = 'gif';
+            else if (mimeType.includes('mp4')) ext = 'mp4';
+            else if (mimeType.includes('mov') || mimeType.includes('quicktime')) ext = 'mov';
+            else if (mimeType.includes('webm')) ext = 'webm';
             
             payload.files = [{
               attachment: buffer,
