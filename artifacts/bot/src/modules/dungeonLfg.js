@@ -373,7 +373,7 @@ async function handleCreateGroup(interaction, dungeonName, difficulty) {
     emitNotification(notif);
     // NEW HOOK: Only send to users who opted in to dungeon notifications
     const { broadcastPushNotification } = await import("../services/push.js");
-    await broadcastPushNotification(`مجموعة دنجن جديدة: ${dungeonName}`, notifMsg, { type: 'dungeon', id: groupId }, 'notify_dungeons');
+    await broadcastPushNotification(`مجموعة دنجن جديدة: ${dungeonName}`, notifMsg, { type: 'dungeon', id: groupId }, ['notify_dungeons', 'notify_aion']);
   } catch (err) {
     console.error("[LFG] Failed to create global notification:", err);
   }

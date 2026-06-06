@@ -635,6 +635,10 @@ export async function initDb() {
       updated_at TIMESTAMPTZ DEFAULT NOW()
     )
   `);
+  
+  await query(`ALTER TABLE user_push_preferences ADD COLUMN IF NOT EXISTS notify_tl BOOLEAN DEFAULT true`);
+  await query(`ALTER TABLE user_push_preferences ADD COLUMN IF NOT EXISTS notify_aion BOOLEAN DEFAULT true`);
+  await query(`ALTER TABLE user_push_preferences ADD COLUMN IF NOT EXISTS notify_gw2 BOOLEAN DEFAULT true`);
 
   // Scheduled Reminders
   await query(`

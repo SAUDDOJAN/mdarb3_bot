@@ -117,11 +117,16 @@ export async function handleChatPush(message) {
   }
 }
 
-export async function broadcastPushNotification(title, body, data = {}, prefKey = null) {
+export async function broadcastPushNotification(title, body, data = {}, prefKeys = []) {
   try {
     let queryStr = "SELECT pt.user_id, pt.token, pt.platform FROM push_tokens pt";
-    if (prefKey) {
-      queryStr += ` LEFT JOIN user_push_preferences pp ON pt.user_id = pp.user_id WHERE pp.${prefKey} = true OR pp.${prefKey} IS NULL`;
+    
+    // Normalize prefKeys to an array if a single string is passed
+    if (typeof prefKeys === 'string') prefKeys = [prefKeys];
+
+    if (prefKeys && prefKeys.length > 0) {
+      const conditions = prefKeys.map(k => `(pp.${k} = true OR pp.${k} IS NULL)`).join(" AND ");
+      queryStr += ` LEFT JOIN user_push_preferences pp ON pt.user_id = pp.user_id WHERE ${conditions}`;
     }
     const result = await query(queryStr);
     if (result.rows.length === 0) return;

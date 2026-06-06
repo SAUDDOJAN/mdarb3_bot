@@ -286,8 +286,17 @@ export function setupGameTimers() {
           triggeredEvents[key] = nowMs;
           const { title, body } = getNotificationDetails(key, timers.tl_boss_type, timers.tl_boss_peaceful);
           
-          console.log(`[Timers] Triggering Push Notification for: ${key}`);
-          await broadcastPushNotification(title, body, { type: 'timer_event', eventKey: key });
+          let prefKeys = [];
+          if (key.startsWith('tl_')) prefKeys.push('notify_tl');
+          else if (key.startsWith('gw2_')) prefKeys.push('notify_gw2');
+          else prefKeys.push('notify_aion');
+
+          if (key === 'rift') prefKeys.push('notify_rifts');
+          else if (key === 'tl_siege') prefKeys.push('notify_siege');
+          else prefKeys.push('notify_events');
+          
+          console.log(`[Timers] Triggering Push Notification for: ${key} with prefs:`, prefKeys);
+          await broadcastPushNotification(title, body, { type: 'timer_event', eventKey: key }, prefKeys);
         }
       }
     }
