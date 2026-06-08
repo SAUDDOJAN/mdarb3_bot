@@ -1,1 +1,1 @@
-window.DISCORD_WIDGET_DATA = {"total":858,"online":134,"channels":[{"id":"1290124827184726080","name":"🎧｜ɢᴇɴᴇʀᴀʟ","members":[]},{"id":"1509675131855962144","name":"🎧｜ɢᴇɴᴇʀᴀʟ 2","members":[]}],"updatedAt":"2026-06-08T02:48:17.466Z"};
+window.DISCORD_WIDGET_DATA = {"total":858,"online":135,"channels":[{"id":"1290124827184726080","name":"🎧｜ɢᴇɴᴇʀᴀʟ","members":[]},{"id":"1509675131855962144","name":"🎧｜ɢᴇɴᴇʀᴀʟ 2","members":[]}],"updatedAt":"2026-06-08T03:13:24.541Z"};

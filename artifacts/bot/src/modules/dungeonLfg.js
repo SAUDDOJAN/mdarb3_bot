@@ -331,7 +331,7 @@ async function handleCreateGroup(interaction, dungeonName, difficulty) {
   const pingContent = guildRoleId ? `<@&${guildRoleId}> ` : "";
 
   const msgPayload = {
-    content: `${pingContent}🚨 **نداء النخبة!**\n<@${interaction.user.id}> يستعد لاقتحام دنجن **${dungeonName}** بصعوبة **[${difficulty.toUpperCase()}]** ويبحث عن كواسر لتدعيم الفريق!`,
+    content: `${pingContent}🚨 **نداء النخبة! أبطال معرقين مطلوبون حالاً!** 🚨\nاللاعب <@${interaction.user.id}> يستعد لاقتحام دنجن **${dungeonName}** بصعوبة **[${difficulty.toUpperCase()}]** ويبحث عن كواسر لتدعيم الفريق!\n*(دعمكم للفريق يمنحكم 5 نقاط نشاط إضافية)*`,
     embeds: [lfgEmbed],
     components: rows
   };

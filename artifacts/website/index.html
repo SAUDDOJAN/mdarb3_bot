@@ -184,6 +184,22 @@
         .app-btn.ios:hover i { color: #fff; }
 
         .footer-middle { align-items: center; text-align: center; border-right: 1px solid rgba(205, 170, 109, 0.2); border-left: 1px solid rgba(205, 170, 109, 0.2); padding: 0 20px; }
+        
+        /* Routine Checklist Styles */
+        .routine-section { width: 100%; max-width: 1200px; margin: 40px auto 0 auto; background: var(--panel); border: 1px solid rgba(205, 170, 109, 0.3); border-radius: 8px; padding: 30px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); direction: rtl; }
+        .routine-header { display: flex; align-items: center; gap: 12px; margin-bottom: 25px; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 15px; }
+        .routine-title { color: var(--gold); font-size: 1.25rem; font-weight: 900; margin: 0; display: flex; align-items: center; gap: 10px; }
+        .routine-list { display: flex; flex-direction: column; gap: 15px; }
+        .routine-item { background: rgba(0, 0, 0, 0.3); border: 1px solid rgba(255, 255, 255, 0.05); border-radius: 6px; padding: 15px 20px; display: flex; align-items: flex-start; gap: 15px; transition: all 0.3s; cursor: pointer; }
+        .routine-item:hover { background: rgba(255, 255, 255, 0.02); border-color: rgba(205, 170, 109, 0.3); }
+        .routine-item.completed { border-color: var(--green); background: rgba(40, 167, 69, 0.05); }
+        .routine-item.completed .routine-question { color: #888; text-decoration: line-through; }
+        .routine-checkbox { appearance: none; -webkit-appearance: none; min-width: 22px; width: 22px; height: 22px; border: 2px solid var(--gold); border-radius: 4px; background: transparent; cursor: pointer; position: relative; margin-top: 3px; transition: 0.3s; }
+        .routine-checkbox:checked { background: var(--green); border-color: var(--green); }
+        .routine-checkbox:checked::after { content: '✔'; color: white; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 14px; }
+        .routine-content { flex-grow: 1; }
+        .routine-question { font-size: 1.05rem; font-weight: bold; color: #fff; margin-bottom: 5px; transition: 0.3s; }
+        .routine-hint { font-size: 0.85rem; color: #aaa; line-height: 1.6; }
         .footer-middle .footer-logo { width: 60px; height: 60px; border-radius: 50%; margin-bottom: 5px; }
         .footer-middle .love-phrase { color: var(--gold); font-size: 1.1rem; font-weight: bold; letter-spacing: 0.5px; }
         .footer-middle .love-phrase span { color: #e25555; }
@@ -476,6 +492,36 @@
             refreshPathUI();
         }
 
+        let audioQueue = [];
+        let isAudioPlaying = false;
+
+        function queueSound(assetName) {
+            if (!soundAssets[assetName]) return;
+            audioQueue.push(assetName);
+            processAudioQueue();
+        }
+
+        function processAudioQueue() {
+            if (isAudioPlaying || audioQueue.length === 0) return;
+            isAudioPlaying = true;
+            let currentAsset = audioQueue.shift();
+            let audioNode = soundAssets[currentAsset];
+            
+            audioNode.volume = currentVolume;
+            audioNode.currentTime = 0;
+            
+            audioNode.onended = () => {
+                isAudioPlaying = false;
+                processAudioQueue();
+            };
+            
+            audioNode.play().catch(e => {
+                console.log("الصوت محجوب");
+                isAudioPlaying = false;
+                processAudioQueue();
+            });
+        }
+
         function checkAlerts(target, now, prefix) {
             if (!isEnabled || !document.getElementById('snd_master').checked) return;
             let diff = Math.floor((target - now) / 1000);
@@ -483,9 +529,7 @@
             const playSnd = (assetName, timeKey) => {
                 let uniqueKey = keyPrefix + "_" + timeKey;
                 if (diff === timeKey && !notified.has(uniqueKey)) {
-                    soundAssets[assetName].volume = currentVolume;
-                    soundAssets[assetName].currentTime = 0;
-                    soundAssets[assetName].play().catch(e => console.log("الصوت محجوب"));
+                    queueSound(assetName);
                     notified.add(uniqueKey);
                 }
             };
@@ -497,9 +541,9 @@
         function playPriorityAlert(type) {
             if (!isEnabled || !document.getElementById('snd_master').checked) return;
             if (type === 'rift') {
-                soundAssets.rift_alert.volume = currentVolume; soundAssets.rift_alert.currentTime = 0; soundAssets.rift_alert.play();
+                queueSound('rift_alert');
             } else if (type === 'shugo') {
-                soundAssets.shugo_alert.volume = currentVolume; soundAssets.shugo_alert.currentTime = 0; soundAssets.shugo_alert.play();
+                queueSound('shugo_alert');
             }
         }
 
@@ -574,7 +618,7 @@
         };
 
         function testSound(key) { 
-            if (soundAssets[key]) { soundAssets[key].volume = currentVolume; soundAssets[key].currentTime = 0; soundAssets[key].play(); } 
+            queueSound(key);
         }
         
         function resetChecklist() { 
@@ -679,7 +723,7 @@
             }
             const isShugoOpen = (now.getMinutes() < 5);
             if (isShugoOpen) {
-                document.getElementById('shugo-timer').innerHTML = `<span style="color:var(--green)">مفتوح الآن!</span>`;
+                document.getElementById('shugo-timer').innerHTML = `<span style="color:var(--green); font-family: 'Cairo', sans-serif;">مفتوح الآن!</span>`;
                 document.getElementById('card-shugo').classList.add('flash-shugo');
                 if (now.getSeconds() === 0 && now.getMinutes() === 0) playPriorityAlert('shugo');
             } else {
@@ -770,10 +814,51 @@
         window.onload = () => {
             initChecklists();
             loadProgress();
+            loadRoutine(); // تحميل مهام الروتين
             update();
             setInterval(update, 1000);
             loadWidgetData(); // تحميل الودجت المخصص
         };
+
+        function loadRoutine() {
+            const savedRoutine = JSON.parse(localStorage.getItem('aion2_routine') || '{}');
+            const lastDate = localStorage.getItem('aion2_routine_date');
+            const today = new Date().toDateString();
+            const isNewDay = lastDate !== today;
+            
+            document.querySelectorAll('.routine-checkbox').forEach(cb => {
+                if (isNewDay) {
+                    cb.checked = false;
+                } else {
+                    cb.checked = savedRoutine[cb.id] || false;
+                }
+                toggleRoutineStyle(cb);
+            });
+            
+            if (isNewDay) {
+                saveRoutine();
+            }
+        }
+
+        function toggleRoutine(id) {
+            const cb = document.getElementById(id);
+            cb.checked = !cb.checked;
+            toggleRoutineStyle(cb);
+            saveRoutine();
+        }
+
+        function toggleRoutineStyle(cb) {
+            const item = cb.closest('.routine-item');
+            if (cb.checked) item.classList.add('completed');
+            else item.classList.remove('completed');
+        }
+
+        function saveRoutine() {
+            const checks = {};
+            document.querySelectorAll('.routine-checkbox').forEach(cb => { checks[cb.id] = cb.checked; });
+            localStorage.setItem('aion2_routine', JSON.stringify(checks));
+            localStorage.setItem('aion2_routine_date', new Date().toDateString());
+        }
         const legalData = {
             privacy: {
                 title: "سياسة الخصوصية وإخلاء المسؤولية",
@@ -829,6 +914,47 @@
                 <button onclick="toggleLegalModal(false)" style="background: none; border: none; color: #aaa; font-size: 1.5rem; cursor: pointer;">&times;</button>
             </div>
             <div class="modal-body" id="legalModalBody" style="font-size: 0.95rem; line-height: 1.8; text-align: right; color: #ddd; padding: 25px;">
+            </div>
+        </div>
+    </div>
+
+    <!-- Routine Checklist Section -->
+    <div class="routine-section">
+        <div class="routine-header">
+            <h2 class="routine-title"><i class="fas fa-clipboard-list"></i> الروتين اليومي الأساسي</h2>
+        </div>
+        <div class="routine-list">
+            <!-- Routine Item 1 -->
+            <div class="routine-item" onclick="toggleRoutine('routine-1')">
+                <input type="checkbox" id="routine-1" class="routine-checkbox" onclick="event.stopPropagation(); toggleRoutineStyle(this); saveRoutine();">
+                <div class="routine-content">
+                    <div class="routine-question">هل خلصت فارم في الايبايس لمدة ساعة اليوم؟</div>
+                    <div class="routine-hint">(لابد أن تخلص يومياً تفريم في الايبايس ما بين ساعة إلى ساعتين)</div>
+                </div>
+            </div>
+            <!-- Routine Item 2 -->
+            <div class="routine-item" onclick="toggleRoutine('routine-2')">
+                <input type="checkbox" id="routine-2" class="routine-checkbox" onclick="event.stopPropagation(); toggleRoutineStyle(this); saveRoutine();">
+                <div class="routine-content">
+                    <div class="routine-question">هل قمت اليوم بتفريم ورفع ليفل البتات؟</div>
+                    <div class="routine-hint">(لازم تفريم البتات بأسرع وقت اللي هو المرافقين، يومياً لابد من تخصيص ساعة واحدة على الأقل لتفريم البتات هذه)</div>
+                </div>
+            </div>
+            <!-- Routine Item 3 -->
+            <div class="routine-item" onclick="toggleRoutine('routine-3')">
+                <input type="checkbox" id="routine-3" class="routine-checkbox" onclick="event.stopPropagation(); toggleRoutineStyle(this); saveRoutine();">
+                <div class="routine-content">
+                    <div class="routine-question">هل أنهيت مهام الديوتي؟</div>
+                    <div class="routine-hint">(مهام الديوتي ضرورية جداً إنك تنهيها قبل الريسيت حقها. راقب الرادار في أعلى الصفحة لعدم فواتها)</div>
+                </div>
+            </div>
+            <!-- Routine Item 4 -->
+            <div class="routine-item" onclick="toggleRoutine('routine-4')">
+                <input type="checkbox" id="routine-4" class="routine-checkbox" onclick="event.stopPropagation(); toggleRoutineStyle(this); saveRoutine();">
+                <div class="routine-content">
+                    <div class="routine-question">هل خلصت مهام السيزون؟</div>
+                    <div class="routine-hint">(لابد من التركيز على مهام السيزون وحاول إنهاءها قبل انتهاء السيزون. المهام كثيرة وتحتاج تشتغل عليها يومياً وقت فراغك، وإلا حيفوتك الكثير وحتتأخر كثير)</div>
+                </div>
             </div>
         </div>
     </div>
