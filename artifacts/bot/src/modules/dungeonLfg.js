@@ -329,9 +329,10 @@ async function handleCreateGroup(interaction, dungeonName, difficulty) {
 
   const guildRoleId = config.guild_role_id || (isMainGuild ? "1401376073077231702" : null);
   const pingContent = guildRoleId ? `<@&${guildRoleId}> ` : "";
+  const diffAr = difficulty === 'hard' ? 'الصعب' : 'العادي';
 
   const msgPayload = {
-    content: `${pingContent}🚨 **نداء النخبة! أبطال معرقين مطلوبون حالاً!** 🚨\nاللاعب <@${interaction.user.id}> يستعد لاقتحام دنجن **${dungeonName}** بصعوبة **[${difficulty.toUpperCase()}]** ويبحث عن كواسر لتدعيم الفريق!\n*(دعمكم للفريق يمنحكم 5 نقاط نشاط إضافية)*`,
+    content: `${pingContent}🚨 **نداء النخبة! أبطال معرقين مطلوبون حالاً!** 🚨\nاللاعب <@${interaction.user.id}> يستعد لاقتحام الدنجن بمستوى الصعوبة **${diffAr}** ويبحث عن كواسر لتدعيم الفريق!\n*(دعمكم للفريق يمنحكم 5 نقاط نشاط إضافية)*`,
     embeds: [lfgEmbed],
     components: rows
   };
