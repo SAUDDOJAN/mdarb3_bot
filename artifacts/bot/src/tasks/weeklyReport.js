@@ -2,7 +2,7 @@ import { EmbedBuilder } from "discord.js";
 import { query } from "../database/index.js";
 
 const MAIN_GUILD_ID    = process.env.MAIN_GUILD_ID || "861355983975874601";
-const INTERACT_LOG_ID  = "1496784519125143594"; // سجل التفاعل
+const INTERACT_LOG_ID  = "1470406771318460426"; // الاعلانات (Announcements)
 
 // ─── Arabic Time of Day ───────────────────────────────────────────────────────
 function getKSADate() {

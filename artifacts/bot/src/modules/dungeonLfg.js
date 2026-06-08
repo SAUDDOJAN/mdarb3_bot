@@ -327,8 +327,11 @@ async function handleCreateGroup(interaction, dungeonName, difficulty) {
   const lfgEmbed = buildGroupEmbed(dungeonName, difficulty, dungeon, slot_tank, slot_healer, slot_dps1, null, inviteUrl, localImg);
   const rows = buildGroupButtons(null); // Will fill in later with group ID
 
+  const guildRoleId = config.guild_role_id || (isMainGuild ? "1401376073077231702" : null);
+  const pingContent = guildRoleId ? `<@&${guildRoleId}> ` : "";
+
   const msgPayload = {
-    content: `🚨 **نداء النخبة! أبطال M3RGEEN مطلوبون حالاً!** 🚨\n<@${interaction.user.id}> يستعد لاقتحام دنجن **${dungeonName}** بصعوبة **[${difficulty.toUpperCase()}]** ويبحث عن كواسر لتدعيم الفريق! دعمكم يمنحكم 5 نقاط PvE نشاط.\n\n👇 للانضمام ودعم تيم الشباب الآن، اضغط على الأزرار بالأسفل أو انضم مباشرة للروم الصوتي:`,
+    content: `${pingContent}🚨 **نداء النخبة!**\n<@${interaction.user.id}> يستعد لاقتحام دنجن **${dungeonName}** بصعوبة **[${difficulty.toUpperCase()}]** ويبحث عن كواسر لتدعيم الفريق!`,
     embeds: [lfgEmbed],
     components: rows
   };
@@ -381,24 +384,6 @@ async function handleCreateGroup(interaction, dungeonName, difficulty) {
   // Update message to carry exact group ID inside buttons
   const updatedRows = buildGroupButtons(groupId, inviteUrl);
   await groupMsg.edit({ components: updatedRows });
-
-  // Mention role or equivalent + save invite message ID
-  const guildRoleId = config.guild_role_id || (isMainGuild ? "1401376073077231702" : null);
-  const pingContent = guildRoleId ? `<@&${guildRoleId}>` : "";
-  const inviteMsg = await groupsChannel.send({
-    content:
-      `${pingContent ? pingContent + " " : ""}🚨 **دعوة للانضمام إلى الروم الصوتي الخاص بالدنجن ⛔️**\n` +
-      `لا يوجد أحد في الروم الصوتي حالياً، كن أول المنضمين! 💪\n` +
-      `🔗 انضمام للصوت 🔊 ⬅️ ${inviteUrl}`
-  }).catch(() => null);
-
-  // Save invite message ID to DB for future cleanup
-  if (inviteMsg) {
-    await query(
-      "UPDATE dungeon_lfg_groups SET invite_message_id=$1 WHERE id=$2",
-      [inviteMsg.id, groupId]
-    ).catch(console.error);
-  }
 
   // Post creation announcement in general chat
   const generalChannelId = isMainGuild ? "1294312574162178200" : null;

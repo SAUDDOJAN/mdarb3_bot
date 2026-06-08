@@ -154,7 +154,7 @@ export async function fireAlert(client, guildId, alertType) {
 
     let content = subsForBase || undefined;
     if (alertType === "siege_alert") {
-      content = "@everyone\n" + (content ?? "");
+      content = "<@&1401376073077231702>\n" + (content ?? "");
     }
 
     const sentMsg = await channel.send({

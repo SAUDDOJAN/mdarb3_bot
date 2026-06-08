@@ -313,7 +313,7 @@ async function updateM3RGEENSiegeEmbed(client, attendanceMap) {
     console.log(`[SiegeMonitor] ✅ Updated M3RGEEN siege embed with ${memberStats.length} member stats.`);
 
     // ─── Send stats summary to سجل التفاعل ──────────────────────────────────────
-    const INTERACT_LOG_ID = "1496784519125143594";
+    const INTERACT_LOG_ID = "1470406771318460426";
     const interactCh = mainGuild.channels.cache.get(INTERACT_LOG_ID)
       ?? await mainGuild.channels.fetch(INTERACT_LOG_ID).catch(() => null);
     if (interactCh) {

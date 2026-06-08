@@ -1,0 +1,1 @@
+const Parser = require('rss-parser'); const parser = new Parser(); parser.parseURL('https://www.youtube.com/feeds/videos.xml?channel_id=UCAGq4equWK9mLMz0wB9MJLw').then(feed => { const latestVideo = feed.items[0]; const videoId = latestVideo.id.replace('yt:video:', ''); console.log(videoId); console.log(latestVideo.link); console.log(latestVideo.pubDate); });

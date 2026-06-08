@@ -85,8 +85,10 @@ async function tick(client) {
   for (const alertType of toFire) {
     if (!tryFire(alertType, ksa)) continue;
     console.log(`[Radar] Triggering "${alertType}" — KSA ${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}`);
-    for (const guildId of guilds) {
-      await fireAlert(client, guildId, alertType);
+    if (alertType !== "weekly_report") {
+      for (const guildId of guilds) {
+        await fireAlert(client, guildId, alertType);
+      }
     }
     
     // Auto-start siege monitor at exactly 5:00 PM on the Sage Guild

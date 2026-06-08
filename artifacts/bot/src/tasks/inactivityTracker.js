@@ -2,7 +2,7 @@ import { EmbedBuilder } from "discord.js";
 import { query } from "../database/index.js";
 import { scrapeProfile } from "../modules/scraper.js";
 
-const INACTIVITY_CHANNEL_ID = "1496784519125143594";
+const INACTIVITY_CHANNEL_ID = "1470406771318460426";
 const CHECK_INTERVAL_DAYS = 7;
 
 export async function startInactivityTask(client) {
