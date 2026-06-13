@@ -7,6 +7,7 @@ export const EVENT_IMAGES = {
   daily:        "attachment://daily.jpg",
   siege_prep:   "attachment://siege.jpg",
   siege:        "attachment://siege.jpg",
+  siege_alert:  "attachment://siege.jpg",
 };
 
 export const ALERT_COLORS = {
@@ -18,6 +19,7 @@ export const ALERT_COLORS = {
   daily:       0x2ecc71,
   siege:       0xc0392b,
   siege_prep:  0xe59866,
+  siege_alert: 0xe59866,
 };
 
 export const ALERT_LABELS = {
@@ -29,6 +31,7 @@ export const ALERT_LABELS = {
   daily:       "الرسيت اليومي (Daily Reset)",
   siege:       "الحصار (Siege)",
   siege_prep:  "تجهيز الحصار (Siege Prep)",
+  siege_alert: "تنبيه مبكر للحصار (Siege Alert)",
 };
 
 export const PANEL_ROLES = ["rift", "shugo", "maint", "daily", "siege"];

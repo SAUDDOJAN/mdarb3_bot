@@ -124,10 +124,15 @@ export async function fireAlert(client, guildId, alertType) {
     const color = ALERT_COLORS[alertType] ?? 0x5865f2;
     const imagePath = EVENT_IMAGES[alertType];
     const isPrep = alertType.endsWith("_prep");
+    const isAlert = alertType.endsWith("_alert");
 
     const embed = new EmbedBuilder()
       .setColor(color)
-      .setTitle(isPrep ? `⏰ استعد! ${label}` : `🔔 بدأ الآن! ${label}`)
+      .setTitle(
+         isPrep ? `⏰ استعد! ${label}` 
+         : isAlert ? `🚨 تنبيه! ${label}`
+         : `🔔 بدأ الآن! ${label}`
+      )
       .setDescription(
         alertType === "siege_alert"
           ? `**تحالف القيلدات (Siege)** سيبدأ بعد 30 دقيقة!\nيرجى التجهز والتواجد في المكان المطلوب.`
