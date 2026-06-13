@@ -117,6 +117,36 @@ export async function checkYouTube(client) {
   }
 }
 
+export async function checkYouTubeDebug(client) {
+  await loadData();
+  const channelId = YOUTUBE_CHANNEL_ID;
+  const feedUrl = `https://www.youtube.com/feeds/videos.xml?channel_id=${channelId}`;
+  const feed = await parser.parseURL(feedUrl);
+  
+  const debugInfo = {
+    announcedVideos: socialData.announcedVideos || [],
+    lastYouTubeVideoId: socialData.lastYouTubeVideoId,
+    latestVideosInFeed: [],
+  };
+
+  if (feed.items && feed.items.length > 0) {
+    const itemsToCheck = feed.items.slice(0, 3).reverse();
+    for (const latestVideo of itemsToCheck) {
+      const videoId = latestVideo.id.replace('yt:video:', '');
+      const pubDate = new Date(latestVideo.pubDate);
+      const hoursOld = (new Date() - pubDate) / (1000 * 60 * 60);
+      debugInfo.latestVideosInFeed.push({
+        title: latestVideo.title,
+        id: videoId,
+        hoursOld: hoursOld,
+        isAnnounced: debugInfo.announcedVideos.includes(videoId)
+      });
+    }
+  }
+  
+  return debugInfo;
+}
+
 export async function startSocialNotifier(client) {
   console.log('[SocialNotifier] Starting social media notification task...');
   

@@ -9,8 +9,9 @@ export default {
   async execute(interaction, client) {
     await interaction.deferReply({ flags: 64 });
     try {
-      await checkYouTube(client);
-      await interaction.editReply("✅ YouTube check executed.");
+      const { checkYouTubeDebug } = await import("../../tasks/socialNotifier.js");
+      const result = await checkYouTubeDebug(client);
+      await interaction.editReply(`✅ YouTube check executed.\n\`\`\`json\n${JSON.stringify(result, null, 2)}\n\`\`\``);
     } catch (err) {
       await interaction.editReply(`❌ Error: ${err.message}`);
     }
