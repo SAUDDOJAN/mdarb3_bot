@@ -41,7 +41,7 @@ async function saveData() {
 const YOUTUBE_CHANNEL_ID = 'UCAGq4equWK9mLMz0wB9MJLw';
 
 // Check YouTube for new videos
-async function checkYouTube(client) {
+export async function checkYouTube(client) {
   try {
     const channelId = YOUTUBE_CHANNEL_ID;
 
