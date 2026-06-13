@@ -17,6 +17,8 @@ import {
 } from "../constants/eventImages.js";
 
 export async function sendAlertPanel(interaction) {
+  await interaction.deferReply({ flags: 64 });
+
   const embed = new EmbedBuilder()
     .setColor(0x5865f2)
     .setTitle("🔔 اشتراكات تنبيهات M3RGEEN")
@@ -32,8 +34,8 @@ export async function sendAlertPanel(interaction) {
 
   const rows = await buildPanelRows(interaction.guildId);
 
-  await interaction.reply({ content: "Alert panel deployed.", flags: 64 });
   await interaction.channel.send({ embeds: [embed], components: rows });
+  await interaction.editReply({ content: "Alert panel deployed." });
 }
 
 async function buildPanelRows(guildId) {
