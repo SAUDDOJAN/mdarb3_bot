@@ -30,20 +30,34 @@ export async function sendAlertPanel(interaction) {
     .setFooter({ text: "اضغط مرة أخرى لإلغاء الاشتراك." })
     .setTimestamp();
 
-  const rows = buildPanelRows();
+  const rows = await buildPanelRows(interaction.guildId);
 
   await interaction.reply({ content: "Alert panel deployed.", flags: 64 });
   await interaction.channel.send({ embeds: [embed], components: rows });
 }
 
-function buildPanelRows() {
-  const buttons = PANEL_ROLES.map((type) =>
-    new ButtonBuilder()
+async function buildPanelRows(guildId) {
+  let counts = {};
+  try {
+    const countsRes = await query(
+      "SELECT alert_type, COUNT(user_id) as count FROM alert_subscriptions WHERE guild_id=$1 GROUP BY alert_type",
+      [guildId]
+    );
+    for (const row of countsRes.rows) {
+      counts[row.alert_type] = parseInt(row.count, 10);
+    }
+  } catch (e) {
+    console.error("[Alerts] Error fetching sub counts:", e);
+  }
+
+  const buttons = PANEL_ROLES.map((type) => {
+    const c = counts[type] || 0;
+    return new ButtonBuilder()
       .setCustomId(`alerts:toggle:${type}`)
-      .setLabel(ALERT_LABELS[type])
+      .setLabel(`${ALERT_LABELS[type]} | 👥 ${c}`)
       .setEmoji(PANEL_ROLE_EMOJIS[type])
       .setStyle(ButtonStyle.Secondary)
-  );
+  });
 
   const rows = [];
   for (let i = 0; i < buttons.length; i += 5) {
@@ -79,7 +93,7 @@ async function toggleSubscription(interaction, alertType) {
       [guildId, userId, alertType]
     );
     await interaction.editReply({
-      content: `${emoji} You have **unsubscribed** from **${label}** alerts.`,
+      content: `${emoji} تم إلغاء اشتراكك من تنبيهات **${label}**.`,
     });
   } else {
     await query(
@@ -87,8 +101,15 @@ async function toggleSubscription(interaction, alertType) {
       [guildId, userId, alertType]
     );
     await interaction.editReply({
-      content: `${emoji} You have **subscribed** to **${label}** alerts.`,
+      content: `${emoji} تم تفعيل اشتراكك في تنبيهات **${label}**.`,
     });
+  }
+
+  try {
+    const rows = await buildPanelRows(guildId);
+    await interaction.message.edit({ components: rows });
+  } catch (err) {
+    console.error("[Alerts] Could not update panel components:", err);
   }
 }
 
