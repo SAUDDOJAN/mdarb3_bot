@@ -40,6 +40,7 @@ export default {
               { name: "Maintenance",   value: "maint" },
               { name: "Daily Reset",   value: "daily" },
               { name: "Siege Prep",    value: "siege_prep" },
+              { name: "Siege Alert",   value: "siege_alert" },
               { name: "Siege",         value: "siege" }
             )
         )
