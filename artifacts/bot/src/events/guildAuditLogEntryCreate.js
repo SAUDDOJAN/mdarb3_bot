@@ -41,6 +41,9 @@ export default {
 
     // استثناء عمليات البوت نفسه أو النظام
     if (!executor || executor.bot || executor.system) return;
+    
+    // MemberMove is handled inside voiceStateUpdate.js to capture the target user and prompt for reason
+    if (action === AuditLogEvent.MemberMove) return;
 
     try {
       // التحقق من امتلاك المشرف للرتبة المطلوبة

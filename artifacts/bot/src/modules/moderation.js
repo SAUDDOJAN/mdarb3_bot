@@ -153,5 +153,26 @@ export async function timeout(interaction) {
 }
 
 export async function handleInteraction(interaction) {
-  // mod: prefix reserved for future button interactions (e.g. confirm ban dialogs)
+  if (interaction.isStringSelectMenu() && interaction.customId.startsWith("mod:move_reason:")) {
+    const [, , executorId, targetId] = interaction.customId.split(":");
+    
+    if (interaction.user.id !== executorId) {
+      await interaction.reply({ content: "❌ لا يمكنك اختيار السبب لأنك لست من قام بهذا الإجراء.", flags: 64 });
+      return;
+    }
+
+    const selectedReason = interaction.values[0];
+    const oldEmbed = interaction.message.embeds[0];
+    
+    const newEmbed = EmbedBuilder.from(oldEmbed);
+    // Find the field index
+    const fieldIndex = newEmbed.data.fields?.findIndex(f => f.name === "السبب المذكور") ?? 0;
+    if (fieldIndex !== -1 && newEmbed.data.fields) {
+      newEmbed.data.fields[fieldIndex].value = `**${selectedReason}**`;
+    } else {
+      newEmbed.addFields({ name: "السبب المذكور", value: `**${selectedReason}**` });
+    }
+    
+    await interaction.update({ embeds: [newEmbed], components: [] });
+  }
 }

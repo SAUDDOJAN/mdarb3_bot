@@ -61,7 +61,55 @@ export default {
         }
         
         if (oldState.channelId) await checkLfgChannelCleanup(client, oldState.channelId, cleanUpEmptyLfg);
-      }
+
+        // ─── Mod Tracker Logic for Voice Move ────────────────
+        if (newState.guild.id === "861355983975874601") {
+           const { AuditLogEvent, EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder } = await import("discord.js");
+           const auditLogs = await newState.guild.fetchAuditLogs({ type: AuditLogEvent.MemberMove, limit: 1 }).catch(() => null);
+           const log = auditLogs?.entries.first();
+           
+           // If a MemberMove audit log was created within the last 4 seconds
+           if (log && Date.now() - log.createdTimestamp < 4000) {
+              const executor = log.executor;
+              if (executor && !executor.bot && !executor.system) {
+                 const TARGET_ROLE_ID = "1509497629564866680";
+                 const executorMember = await newState.guild.members.fetch(executor.id).catch(() => null);
+                 
+                 if (executorMember && executorMember.roles.cache.has(TARGET_ROLE_ID)) {
+                    const LOG_CHANNEL_ID = "1290468734045261885";
+                    const logChannel = newState.guild.channels.cache.get(LOG_CHANNEL_ID) || await newState.guild.channels.fetch(LOG_CHANNEL_ID).catch(() => null);
+                    
+                    if (logChannel) {
+                       const embed = new EmbedBuilder()
+                          .setColor("#00d0ff")
+                          .setAuthor({ name: "تتبع نشاط المشرفين", iconURL: executor.displayAvatarURL() })
+                          .setTitle("تحريك عضو (صوتي)")
+                          .setDescription(`**المشرف:** <@${executor.id}>\n**اللاعب المستهدف:** <@${member.user.id}>\n**إلى روم:** <#${newState.channelId}>`)
+                          .addFields({ name: "السبب المذكور", value: "⏳ بانتظار تحديد المشرف للسبب..." })
+                          .setTimestamp()
+                          .setFooter({ text: "نظام المراقبة الأمنية 👁️" });
+
+                       const row = new ActionRowBuilder()
+                          .addComponents(
+                             new StringSelectMenuBuilder()
+                                .setCustomId(`mod:move_reason:${executor.id}:${member.user.id}`)
+                                .setPlaceholder("اختر سبب التحريك من هنا...")
+                                .addOptions([
+                                   { label: "طلب من العضو", value: "طلب من العضو", emoji: "🗣️" },
+                                   { label: "إزعاج / تشتيت", value: "إزعاج / تشتيت", emoji: "🔇" },
+                                   { label: "AFK / خمول", value: "AFK / خمول", emoji: "💤" },
+                                   { label: "تنظيم الرومات", value: "تنظيم الرومات", emoji: "🗂️" },
+                                   { label: "أخرى (بدون سبب محدد)", value: "أخرى (بدون سبب محدد)", emoji: "🤷" }
+                                ])
+                          );
+
+                       await logChannel.send({ embeds: [embed], components: [row] }).catch(console.error);
+                    }
+                 }
+              }
+           }
+        }
+        // ──────────────────────────────────────────────────      }
     } catch (err) {
       console.error("[VoiceStateUpdate] Error:", err);
     }
