@@ -2,6 +2,31 @@ import { SlashCommandBuilder, PermissionFlagsBits, ChannelType } from "discord.j
 import { query } from "../../database/index.js";
 import { processCountdowns } from "../../tasks/countdownTimer.js";
 
+const TIMEZONES = [
+  { name: "KST (كوريا +9)", value: "KST" },
+  { name: "JST (اليابان +9)", value: "JST" },
+  { name: "AST (السعودية +3)", value: "AST" },
+  { name: "UTC (جرينتش +0)", value: "UTC" },
+  { name: "CET (أوروبا +1)", value: "CET" },
+  { name: "EST (شرق أمريكا -5)", value: "EST" },
+  { name: "PST (غرب أمريكا -8)", value: "PST" },
+];
+
+function parseDateToUTC(dateStr, timeStr, timezone) {
+  const offsets = {
+    "KST": 9, "JST": 9, "AST": 3, "UTC": 0,
+    "CET": 1, "EST": -5, "PST": -8
+  };
+  const offset = offsets[timezone] || 0;
+  
+  const [year, month, day] = dateStr.split('-').map(Number);
+  const [hour, minute] = timeStr.split(':').map(Number);
+  
+  const d = new Date(Date.UTC(year, month - 1, day, hour, minute));
+  d.setUTCHours(d.getUTCHours() - offset);
+  return d;
+}
+
 export default {
   data: new SlashCommandBuilder()
     .setName("countdown")
@@ -18,10 +43,19 @@ export default {
           o.setName("text_channel").setDescription("الروم النصي لإرسال الإعلان عند الانتهاء").setRequired(true).addChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement)
         )
         .addStringOption((o) =>
-          o.setName("game_name").setDescription("اسم اللعبة (مثال: AION 2)").setRequired(true)
+          o.setName("game_full_name").setDescription("اسم اللعبة الكامل (للإعلان) - مثال: Throne and Liberty").setRequired(true)
         )
-        .addIntegerOption((o) =>
-          o.setName("minutes_from_now").setDescription("بعد كم دقيقة ينتهي المؤقت؟ (مثال: 5)").setRequired(true)
+        .addStringOption((o) =>
+          o.setName("game_short_name").setDescription("اختصار اسم اللعبة (للروم الصوتي) - مثال: TL").setRequired(true)
+        )
+        .addStringOption((o) =>
+          o.setName("date").setDescription("تاريخ الحدث بصيغة YYYY-MM-DD (مثال: 2026-06-20)").setRequired(true)
+        )
+        .addStringOption((o) =>
+          o.setName("time").setDescription("وقت الحدث بصيغة 24 ساعة HH:MM (مثال: 15:30)").setRequired(true)
+        )
+        .addStringOption((o) =>
+          o.setName("timezone").setDescription("المنطقة الزمنية (Timezone)").setRequired(true).addChoices(...TIMEZONES)
         )
         .addRoleOption((o) =>
           o.setName("mention_role").setDescription("الرتبة المطلوب منشنتها عند الانتهاء (اختياري)").setRequired(false)
@@ -47,23 +81,43 @@ export default {
     if (sub === "set") {
       const voiceChannel = interaction.options.getChannel("voice_channel");
       const textChannel = interaction.options.getChannel("text_channel");
-      const gameName = interaction.options.getString("game_name");
-      const mins = interaction.options.getInteger("minutes_from_now");
+      const gameFullName = interaction.options.getString("game_full_name");
+      const gameShortName = interaction.options.getString("game_short_name");
+      const dateStr = interaction.options.getString("date");
+      const timeStr = interaction.options.getString("time");
+      const timezone = interaction.options.getString("timezone");
       const role = interaction.options.getRole("mention_role");
 
       if (voiceChannel.type !== 2 && voiceChannel.type !== 13) {
-        // Not a voice channel
         return interaction.reply({ content: "❌ يرجى اختيار روم صوتي (Voice Channel) صحيح.", flags: 64 });
       }
 
-      const endTime = new Date(Date.now() + mins * 60 * 1000);
+      // Parse date
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+        return interaction.reply({ content: "❌ صيغة التاريخ خاطئة! يرجى استخدام YYYY-MM-DD (مثال: 2026-06-20).", flags: 64 });
+      }
+      if (!/^\d{2}:\d{2}$/.test(timeStr)) {
+        return interaction.reply({ content: "❌ صيغة الوقت خاطئة! يرجى استخدام 24-hour format HH:MM (مثال: 15:30).", flags: 64 });
+      }
+
+      const endTime = parseDateToUTC(dateStr, timeStr, timezone);
+      
+      if (isNaN(endTime.getTime())) {
+        return interaction.reply({ content: "❌ حدث خطأ في معالجة التاريخ والوقت. تأكد من إدخال قيم صحيحة.", flags: 64 });
+      }
+
+      if (endTime.getTime() <= Date.now()) {
+        return interaction.reply({ content: "❌ الوقت المدخل قد مضى بالفعل! يرجى اختيار وقت في المستقبل.", flags: 64 });
+      }
+
       const mentionStr = role ? `<@&${role.id}>` : "";
 
       await query(
-        "INSERT INTO live_countdowns (guild_id, voice_channel_id, text_channel_id, game_name, mention_target, end_time) VALUES ($1, $2, $3, $4, $5, $6)",
-        [interaction.guildId, voiceChannel.id, textChannel.id, gameName, mentionStr, endTime]
+        "INSERT INTO live_countdowns (guild_id, voice_channel_id, text_channel_id, game_name, short_name, mention_target, end_time) VALUES ($1, $2, $3, $4, $5, $6, $7)",
+        [interaction.guildId, voiceChannel.id, textChannel.id, gameFullName, gameShortName, mentionStr, endTime]
       );
-      await interaction.reply({ content: `✅ تم إعداد المؤقت للعبة **${gameName}** بنجاح!\nسينتهي بعد ${mins} دقائق في الروم الصوتي ${voiceChannel}.` });
+
+      await interaction.reply({ content: `✅ تم إعداد المؤقت للعبة **${gameFullName}** بنجاح!\nسينتهي في <t:${Math.floor(endTime.getTime()/1000)}:F> داخل الروم الصوتي ${voiceChannel}.` });
       
       // Trigger a check immediately to update the name for the first time
       processCountdowns(client);

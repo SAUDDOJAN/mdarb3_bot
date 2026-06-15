@@ -21,7 +21,7 @@ export async function processCountdowns(client) {
   try {
     const res = await query("SELECT * FROM live_countdowns WHERE status = 'active'");
     for (const row of res.rows) {
-      const { id, guild_id, voice_channel_id, text_channel_id, game_name, mention_target, end_time } = row;
+      const { id, guild_id, voice_channel_id, text_channel_id, game_name, short_name, mention_target, end_time } = row;
       
       const guild = client.guilds.cache.get(guild_id) || await client.guilds.fetch(guild_id).catch(() => null);
       if (!guild) continue;
@@ -39,7 +39,7 @@ export async function processCountdowns(client) {
           const embed = new EmbedBuilder()
             .setColor("#e74c3c")
             .setTitle(`🎉 حان الموعد! - ${game_name}`)
-            .setDescription(`الوقت انتهى يا أبطال، استعدوا للانطلاق في **${game_name}**! ⚔️🔥`)
+            .setDescription(`الوقت انتهى يا أبطال، استعدوا للانطلاق في **${game_name}**! ⚔️🔥\n\nالشباب متجمعين في الروم الصوتي الآن، اضغط هنا عشان تدخل معهم: <#${voice_channel_id}>`)
             .setTimestamp();
           
           let content = mention_target || "";
@@ -49,14 +49,14 @@ export async function processCountdowns(client) {
         // 3. Rename voice channel to "Launched!"
         const vc = guild.channels.cache.get(voice_channel_id) || await guild.channels.fetch(voice_channel_id).catch(() => null);
         if (vc) {
-          await vc.setName(`✅ ${game_name}: بدأت!`).catch(() => {});
+          await vc.setName(`✅ ${short_name || game_name}: بدأت!`).catch(() => {});
         }
 
       } else {
         // Update name
         const vc = guild.channels.cache.get(voice_channel_id) || await guild.channels.fetch(voice_channel_id).catch(() => null);
         if (vc) {
-          const expectedName = `⏳ ${game_name}: ${timeStr}`;
+          const expectedName = `⏳ ${short_name || game_name}: ${timeStr}`;
           if (vc.name !== expectedName) {
             await vc.setName(expectedName).catch(err => {
               console.error(`[Countdown] Failed to rename VC for ${game_name}:`, err.message);

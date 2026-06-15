@@ -668,6 +668,7 @@ export async function initDb() {
       created_at TIMESTAMPTZ DEFAULT NOW()
     )
   `);
+  await query(`ALTER TABLE live_countdowns ADD COLUMN IF NOT EXISTS short_name TEXT DEFAULT 'Game'`);
 
   console.log("[DB] All tables initialized.");
 }
