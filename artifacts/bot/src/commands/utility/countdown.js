@@ -12,12 +12,13 @@ const TIMEZONES = [
   { name: "CET (أوروبا +1)", value: "CET" },
   { name: "EST (شرق أمريكا -5)", value: "EST" },
   { name: "PST (غرب أمريكا -8)", value: "PST" },
+  { name: "PDT (المحيط الهادئ الصيفي -7)", value: "PDT" },
 ];
 
 function parseDateToUTC(dateStr, timeStr, timezone) {
   const offsets = {
     "KST": 9, "JST": 9, "BDT": 6, "IST": 5.5, "AST": 3, "UTC": 0,
-    "CET": 1, "EST": -5, "PST": -8
+    "CET": 1, "EST": -5, "PST": -8, "PDT": -7
   };
   const offset = offsets[timezone] || 0;
   
