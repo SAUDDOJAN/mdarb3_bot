@@ -63,8 +63,7 @@ export default {
         "INSERT INTO live_countdowns (guild_id, voice_channel_id, text_channel_id, game_name, mention_target, end_time) VALUES ($1, $2, $3, $4, $5, $6)",
         [interaction.guildId, voiceChannel.id, textChannel.id, gameName, mentionStr, endTime]
       );
-
-      await interaction.reply({ content: `✅ تم إعداد المؤقت للعبة **${game_name}** بنجاح!\nسينتهي بعد ${mins} دقائق في الروم الصوتي ${voiceChannel}.` });
+      await interaction.reply({ content: `✅ تم إعداد المؤقت للعبة **${gameName}** بنجاح!\nسينتهي بعد ${mins} دقائق في الروم الصوتي ${voiceChannel}.` });
       
       // Trigger a check immediately to update the name for the first time
       processCountdowns(client);
