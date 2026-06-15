@@ -654,6 +654,21 @@ export async function initDb() {
   `);
   await query(`CREATE INDEX IF NOT EXISTS idx_sched_rem_status_time ON scheduled_reminders(status, trigger_at)`);
 
+  // Live Countdowns
+  await query(`
+    CREATE TABLE IF NOT EXISTS live_countdowns (
+      id SERIAL PRIMARY KEY,
+      guild_id TEXT NOT NULL,
+      voice_channel_id TEXT NOT NULL,
+      text_channel_id TEXT NOT NULL,
+      game_name TEXT NOT NULL,
+      mention_target TEXT,
+      end_time TIMESTAMPTZ NOT NULL,
+      status TEXT DEFAULT 'active',
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+
   console.log("[DB] All tables initialized.");
 }
 

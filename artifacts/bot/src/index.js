@@ -176,6 +176,9 @@ async function main() {
   const { startTlCleanupCron } = await import("./modules/throneliberty.js");
   startTlCleanupCron(client);
 
+  const { startCountdownTimer } = await import("./tasks/countdownTimer.js");
+  startCountdownTimer(client);
+
   client.once("ready", async () => {
     console.log(`[Bot] Logged in as ${client.user.tag}`);
     initDb();
