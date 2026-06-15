@@ -60,6 +60,9 @@ export default {
         .addRoleOption((o) =>
           o.setName("mention_role").setDescription("الرتبة المطلوب منشنتها عند الانتهاء (اختياري)").setRequired(false)
         )
+        .addStringOption((o) =>
+          o.setName("image_url").setDescription("رابط صورة للإعلان (اختياري)").setRequired(false)
+        )
     )
     .addSubcommand((sub) =>
       sub
@@ -87,6 +90,7 @@ export default {
       const timeStr = interaction.options.getString("time");
       const timezone = interaction.options.getString("timezone");
       const role = interaction.options.getRole("mention_role");
+      const imageUrl = interaction.options.getString("image_url");
 
       if (voiceChannel.type !== 2 && voiceChannel.type !== 13) {
         return interaction.reply({ content: "❌ يرجى اختيار روم صوتي (Voice Channel) صحيح.", flags: 64 });
@@ -113,8 +117,8 @@ export default {
       const mentionStr = role ? `<@&${role.id}>` : "";
 
       await query(
-        "INSERT INTO live_countdowns (guild_id, voice_channel_id, text_channel_id, game_name, short_name, mention_target, end_time) VALUES ($1, $2, $3, $4, $5, $6, $7)",
-        [interaction.guildId, voiceChannel.id, textChannel.id, gameFullName, gameShortName, mentionStr, endTime]
+        "INSERT INTO live_countdowns (guild_id, voice_channel_id, text_channel_id, game_name, short_name, mention_target, end_time, image_url) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
+        [interaction.guildId, voiceChannel.id, textChannel.id, gameFullName, gameShortName, mentionStr, endTime, imageUrl]
       );
 
       await interaction.reply({ content: `✅ تم إعداد المؤقت للعبة **${gameFullName}** بنجاح!\nسينتهي في <t:${Math.floor(endTime.getTime()/1000)}:F> داخل الروم الصوتي ${voiceChannel}.` });

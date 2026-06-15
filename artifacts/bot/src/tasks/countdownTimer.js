@@ -21,7 +21,7 @@ export async function processCountdowns(client) {
   try {
     const res = await query("SELECT * FROM live_countdowns WHERE status = 'active'");
     for (const row of res.rows) {
-      const { id, guild_id, voice_channel_id, text_channel_id, game_name, short_name, mention_target, end_time } = row;
+      const { id, guild_id, voice_channel_id, text_channel_id, game_name, short_name, mention_target, end_time, image_url } = row;
       
       const guild = client.guilds.cache.get(guild_id) || await client.guilds.fetch(guild_id).catch(() => null);
       if (!guild) continue;
@@ -41,6 +41,10 @@ export async function processCountdowns(client) {
             .setTitle(`🎉 حان الموعد! - ${game_name}`)
             .setDescription(`الوقت انتهى يا أبطال، استعدوا للانطلاق في **${game_name}**! ⚔️🔥\n\nالشباب متجمعين في الروم الصوتي الآن، اضغط هنا عشان تدخل معهم: <#${voice_channel_id}>`)
             .setTimestamp();
+          
+          if (image_url) {
+            embed.setImage(image_url);
+          }
           
           let content = mention_target || "";
           await txtChannel.send({ content, embeds: [embed] }).catch(() => {});

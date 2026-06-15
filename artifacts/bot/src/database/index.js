@@ -669,6 +669,7 @@ export async function initDb() {
     )
   `);
   await query(`ALTER TABLE live_countdowns ADD COLUMN IF NOT EXISTS short_name TEXT DEFAULT 'Game'`);
+  await query(`ALTER TABLE live_countdowns ADD COLUMN IF NOT EXISTS image_url TEXT`);
 
   console.log("[DB] All tables initialized.");
 }
