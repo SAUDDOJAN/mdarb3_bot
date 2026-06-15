@@ -12,10 +12,10 @@ export default {
         .setName("set")
         .setDescription("إنشاء مؤقت جديد")
         .addChannelOption((o) =>
-          o.setName("voice_channel").setDescription("الروم الصوتي المستهدف للتحديث").setRequired(true).addChannelTypes(ChannelType.GuildVoice)
+          o.setName("voice_channel").setDescription("الروم الصوتي المستهدف للتحديث").setRequired(true).addChannelTypes(ChannelType.GuildVoice, ChannelType.GuildStageVoice)
         )
         .addChannelOption((o) =>
-          o.setName("text_channel").setDescription("الروم النصي لإرسال الإعلان عند الانتهاء").setRequired(true).addChannelTypes(ChannelType.GuildText)
+          o.setName("text_channel").setDescription("الروم النصي لإرسال الإعلان عند الانتهاء").setRequired(true).addChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement)
         )
         .addStringOption((o) =>
           o.setName("game_name").setDescription("اسم اللعبة (مثال: AION 2)").setRequired(true)
