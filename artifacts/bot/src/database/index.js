@@ -628,16 +628,23 @@ export async function initDb() {
   await query(`
     CREATE TABLE IF NOT EXISTS user_push_preferences (
       user_id TEXT PRIMARY KEY,
-      notify_dungeons BOOLEAN DEFAULT true,
-      notify_events BOOLEAN DEFAULT true,
-      notify_rifts BOOLEAN DEFAULT true,
-      notify_siege BOOLEAN DEFAULT true,
+      notify_tl BOOLEAN DEFAULT true,
+      notify_aion2 BOOLEAN DEFAULT true,
+      notify_gw2 BOOLEAN DEFAULT true,
       updated_at TIMESTAMPTZ DEFAULT NOW()
     )
   `);
-  
+
+  // Migration: Rename notify_aion to notify_aion2 if it exists
+  try {
+    await query(`ALTER TABLE user_push_preferences RENAME COLUMN notify_aion TO notify_aion2`);
+  } catch (err) {
+    // Ignore if column doesn't exist or already renamed
+  }
+
+  // Ensure columns exist if table was created in older version
   await query(`ALTER TABLE user_push_preferences ADD COLUMN IF NOT EXISTS notify_tl BOOLEAN DEFAULT true`);
-  await query(`ALTER TABLE user_push_preferences ADD COLUMN IF NOT EXISTS notify_aion BOOLEAN DEFAULT true`);
+  await query(`ALTER TABLE user_push_preferences ADD COLUMN IF NOT EXISTS notify_aion2 BOOLEAN DEFAULT true`);
   await query(`ALTER TABLE user_push_preferences ADD COLUMN IF NOT EXISTS notify_gw2 BOOLEAN DEFAULT true`);
 
   // Scheduled Reminders

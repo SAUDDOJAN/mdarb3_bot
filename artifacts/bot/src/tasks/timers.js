@@ -289,11 +289,7 @@ export function setupGameTimers() {
           let prefKeys = [];
           if (key.startsWith('tl_')) prefKeys.push('notify_tl');
           else if (key.startsWith('gw2_')) prefKeys.push('notify_gw2');
-          else prefKeys.push('notify_aion');
-
-          if (key === 'rift') prefKeys.push('notify_rifts');
-          else if (key === 'tl_siege') prefKeys.push('notify_siege');
-          else prefKeys.push('notify_events');
+          else prefKeys.push('notify_aion2');
           
           console.log(`[Timers] Triggering Push Notification for: ${key} with prefs:`, prefKeys);
           await broadcastPushNotification(title, body, { type: 'timer_event', eventKey: key }, prefKeys);

@@ -232,13 +232,13 @@ export async function handleDungeonsApi(req, res, parsedUrl) {
     }
     try {
       const { query } = await import("./database/index.js");
-      const prefRes = await query("SELECT * FROM user_push_preferences WHERE user_id = $1", [discordId]);
+      const prefRes = await query("SELECT notify_tl, notify_aion2, notify_gw2 FROM user_push_preferences WHERE user_id = $1", [discordId]);
       if (prefRes.rowCount > 0) {
         res.writeHead(200, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ success: true, preferences: prefRes.rows[0] }));
       } else {
         // Default preferences
-        const defaults = { notify_dungeons: true, notify_events: true, notify_rifts: true, notify_siege: true, notify_tl: true, notify_aion: true, notify_gw2: true };
+        const defaults = { notify_tl: true, notify_aion2: true, notify_gw2: true };
         res.writeHead(200, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ success: true, preferences: defaults }));
       }
@@ -255,7 +255,7 @@ export async function handleDungeonsApi(req, res, parsedUrl) {
     req.on("data", chunk => body += chunk.toString());
     req.on("end", async () => {
       try {
-        const { discordId, notify_dungeons, notify_events, notify_rifts, notify_siege, notify_tl, notify_aion, notify_gw2 } = JSON.parse(body);
+        const { discordId, notify_tl, notify_aion2, notify_gw2 } = JSON.parse(body);
         if (!discordId) {
           res.writeHead(400, { "Content-Type": "application/json" });
           res.end(JSON.stringify({ success: false, error: "Missing Discord ID" }));
@@ -264,16 +264,16 @@ export async function handleDungeonsApi(req, res, parsedUrl) {
         
         // Handle undefined variables by defaulting to true
         const tl = notify_tl === undefined ? true : !!notify_tl;
-        const aion = notify_aion === undefined ? true : !!notify_aion;
+        const aion2 = notify_aion2 === undefined ? true : !!notify_aion2;
         const gw2 = notify_gw2 === undefined ? true : !!notify_gw2;
 
         const { query } = await import("./database/index.js");
         await query(
-          `INSERT INTO user_push_preferences (user_id, notify_dungeons, notify_events, notify_rifts, notify_siege, notify_tl, notify_aion, notify_gw2, updated_at)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
+          `INSERT INTO user_push_preferences (user_id, notify_tl, notify_aion2, notify_gw2, updated_at)
+           VALUES ($1, $2, $3, $4, NOW())
            ON CONFLICT (user_id) DO UPDATE SET
-             notify_dungeons = $2, notify_events = $3, notify_rifts = $4, notify_siege = $5, notify_tl = $6, notify_aion = $7, notify_gw2 = $8, updated_at = NOW()`,
-          [discordId, !!notify_dungeons, !!notify_events, !!notify_rifts, !!notify_siege, tl, aion, gw2]
+             notify_tl = $2, notify_aion2 = $3, notify_gw2 = $4, updated_at = NOW()`,
+          [discordId, tl, aion2, gw2]
         );
         res.writeHead(200, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ success: true }));
