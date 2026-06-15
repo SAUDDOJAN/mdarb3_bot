@@ -76,9 +76,31 @@ export default {
         .setName("delete")
         .setDescription("إلغاء مؤقت نشط")
         .addIntegerOption((o) =>
-          o.setName("id").setDescription("رقم المؤقت (من أمر list)").setRequired(true)
+          o.setName("id").setDescription("رقم المؤقت (اختر من القائمة)").setRequired(true).setAutocomplete(true)
         )
     ),
+
+  async autocomplete(interaction) {
+    const sub = interaction.options.getSubcommand();
+    if (sub === "delete") {
+      const focusedValue = interaction.options.getFocused();
+      try {
+        const res = await query("SELECT id, game_name FROM live_countdowns WHERE guild_id = $1 AND status = 'active'", [interaction.guildId]);
+        let choices = res.rows.map(r => ({
+          name: `ID: ${r.id} | ${r.game_name}`,
+          value: r.id
+        }));
+        
+        if (focusedValue) {
+          choices = choices.filter(c => c.name.toLowerCase().includes(focusedValue.toString().toLowerCase()));
+        }
+        await interaction.respond(choices.slice(0, 25));
+      } catch (err) {
+        console.error("[Countdown] Autocomplete Error:", err);
+        await interaction.respond([]);
+      }
+    }
+  },
 
   async execute(interaction, client) {
     const sub = interaction.options.getSubcommand();

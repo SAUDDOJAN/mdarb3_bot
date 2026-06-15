@@ -74,6 +74,19 @@ export default {
       return;
     }
 
+    if (interaction.isAutocomplete()) {
+      const command = client.commands.get(interaction.commandName);
+      if (!command) return;
+      try {
+        if (command.autocomplete) {
+          await command.autocomplete(interaction, client);
+        }
+      } catch (err) {
+        console.error(`[Commands] Error in autocomplete /${interaction.commandName}:`, err);
+      }
+      return;
+    }
+
     if (
       interaction.isButton() ||
       interaction.isStringSelectMenu() ||
