@@ -5,7 +5,7 @@ import { processCountdowns } from "../../tasks/countdownTimer.js";
 const TIMEZONES = [
   { name: "KST (كوريا +9)", value: "KST" },
   { name: "JST (اليابان +9)", value: "JST" },
-  { name: "IOT (المحيط الهندي +6)", value: "IOT" },
+  { name: "BDT (المحيط الهندي +6)", value: "BDT" },
   { name: "IST (الهند +5:30)", value: "IST" },
   { name: "AST (السعودية +3)", value: "AST" },
   { name: "UTC (جرينتش +0)", value: "UTC" },
@@ -16,7 +16,7 @@ const TIMEZONES = [
 
 function parseDateToUTC(dateStr, timeStr, timezone) {
   const offsets = {
-    "KST": 9, "JST": 9, "IOT": 6, "IST": 5.5, "AST": 3, "UTC": 0,
+    "KST": 9, "JST": 9, "BDT": 6, "IST": 5.5, "AST": 3, "UTC": 0,
     "CET": 1, "EST": -5, "PST": -8
   };
   const offset = offsets[timezone] || 0;
