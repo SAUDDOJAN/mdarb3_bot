@@ -199,7 +199,7 @@ async function handleStatus(interaction) {
   });
 }
 
-// ─── الخطوة 5: الموافقة → إصدار بطاقة اللاعب ───────────────────────────────
+// ─── الخطوة 5: الموافقة → إصدار طلب للإدارة ───────────────────────────────
 async function handleAgree(interaction) {
   const data = userSelections.get(interaction.user.id);
 
@@ -212,51 +212,72 @@ async function handleAgree(interaction) {
 
   await interaction.deferUpdate();
 
-  // منح الرتبة إن وُجدت
-  if (TL_MEMBER_ROLE_ID) {
-    try {
-      await interaction.member.roles.add(TL_MEMBER_ROLE_ID);
-    } catch (e) {
-      console.error("[TL] Failed to assign member role:", e.message);
-    }
+  const { query } = await import("../database/index.js");
+
+  // Check if pending
+  const existing = await query("SELECT status FROM tl_recruits WHERE user_id = $1", [interaction.user.id]);
+  if (existing.rowCount > 0 && existing.rows[0].status === 'pending') {
+     return interaction.editReply({ content: "❌ لديك طلب انضمام قيد المراجعة بالفعل.", components: [] });
   }
 
-  // بطاقة اللاعب
-  const avatarUrl = interaction.user.displayAvatarURL({ extension: "png", size: 256 });
+  // Insert or Update in DB
+  const fullClassName = `${data.className} (${data.weapons})`;
+  await query(
+    `INSERT INTO tl_recruits (user_id, discord_tag, class_name, playstyle, game_status, status)
+     VALUES ($1, $2, $3, $4, $5, 'pending')
+     ON CONFLICT (user_id) DO UPDATE SET
+       class_name = EXCLUDED.class_name,
+       playstyle = EXCLUDED.playstyle,
+       game_status = EXCLUDED.game_status,
+       status = 'pending',
+       reviewed_by = NULL`,
+    [interaction.user.id, interaction.user.tag, fullClassName, data.playstyle, data.status]
+  );
 
-  const cardEmbed = new EmbedBuilder()
-    .setColor("#8B0000")
-    .setTitle("📋 بطاقة لاعب جديد — Throne and Liberty")
-    .setThumbnail(avatarUrl)
-    .setDescription([
-      `انضم إلى الجيلد: <@${interaction.user.id}>`,
-      ``,
-      `**الاسم:** ${interaction.user.username}`,
-      `**الكلاس:** ${data.className}`,
-      `**الأسلحة:** ${data.weapons}`,
-      `**أسلوب اللعب:** ${data.playstyle}`,
-      `**الوضع الحالي:** ${data.status}`,
-      `**القوانين:** ✅ وافق على قوانين الجيلد`,
-    ].join("\n"))
-    .setFooter({ text: "Throne and Liberty • M3RGEEN Gaming Community" })
-    .setTimestamp();
+  // Send Admin Alert
+  const resConfig = await query("SELECT admin_channel_id FROM guild_config WHERE guild_id = $1", [interaction.guildId]);
+  const adminChannelId = resConfig.rows[0]?.admin_channel_id || "1511534262380265533";
 
-  // إرسال البطاقة لروم الأعضاء
-  try {
-    const membersChannel = await interaction.client.channels.fetch(TL_MEMBERS_CHANNEL_ID);
-    if (membersChannel) {
-      await membersChannel.send({ embeds: [cardEmbed] });
-      console.log(`[TL] Player card sent for ${interaction.user.username}`);
-    }
-  } catch (e) {
-    console.error("[TL] Failed to send player card:", e.message);
+  const adminChannel = interaction.guild.channels.cache.get(adminChannelId) || await interaction.guild.channels.fetch(adminChannelId).catch(() => null);
+
+  if (adminChannel) {
+    const avatarUrl = interaction.user.displayAvatarURL({ extension: "png", size: 256 });
+    const embed = new EmbedBuilder()
+      .setColor("#FFA500")
+      .setTitle("🛡️ طلب انضمام جديد — Throne and Liberty")
+      .setThumbnail(avatarUrl)
+      .setDescription([
+        `**اللاعب:** <@${interaction.user.id}> (${interaction.user.username})`,
+        `**الكلاس:** ${data.className}`,
+        `**الأسلحة:** ${data.weapons}`,
+        `**أسلوب اللعب:** ${data.playstyle}`,
+        `**الوضع الحالي:** ${data.status}`
+      ].join("\n"))
+      .setFooter({ text: "Throne and Liberty Recruitment" })
+      .setTimestamp();
+
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`throne:accept_${interaction.user.id}`)
+        .setLabel("قبول")
+        .setEmoji("✅")
+        .setStyle(ButtonStyle.Success),
+      new ButtonBuilder()
+        .setCustomId(`throne:reject_${interaction.user.id}`)
+        .setLabel("رفض")
+        .setEmoji("❌")
+        .setStyle(ButtonStyle.Danger)
+    );
+
+    const msg = await adminChannel.send({ embeds: [embed], components: [row] });
+    await query("UPDATE tl_recruits SET message_id = $1 WHERE user_id = $2", [msg.id, interaction.user.id]);
   }
 
   // تنظيف البيانات المؤقتة
   userSelections.delete(interaction.user.id);
 
   await interaction.editReply({
-    content: "✅ **تم إرسال طلب انضمامك بنجاح!**\nمرحباً بك في جيلد Throne and Liberty! 🏰⚔️",
+    content: "✅ **تم إرسال طلب انضمامك بنجاح!**\nسيتم مراجعته من قبل قادة الجيلد وإبلاغك بالنتيجة قريباً. 🏰⚔️",
     components: [],
   });
 }
@@ -323,13 +344,31 @@ async function handleAppAccept(interaction, userId) {
   // Update member count
   await updateTLMemberCount(interaction.client);
 
-  // Send to members channel
+  // Send player card to members channel
   try {
     const membersChannel = await interaction.client.channels.fetch(TL_MEMBERS_CHANNEL_ID);
     if (membersChannel) {
-      await membersChannel.send({ embeds: [embed] });
+      const avatarUrl = member.user.displayAvatarURL({ extension: "png", size: 256 });
+      const cardEmbed = new EmbedBuilder()
+        .setColor("#8B0000")
+        .setTitle("📋 بطاقة لاعب جديد — Throne and Liberty")
+        .setThumbnail(avatarUrl)
+        .setDescription([
+          `انضم إلى الجيلد: <@${userId}>`,
+          ``,
+          `**الاسم:** ${member.user.username}`,
+          `**الكلاس:** ${res.rows[0].class_name}`,
+          `**أسلوب اللعب:** ${res.rows[0].playstyle}`,
+          `**الوضع الحالي:** ${res.rows[0].game_status}`,
+          `**القوانين:** ✅ وافق على قوانين الجيلد`,
+        ].join("\n"))
+        .setFooter({ text: "Throne and Liberty • M3RGEEN Gaming Community" })
+        .setTimestamp();
+      await membersChannel.send({ embeds: [cardEmbed] });
     }
-  } catch (e) {}
+  } catch (e) {
+    console.error("[TL] Failed to send player card:", e);
+  }
 }
 
 // ─── رفض الطلب من الإدارة ──────────────────────────────────────────────────
