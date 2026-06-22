@@ -39,8 +39,14 @@ export default {
     .addSubcommand((sub) =>
       sub
         .setName("adminchannel")
-        .setDescription("Set the admin/log channel for withdrawal and event alerts")
+        .setDescription("Set the admin/log channel for AION 2 recruitment and general alerts")
         .addChannelOption((o) => o.setName("channel").setDescription("The admin channel").setRequired(true))
+    )
+    .addSubcommand((sub) =>
+      sub
+        .setName("tladminchannel")
+        .setDescription("Set the admin channel for Throne and Liberty recruitment requests")
+        .addChannelOption((o) => o.setName("channel").setDescription("The TL admin channel").setRequired(true))
     )
     .addSubcommand((sub) =>
       sub
@@ -106,7 +112,12 @@ export default {
       const ch = interaction.options.getChannel("channel");
       field = "admin_channel_id";
       value = ch.id;
-      label = `Admin channel set to ${ch} — withdrawal logs and event alerts will be sent here`;
+      label = `AION 2 Admin channel set to ${ch}`;
+    } else if (sub === "tladminchannel") {
+      const ch = interaction.options.getChannel("channel");
+      field = "tl_admin_channel_id";
+      value = ch.id;
+      label = `Throne and Liberty Admin channel set to ${ch}`;
     } else if (sub === "powercardchannel") {
       const ch = interaction.options.getChannel("channel");
       field = "powercard_channel_id";

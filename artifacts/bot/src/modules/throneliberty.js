@@ -235,10 +235,10 @@ async function handleAgree(interaction) {
   );
 
   // Send Admin Alert
-  const resConfig = await query("SELECT admin_channel_id FROM guild_config WHERE guild_id = $1", [interaction.guildId]);
-  const adminChannelId = resConfig.rows[0]?.admin_channel_id || "1511534262380265533";
+  const resConfig = await query("SELECT tl_admin_channel_id FROM guild_config WHERE guild_id = $1", [interaction.guildId]);
+  const adminChannelId = resConfig.rows[0]?.tl_admin_channel_id;
 
-  const adminChannel = interaction.guild.channels.cache.get(adminChannelId) || await interaction.guild.channels.fetch(adminChannelId).catch(() => null);
+  const adminChannel = adminChannelId ? (interaction.guild.channels.cache.get(adminChannelId) || await interaction.guild.channels.fetch(adminChannelId).catch(() => null)) : null;
 
   if (adminChannel) {
     const avatarUrl = interaction.user.displayAvatarURL({ extension: "png", size: 256 });
@@ -655,7 +655,12 @@ export function startTlCleanupCron(client) {
       `);
 
       if (res.rowCount > 0) {
-        const reviewChannel = await client.channels.fetch("1511534262380265533").catch(() => null);
+        // Fetch TL admin channel from DB
+        const configRes = await query("SELECT tl_admin_channel_id FROM guild_config LIMIT 1");
+        const tlAdminId = configRes.rows[0]?.tl_admin_channel_id;
+        if (!tlAdminId) return;
+
+        const reviewChannel = await client.channels.fetch(tlAdminId).catch(() => null);
         if (reviewChannel) {
           for (const row of res.rows) {
             try {
