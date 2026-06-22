@@ -373,14 +373,53 @@ async function handleAppAccept(interaction, userId) {
 
 // ─── رفض الطلب من الإدارة ──────────────────────────────────────────────────
 async function handleAppReject(interaction, userId) {
+  const { query } = await import("../database/index.js");
+  const res = await query("SELECT * FROM tl_recruits WHERE user_id = $1 AND status = 'pending'", [userId]);
+  
+  if (res.rowCount === 0) {
+    return interaction.reply({ content: "❌ الطلب غير موجود أو تمت معالجته مسبقاً.", ephemeral: true });
+  }
+
+  const row = new ActionRowBuilder().addComponents(
+    new StringSelectMenuBuilder()
+      .setCustomId(`tl:reject_reason:${userId}`)
+      .setPlaceholder("اختر سبب الرفض...")
+      .addOptions([
+        { label: "العدد مكتمل", value: "full", description: "عذراً، العدد في الجيلد مكتمل حالياً.", emoji: "👥" },
+        { label: "كلاس فائض", value: "class", description: "الكلاس الخاص بك متوفر بكثرة حالياً.", emoji: "⚔️" },
+        { label: "قير سكور نازل مره", value: "gear", description: "مستوى العتاد الخاص بك منخفض جداً.", emoji: "🛡️" }
+      ])
+  );
+
+  await interaction.reply({
+    content: "الرجاء تحديد سبب الرفض لإبلاغ اللاعب:",
+    components: [row],
+    ephemeral: true
+  });
+}
+
+// ─── معالجة سبب الرفض وإرسال الرسالة ───────────────────────────────────────
+async function handleAppRejectReason(interaction, userId) {
   await interaction.deferUpdate();
+  const reasonCode = interaction.values[0];
+  
+  let reasonMsg = "نأسف، تم رفض طلب انضمامك لجيلد Throne and Liberty من قِبل الإدارة.";
+  const reasonTitle = "❌ تم رفض طلب الانضمام";
+  let reasonLabel = "";
+  
+  if (reasonCode === "full") {
+    reasonMsg = "نعتذر منك يا غالي، نود إبلاغك بأن العدد في الجيلد مكتمل حالياً. 👥\nنتشرف بوجودك معنا في الديسكورد، وراح نفتح التجنيد قريباً إن شاء الله.";
+    reasonLabel = "العدد مكتمل";
+  } else if (reasonCode === "class") {
+    reasonMsg = "يعطيك العافية يا وحش، نعتذر منك لعدم قبول طلبك حالياً بسبب وجود فائض كبير في الكلاس الخاص بك. ⚔️\nبإمكانك التقديم لاحقاً إذا تغيرت المتطلبات، وحياك الله في الديسكورد.";
+    reasonLabel = "كلاس فائض";
+  } else if (reasonCode === "gear") {
+    reasonMsg = "أهلاً بك يا غالي، نعتذر عن قبول طلبك حالياً لأن مستوى العتاد (Gear Score) أقل من المطلوب. 🛡️\nتقدر تطور عتادك وتقدم مره ثانية، والديسكورد ديسكوردك تفضل متى ما حبيت.";
+    reasonLabel = "قير سكور نازل مره";
+  }
+
   const { query } = await import("../database/index.js");
   const { emitNotification } = await import("../socket.js");
-
-  const res = await query("SELECT * FROM tl_recruits WHERE user_id = $1 AND status = 'pending'", [userId]);
-  if (res.rowCount === 0) {
-    return interaction.editReply({ content: "❌ الطلب غير موجود أو تمت معالجته مسبقاً.", components: [] });
-  }
 
   await query("UPDATE tl_recruits SET status='rejected', reviewed_by=$1 WHERE user_id=$2", [interaction.user.id, userId]);
 
@@ -389,8 +428,8 @@ async function handleAppReject(interaction, userId) {
     try {
       const dmEmbed = new EmbedBuilder()
         .setColor("#ED4245")
-        .setTitle("❌ تم رفض طلب الانضمام")
-        .setDescription("نأسف، تم رفض طلب انضمامك لجيلد Throne and Liberty من قِبل الإدارة.")
+        .setTitle(reasonTitle)
+        .setDescription(reasonMsg)
         .setTimestamp();
       await member.send({ embeds: [dmEmbed] });
     } catch (e) {}
@@ -402,19 +441,32 @@ async function handleAppReject(interaction, userId) {
     const newNotif = await createNotification(
       "tl_recruitment",
       "❌ تم الرفض",
-      "نأسف، لم يتم قبول طلبك للانضمام لجيلد Throne and Liberty.",
+      reasonMsg,
       { target_user_id: userId }
     );
     emitNotification(userId, newNotif);
     const { sendPushNotification } = await import("../services/push.js");
-    await sendPushNotification(userId, "❌ تم الرفض", "نأسف، تم رفض طلب انضمامك لجيلد Throne and Liberty.", { type: "alliance" });
+    await sendPushNotification(userId, "❌ تم الرفض", reasonMsg, { type: "alliance" });
   } catch (e) {}
 
-  const embed = EmbedBuilder.from(interaction.message.embeds[0])
-    .setColor("#ED4245")
-    .addFields({ name: "النتيجة", value: `❌ تم الرفض بواسطة <@${interaction.user.id}>` });
+  // Update original message
+  try {
+    const res = await query("SELECT message_id FROM tl_recruits WHERE user_id=$1", [userId]);
+    const msgId = res.rows[0]?.message_id;
+    if (msgId) {
+      const originalMsg = await interaction.channel.messages.fetch(msgId).catch(() => null);
+      if (originalMsg) {
+        const embed = EmbedBuilder.from(originalMsg.embeds[0])
+          .setColor("#ED4245")
+          .addFields({ name: "النتيجة", value: `❌ تم الرفض بواسطة <@${interaction.user.id}>\nالسبب: **${reasonLabel}**` });
+        await originalMsg.edit({ embeds: [embed], components: [] });
+      }
+    }
+  } catch (err) {
+    console.error("[TL] Error updating original rejected message", err);
+  }
 
-  await interaction.editReply({ embeds: [embed], components: [] });
+  await interaction.editReply({ content: "✅ تم رفض الطلب وإبلاغ اللاعب بالسبب بنجاح.", components: [] });
 }
 
 // ─── إزالة عضو من الإدارة ──────────────────────────────────────────────────
@@ -548,6 +600,8 @@ export async function handleInteraction(interaction) {
       await handleAgree(interaction);
     } else if (customId.startsWith("tl:accept:")) {
       await handleAppAccept(interaction, customId.split(":")[2]);
+    } else if (customId.startsWith("tl:reject_reason:")) {
+      await handleAppRejectReason(interaction, customId.split(":")[2]);
     } else if (customId.startsWith("tl:reject:")) {
       await handleAppReject(interaction, customId.split(":")[2]);
     } else if (customId === "tl:mgmt:remove") {
