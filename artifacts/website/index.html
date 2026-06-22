@@ -676,7 +676,12 @@
             if (isOpen) {
                 document.getElementById('rift-label').innerHTML = `<span style="color:var(--green)">الصدوع مفتوحة الآن!</span>`;
                 document.getElementById('rift-close-hint').innerText = "تغلق بعد قليل"; card.classList.add('flash-rift');
-                render('rift-timer', nextR); if (now.getSeconds() === 0 && now.getMinutes() === 0) playPriorityAlert('rift');
+                render('rift-timer', nextR);
+                let uniqueKey = 'rift_open_' + now.getHours();
+                if (now.getSeconds() === 0 && now.getMinutes() === 0 && !notified.has(uniqueKey)) {
+                    playPriorityAlert('rift');
+                    notified.add(uniqueKey);
+                }
             } else {
                 document.getElementById('rift-label').innerHTML = "ظهور الصدوع (Rift)"; document.getElementById('rift-close-hint').innerText = "";
                 card.classList.remove('flash-rift'); render('rift-timer', nextR); checkAlerts(nextR, now, "rift");
@@ -725,7 +730,11 @@
             if (isShugoOpen) {
                 document.getElementById('shugo-timer').innerHTML = `<span style="color:var(--green); font-family: 'Cairo', sans-serif;">مفتوح الآن!</span>`;
                 document.getElementById('card-shugo').classList.add('flash-shugo');
-                if (now.getSeconds() === 0 && now.getMinutes() === 0) playPriorityAlert('shugo');
+                let uniqueKey = 'shugo_open_' + now.getHours();
+                if (now.getSeconds() === 0 && now.getMinutes() === 0 && !notified.has(uniqueKey)) {
+                    playPriorityAlert('shugo');
+                    notified.add(uniqueKey);
+                }
             } else {
                 document.getElementById('card-shugo').classList.remove('flash-shugo');
                 render('shugo-timer', nextS); checkAlerts(nextS, now, "shugo");
@@ -818,6 +827,7 @@
             update();
             setInterval(update, 1000);
             loadWidgetData(); // تحميل الودجت المخصص
+            setInterval(checkRoutineReminder, 3600000); // تذكير الروتين كل ساعة
         };
 
         function loadRoutine() {
@@ -859,6 +869,43 @@
             localStorage.setItem('aion2_routine', JSON.stringify(checks));
             localStorage.setItem('aion2_routine_date', new Date().toDateString());
         }
+
+        let reminderInterval;
+        function showRoutineReminderPopup() {
+            const popup = document.getElementById('routineReminderPopup');
+            const countSpan = document.getElementById('reminderCountdown');
+            popup.style.display = 'block';
+            
+            let secondsLeft = 5;
+            countSpan.innerText = secondsLeft;
+            
+            if(reminderInterval) clearInterval(reminderInterval);
+            reminderInterval = setInterval(() => {
+                secondsLeft--;
+                countSpan.innerText = secondsLeft;
+                if (secondsLeft <= 0) {
+                    clearInterval(reminderInterval);
+                    popup.style.display = 'none';
+                }
+            }, 1000);
+        }
+
+        function checkRoutineReminder() {
+            const checks = document.querySelectorAll('.routine-checkbox');
+            let allChecked = true;
+            checks.forEach(cb => { if (!cb.checked) allChecked = false; });
+            
+            if (!allChecked && isEnabled && document.getElementById('sys_master').checked) {
+                showRoutineReminderPopup();
+                if (Notification.permission === "granted") {
+                    new Notification("تذكير بالمهام اليومية", {
+                        body: "لا تنسى تخلص الابيس والديوتي!",
+                        icon: "skill.png"
+                    });
+                }
+            }
+        }
+
         const legalData = {
             privacy: {
                 title: "سياسة الخصوصية وإخلاء المسؤولية",
@@ -918,6 +965,20 @@
         </div>
     </div>
 
+    <!-- Routine Reminder Popup -->
+    <div id="routineReminderPopup" class="modal" style="z-index: 2000;">
+        <div class="modal-content" style="text-align: center; border: 2px solid var(--gold); background: #1a1a2e; margin-top: 15%;">
+            <div class="modal-body" style="padding: 40px 20px;">
+                <i class="fas fa-bell" style="font-size: 3.5rem; color: var(--gold); margin-bottom: 15px; animation: flash-shugo 1s infinite;"></i>
+                <h2 style="color: var(--gold); margin-top: 0; font-family: 'Cairo';">تذكير بالمهام اليومية!</h2>
+                <p style="font-size: 1.1rem; color: #fff; font-family: 'Cairo';">لا تنسى تخلص الابيس والديوتي الخاصة بك.</p>
+                <div style="margin-top: 25px; font-weight: bold; color: var(--light-red); font-size: 0.95rem;">
+                    ستختفي الرسالة بعد <span id="reminderCountdown" style="font-size: 1.3rem; color: #fff;">5</span> ثانية
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Routine Checklist Section -->
     <div class="routine-section">
         <div class="routine-header">
@@ -969,10 +1030,13 @@
                     لا تفوت أي حدث! احصل على الإشعارات المباشرة وتتبع تقدمك من هاتفك بكل سهولة واحترافية.
                 </div>
                 <div class="app-buttons">
-                    <a href="#" class="app-btn android">
+                    <a href="https://github.com/SAUDDOJAN/AionRadar-Updates/releases/latest/download/AION-Radar-Setup-1.0.2.exe" target="_blank" class="app-btn windows" style="background: rgba(0, 120, 215, 0.2); border-color: #0078D7;">
+                        <i class="fab fa-windows"></i> تحميل للويندوز (PC)
+                    </a>
+                    <a href="https://github.com/SAUDDOJAN/M3RGEEN-App/releases/download/1.0.0/M3RGEEN.apk" target="_blank" class="app-btn android">
                         <i class="fab fa-android"></i> تحميل للأندرويد
                     </a>
-                    <a href="#" class="app-btn ios">
+                    <a href="https://m3rgeen-app.vercel.app/" target="_blank" class="app-btn ios">
                         <i class="fab fa-apple"></i> تحميل للـ iOS
                     </a>
                 </div>

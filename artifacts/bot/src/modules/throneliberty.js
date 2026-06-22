@@ -258,12 +258,12 @@ async function handleAgree(interaction) {
 
     const row = new ActionRowBuilder().addComponents(
       new ButtonBuilder()
-        .setCustomId(`throne:accept_${interaction.user.id}`)
+        .setCustomId(`tl:accept:${interaction.user.id}`)
         .setLabel("قبول")
         .setEmoji("✅")
         .setStyle(ButtonStyle.Success),
       new ButtonBuilder()
-        .setCustomId(`throne:reject_${interaction.user.id}`)
+        .setCustomId(`tl:reject:${interaction.user.id}`)
         .setLabel("رفض")
         .setEmoji("❌")
         .setStyle(ButtonStyle.Danger)
