@@ -8,6 +8,7 @@ import { getSyncedChannels } from "./database/radar.js";
 import { initSocket, emitDiscordMessage } from "./socket.js";
 import { handleDungeonsApi } from "./api.js";
 import { initPush, handleChatPush } from "./services/push.js";
+import { handleYouTubeWebhook } from "./tasks/socialNotifier.js";
 
 const PORT = process.env.PORT || 3000;
 const server = http.createServer((req, res) => {
@@ -24,6 +25,12 @@ const server = http.createServer((req, res) => {
 
   // Parse path
   const parsedUrl = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+  
+  if (parsedUrl.pathname === "/api/youtube-webhook") {
+    handleYouTubeWebhook(req, res, client);
+    return;
+  }
+
   if (parsedUrl.pathname === "/api/widget") {
     res.writeHead(200, { "Content-Type": "application/json" });
     res.end(JSON.stringify(globalThis.widgetData || { error: "لم يتم تجهيز البيانات بعد أو البوت قيد التشغيل" }));
