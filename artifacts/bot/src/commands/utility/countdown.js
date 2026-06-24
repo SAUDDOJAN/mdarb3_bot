@@ -79,11 +79,37 @@ export default {
         .addIntegerOption((o) =>
           o.setName("id").setDescription("رقم المؤقت (اختر من القائمة)").setRequired(true).setAutocomplete(true)
         )
+    )
+    .addSubcommand((sub) =>
+      sub
+        .setName("edit")
+        .setDescription("تعديل مؤقت نشط")
+        .addIntegerOption((o) =>
+          o.setName("id").setDescription("رقم المؤقت (اختر من القائمة)").setRequired(true).setAutocomplete(true)
+        )
+        .addStringOption((o) =>
+          o.setName("game_full_name").setDescription("اسم اللعبة الكامل (اختياري)")
+        )
+        .addStringOption((o) =>
+          o.setName("game_short_name").setDescription("اختصار اللعبة (اختياري)")
+        )
+        .addStringOption((o) =>
+          o.setName("date").setDescription("تاريخ جديد YYYY-MM-DD (اختياري)")
+        )
+        .addStringOption((o) =>
+          o.setName("time").setDescription("وقت جديد HH:MM (اختياري)")
+        )
+        .addStringOption((o) =>
+          o.setName("timezone").setDescription("المنطقة الزمنية (مطلوب إذا وضعت تاريخ ووقت)").addChoices(...TIMEZONES)
+        )
+        .addStringOption((o) =>
+          o.setName("image_url").setDescription("رابط صورة جديد (اختياري)")
+        )
     ),
 
   async autocomplete(interaction) {
     const sub = interaction.options.getSubcommand();
-    if (sub === "delete") {
+    if (sub === "delete" || sub === "edit") {
       const focusedValue = interaction.options.getFocused();
       try {
         const res = await query("SELECT id, game_name FROM live_countdowns WHERE guild_id = $1 AND status = 'active'", [interaction.guildId]);
@@ -171,6 +197,50 @@ export default {
       } else {
         return interaction.reply({ content: `❌ لم يتم العثور على مؤقت نشط بهذا الرقم.`, flags: 64 });
       }
+    }
+
+    if (sub === "edit") {
+      const id = interaction.options.getInteger("id");
+      const gameFullName = interaction.options.getString("game_full_name");
+      const gameShortName = interaction.options.getString("game_short_name");
+      const dateStr = interaction.options.getString("date");
+      const timeStr = interaction.options.getString("time");
+      const timezone = interaction.options.getString("timezone");
+      const imageUrl = interaction.options.getString("image_url");
+
+      const resCheck = await query("SELECT * FROM live_countdowns WHERE id = $1 AND guild_id = $2 AND status = 'active'", [id, interaction.guildId]);
+      if (resCheck.rows.length === 0) {
+        return interaction.reply({ content: `❌ لم يتم العثور على مؤقت نشط بهذا الرقم.`, flags: 64 });
+      }
+
+      const countdown = resCheck.rows[0];
+      
+      let newEndTime = countdown.end_time;
+      if (dateStr || timeStr) {
+        if (!dateStr || !timeStr || !timezone) {
+          return interaction.reply({ content: "❌ لتعديل الوقت يجب إدخال (التاريخ، الوقت، والمنطقة الزمنية) معاً.", flags: 64 });
+        }
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return interaction.reply({ content: "❌ صيغة التاريخ خاطئة! يرجى استخدام YYYY-MM-DD.", flags: 64 });
+        if (!/^\d{2}:\d{2}$/.test(timeStr)) return interaction.reply({ content: "❌ صيغة الوقت خاطئة! يرجى استخدام HH:MM.", flags: 64 });
+
+        newEndTime = parseDateToUTC(dateStr, timeStr, timezone);
+        if (isNaN(newEndTime.getTime()) || newEndTime.getTime() <= Date.now()) {
+          return interaction.reply({ content: "❌ تأكد من أن التاريخ والوقت في المستقبل.", flags: 64 });
+        }
+      }
+
+      const updatedFullName = gameFullName || countdown.game_name;
+      const updatedShortName = gameShortName || countdown.short_name;
+      const updatedImageUrl = imageUrl !== null ? imageUrl : countdown.image_url;
+
+      await query(
+        "UPDATE live_countdowns SET game_name = $1, short_name = $2, end_time = $3, image_url = $4 WHERE id = $5",
+        [updatedFullName, updatedShortName, newEndTime, updatedImageUrl, id]
+      );
+
+      await interaction.reply({ content: `✅ تم تعديل المؤقت رقم ${id} بنجاح!\nالاسم: ${updatedFullName}\nوقت الانتهاء: <t:${Math.floor(newEndTime.getTime()/1000)}:F>` });
+      processCountdowns(client);
+      return;
     }
   }
 };
