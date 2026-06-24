@@ -256,8 +256,8 @@ async function fetchCharacterInfo(characterId, serverId, region) {
   const res  = await fetch(proxyUrl, { headers: PROXY_HEADERS, signal: AbortSignal.timeout(15_000) });
   const json = await res.json();
 
-  if (json?.error) throw new Error(`Shugo proxy error (info): ${json.error}`);
-  if (!res.ok)     throw new Error(`character/info HTTP ${res.status}`);
+  if (json?.error) throw new Error(`Shugo proxy error (info): ${json.error} | ID: ${characterId} | Srv: ${serverId}`);
+  if (!json?.profile) throw new Error(`Invalid response from Shugo proxy (info) | ID: ${characterId}`);
 
   const raw = json;
   // Dump first 4000 chars for diagnostics — remove once field names confirmed
