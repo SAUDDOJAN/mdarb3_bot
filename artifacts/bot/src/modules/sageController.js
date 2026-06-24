@@ -96,17 +96,32 @@ async function handleJoinStart(interaction) {
 
   let selectRow = null;
   if (guildRoles.size > 0) {
-    const options = guildRoles.map((role) => {
+    let options = guildRoles.map((role) => {
       const isSolo = role.id === "1519397169897935019";
       let cleanName = role.name.replace(GUILD_ROLE_SYMBOL, "").trim();
-      if (isSolo) cleanName = cleanName.replace("🙎‍♂️", "").trim();
+      if (isSolo) {
+        cleanName = cleanName.replace("🙎‍♂️", "").trim();
+      } else {
+        cleanName = cleanName + " Guild";
+      }
       
       return {
         label: cleanName,
         value: role.id,
         emoji: isSolo ? "🙎‍♂️" : "⚔️",
+        isSolo: isSolo
       };
-    }).slice(0, 25); // Discord limit
+    });
+
+    // Sort to put Solo at the top, and alphabetically for the rest
+    options.sort((a, b) => {
+      if (a.isSolo) return -1;
+      if (b.isSolo) return 1;
+      return a.label.localeCompare(b.label);
+    });
+
+    // Clean up extra properties and apply Discord limit
+    options = options.map(opt => ({ label: opt.label, value: opt.value, emoji: opt.emoji })).slice(0, 25);
 
     selectRow = new ActionRowBuilder().addComponents(
       new StringSelectMenuBuilder()
@@ -191,17 +206,30 @@ async function handleAddGuildModal(interaction) {
       (r) => r.name.includes(GUILD_ROLE_SYMBOL) || r.id === "1519397169897935019"
     );
 
-    const options = guildRoles.map((role) => {
+    let options = guildRoles.map((role) => {
       const isSolo = role.id === "1519397169897935019";
       let cleanName = role.name.replace(GUILD_ROLE_SYMBOL, "").trim();
-      if (isSolo) cleanName = cleanName.replace("🙎‍♂️", "").trim();
+      if (isSolo) {
+        cleanName = cleanName.replace("🙎‍♂️", "").trim();
+      } else {
+        cleanName = cleanName + " Guild";
+      }
       
       return {
         label: cleanName,
         value: role.id,
         emoji: isSolo ? "🙎‍♂️" : "⚔️",
+        isSolo: isSolo
       };
-    }).slice(0, 25);
+    });
+
+    options.sort((a, b) => {
+      if (a.isSolo) return -1;
+      if (b.isSolo) return 1;
+      return a.label.localeCompare(b.label);
+    });
+
+    options = options.map(opt => ({ label: opt.label, value: opt.value, emoji: opt.emoji })).slice(0, 25);
 
     const selectRow = new ActionRowBuilder().addComponents(
       new StringSelectMenuBuilder()
