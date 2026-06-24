@@ -259,7 +259,7 @@ async function fetchCharacterInfo(characterId, serverId, region) {
   if (json?.error) throw new Error(`Shugo proxy error (info): ${json.error}`);
   if (!res.ok)     throw new Error(`character/info HTTP ${res.status}`);
 
-  const raw = json.profile ?? json;
+  const raw = json;
   // Dump first 4000 chars for diagnostics — remove once field names confirmed
   console.log(`[Scraper] info top-level keys: [${Object.keys(raw).join(", ")}]`);
   console.log(`[Scraper] info payload (4000c): ${JSON.stringify(raw).substring(0, 4000)}`);
