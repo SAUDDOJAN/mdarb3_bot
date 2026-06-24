@@ -88,19 +88,25 @@ export async function handleSageJoinCommand(interaction) {
 async function handleJoinStart(interaction) {
   if (!isSageGuild(interaction.guildId)) return; // ← strict isolation
 
-  // Fetch all roles containing ⚔️ from the guild
+  // Fetch all roles containing ⚔️ from the guild, plus the Solo Player role
   await interaction.guild.roles.fetch();
   const guildRoles = interaction.guild.roles.cache.filter(
-    (r) => r.name.includes(GUILD_ROLE_SYMBOL)
+    (r) => r.name.includes(GUILD_ROLE_SYMBOL) || r.id === "1519397169897935019"
   );
 
   let selectRow = null;
   if (guildRoles.size > 0) {
-    const options = guildRoles.map((role) => ({
-      label: role.name.replace(GUILD_ROLE_SYMBOL, "").trim(),
-      value: role.id,
-      emoji: "⚔️",
-    })).slice(0, 25); // Discord limit
+    const options = guildRoles.map((role) => {
+      const isSolo = role.id === "1519397169897935019";
+      let cleanName = role.name.replace(GUILD_ROLE_SYMBOL, "").trim();
+      if (isSolo) cleanName = cleanName.replace("🙎‍♂️", "").trim();
+      
+      return {
+        label: cleanName,
+        value: role.id,
+        emoji: isSolo ? "🙎‍♂️" : "⚔️",
+      };
+    }).slice(0, 25); // Discord limit
 
     selectRow = new ActionRowBuilder().addComponents(
       new StringSelectMenuBuilder()
@@ -182,14 +188,20 @@ async function handleAddGuildModal(interaction) {
     // Refresh the roles list to generate a new dropdown
     await interaction.guild.roles.fetch();
     const guildRoles = interaction.guild.roles.cache.filter(
-      (r) => r.name.includes(GUILD_ROLE_SYMBOL)
+      (r) => r.name.includes(GUILD_ROLE_SYMBOL) || r.id === "1519397169897935019"
     );
 
-    const options = guildRoles.map((role) => ({
-      label: role.name.replace(GUILD_ROLE_SYMBOL, "").trim(),
-      value: role.id,
-      emoji: "⚔️",
-    })).slice(0, 25);
+    const options = guildRoles.map((role) => {
+      const isSolo = role.id === "1519397169897935019";
+      let cleanName = role.name.replace(GUILD_ROLE_SYMBOL, "").trim();
+      if (isSolo) cleanName = cleanName.replace("🙎‍♂️", "").trim();
+      
+      return {
+        label: cleanName,
+        value: role.id,
+        emoji: isSolo ? "🙎‍♂️" : "⚔️",
+      };
+    }).slice(0, 25);
 
     const selectRow = new ActionRowBuilder().addComponents(
       new StringSelectMenuBuilder()
