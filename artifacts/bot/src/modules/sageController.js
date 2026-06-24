@@ -267,9 +267,9 @@ async function handleGuildSelect(interaction) {
 
   const shugoInput = new TextInputBuilder()
     .setCustomId("sage_shugo_url")
-    .setLabel("Profile URL (shugo.gg or NCSoft)") 
+    .setLabel("Character Profile URL") 
     .setStyle(TextInputStyle.Short)
-    .setPlaceholder("shugo.gg/... OR tw.ncsoft.com/...")
+    .setPlaceholder("https://...")
     .setRequired(true);
 
   modal.addComponents(new ActionRowBuilder().addComponents(shugoInput));
@@ -284,7 +284,7 @@ async function handleProfileModal(interaction, selectedRoleId) {
   await interaction.deferReply({ flags: 64 });
 
   const shugoUrl = interaction.fields.getTextInputValue("sage_shugo_url").trim();
-  await interaction.editReply({ content: "⏳ Fetching your profile from the provided URL..." });
+  await interaction.editReply({ content: "⏳ Fetching character data from server..." });
 
   const result = await scrapeProfile(shugoUrl);
 
@@ -422,7 +422,7 @@ async function sendToSageReview(interaction, app, targetChannel, isLeader) {
     .setTitle(titlePrefix)
     .setDescription(
       `👑 Applicant: ${interaction.user}\n` +
-      `[🔗 View Profile on shugo.gg](${app.shugo_url})`
+      `[🔗 View Character Profile](${app.shugo_url})`
     )
     .addFields(
       { name: "⚔️ Selected Guild", value: app.guild_name ?? "—" },

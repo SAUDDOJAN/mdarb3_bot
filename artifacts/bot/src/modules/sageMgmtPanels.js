@@ -185,7 +185,7 @@ async function handleMemberSelect(interaction) {
     row2Components.push(
       new ButtonBuilder()
         .setURL(rec.shugo_url)
-        .setLabel("عرض البروفايل على Shugo.gg")
+        .setLabel("View Profile")
         .setEmoji("🔗")
         .setStyle(ButtonStyle.Link)
     );
