@@ -2,6 +2,8 @@ import { EmbedBuilder, AuditLogEvent, Events } from "discord.js";
 
 const TARGET_GUILD_ID = "861355983975874601";
 const TARGET_ROLE_ID = "1509497629564866680";
+const ROLLER_ROLE_ID = "1519358202398118099";
+const SANC_ROLE_ID = "1519357411121561710";
 const LOG_CHANNEL_ID = "1290468734045261885";
 
 // خريطة لترجمة الأرقام إلى نصوص واضحة
@@ -46,9 +48,14 @@ export default {
     if (action === AuditLogEvent.MemberMove) return;
 
     try {
-      // التحقق من امتلاك المشرف للرتبة المطلوبة
+      // التحقق من امتلاك المشرف للرتبة المطلوبة أو رتبة Roller
       const member = await guild.members.fetch(executorId).catch(() => null);
-      if (!member || !member.roles.cache.has(TARGET_ROLE_ID)) return;
+      if (!member) return;
+
+      const isSupervisor = member.roles.cache.has(TARGET_ROLE_ID);
+      const isRoller = member.roles.cache.has(ROLLER_ROLE_ID);
+
+      if (!isSupervisor && !isRoller) return;
 
       let actionLabel = actionNames[action] || `إجراء غير مسجل (${action})`;
       let details = "";
@@ -83,11 +90,47 @@ export default {
           action === AuditLogEvent.MemberBanAdd ||
           action === AuditLogEvent.MemberBanRemove ||
           action === AuditLogEvent.MemberUpdate ||
-          action === AuditLogEvent.MemberRoleUpdate ||
           action === AuditLogEvent.MemberMove ||
           action === AuditLogEvent.MemberDisconnect
         ) {
           details += `**اللاعب المستهدف:** <@${targetId}>\n`;
+        } else if (action === AuditLogEvent.MemberRoleUpdate) {
+          details += `**اللاعب المستهدف:** <@${targetId}>\n`;
+          
+          if (changes) {
+            const addedRoles = changes.find(c => c.key === '$add')?.new || [];
+            const removedRoles = changes.find(c => c.key === '$remove')?.new || [];
+            const targetMember = await guild.members.fetch(targetId).catch(() => null);
+            let rollerTriggered = false;
+
+            if (isRoller) {
+              for (const role of addedRoles) {
+                if (role.id === SANC_ROLE_ID) {
+                  details += `🟢 **أعطى الرول المسموح:** <@&${role.id}>\n`;
+                } else {
+                  details += `🔴 **حاول إعطاء رول ممنوع:** <@&${role.id}> (وتم سحبه تلقائياً)\n`;
+                  if (targetMember) await targetMember.roles.remove(role.id).catch(() => null);
+                  rollerTriggered = true;
+                }
+              }
+              for (const role of removedRoles) {
+                if (role.id === SANC_ROLE_ID) {
+                  details += `➖ **سحب الرول المسموح:** <@&${role.id}>\n`;
+                } else {
+                  details += `🔴 **حاول سحب رول ممنوع:** <@&${role.id}> (وتم إرجاعه تلقائياً)\n`;
+                  if (targetMember) await targetMember.roles.add(role.id).catch(() => null);
+                  rollerTriggered = true;
+                }
+              }
+              if (rollerTriggered) {
+                actionLabel = "⚠️ تدخّل أمني: محاولة التلاعب بالرتب";
+              }
+            } else {
+              // Normal supervisor logic
+              for (const role of addedRoles) details += `🟢 **أعطى رول:** <@&${role.id}>\n`;
+              for (const role of removedRoles) details += `🔴 **سحب رول:** <@&${role.id}>\n`;
+            }
+          }
         } else if (action === AuditLogEvent.ChannelCreate || action === AuditLogEvent.ChannelUpdate || action === AuditLogEvent.ChannelDelete) {
            details += `**الروم المستهدف:** <#${targetId}>\n`;
         }
