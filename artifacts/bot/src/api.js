@@ -590,8 +590,25 @@ export async function handleDungeonsApi(req, res, parsedUrl) {
             const branchLabel = branch === 'pvp' ? "⚔️ PvP Guild" : "🛡️ PvE Guild";
             const cpDisplay = combatPower > 0 ? numFmt(combatPower) : "—";
             
+            let rankingsText = "—";
+            let itemLevel = "—";
+            let titlesText = "—";
+
+            if (data.itemLevel) itemLevel = numFmt(data.itemLevel);
+            if (data.rankings && data.rankings.length > 0) {
+              rankingsText = data.rankings.map(r => `• ${r.name}: ${r.rank} (${numFmt(r.point || 0)})`).join("\n");
+            } else {
+              rankingsText = `• Abyss: ${data.abyss_rank ?? "—"} (${data.abyss_score?.toLocaleString() ?? 0})`;
+            }
+
+            if (data.equippedTitles && data.equippedTitles.length > 0) {
+              titlesText = data.equippedTitles.map(t => `• **${t.category}:** ${t.name}`).join("\n");
+            } else if (data.titles && data.titles.active) {
+              titlesText = data.titles.active;
+            }
+
             const description =
-              `[🔗 عرض البروفايل على shugo.gg](${shugoUrl})\n` +
+              `[🔗 عرض البروفايل](${shugoUrl})\n` +
               `👑 مقدم الطلب: <@${discordId}>\n` +
               `🚩 القسم المطلوب: **${branchLabel}**`;
 
@@ -600,12 +617,13 @@ export async function handleDungeonsApi(req, res, parsedUrl) {
               `📊 المستوى: **${characterLevel}**\n` +
               `⚔️ الكلاس: **${className ?? "—"}**\n` +
               `🌍 السيرفر: **${serverName ?? "—"}**\n` +
-              `🧬 العرق: **${raceName ?? "—"}**\n` +
-              `🏆 الرتبة (Abyss): **${data.abyss_rank ?? "—"}** (${data.abyss_score?.toLocaleString() ?? 0})`;
+              `🧬 العرق: **${raceName ?? "—"}**`;
 
             const fields = [
               { name: "معلومات الشخصية", value: infoBlock, inline: false },
-              { name: "قوة القتال (Combat Power) ⚔️", value: `★  **${cpDisplay}**  ★`, inline: false },
+              { name: "🏆 الرتب (Rankings)", value: rankingsText, inline: false },
+              { name: "🎖️ الألقاب المجهزة (Titles)", value: titlesText, inline: false },
+              { name: "قوة القتال (Combat Power) ⚔️", value: `★  **${cpDisplay}**  ★  *(Item Level: ${itemLevel})*`, inline: false },
             ];
 
             const baseStats = fmtBaseStats(data.stats);

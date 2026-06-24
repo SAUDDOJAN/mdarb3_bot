@@ -153,7 +153,27 @@ async function processApplication(interaction) {
 export function buildProfileEmbed(memberData, interactionUser, app, isReview = false) {
   const cpDisplay = app.combat_power > 0 ? numFmt(app.combat_power) : "—";
   
-  let description = `[🔗 عرض البروفايل على shugo.gg](${app.shugo_url})\n`;
+  let itemLevel = "—";
+  let rankingsText = "—";
+  let titlesText = "—";
+
+  if (memberData) {
+    if (memberData.itemLevel) itemLevel = numFmt(memberData.itemLevel);
+    
+    if (memberData.rankings && memberData.rankings.length > 0) {
+      rankingsText = memberData.rankings.map(r => `• ${r.name}: ${r.rank} (${numFmt(r.point || 0)})`).join("\n");
+    } else {
+      rankingsText = `• Abyss: ${app.abyss_rank ?? "—"} (${app.abyss_score?.toLocaleString() ?? 0})`;
+    }
+
+    if (memberData.equippedTitles && memberData.equippedTitles.length > 0) {
+      titlesText = memberData.equippedTitles.map(t => `• **${t.category}:** ${t.name}`).join("\n");
+    } else if (memberData.titles && memberData.titles.active) {
+      titlesText = memberData.titles.active;
+    }
+  }
+
+  let description = `[🔗 عرض البروفايل](${app.shugo_url})\n`;
   if (isReview) {
     description += `👑 مقدم الطلب: ${interactionUser}`;
   }
@@ -161,11 +181,15 @@ export function buildProfileEmbed(memberData, interactionUser, app, isReview = f
   const infoBlock =
     `👤 الاسم: **${app.character_name}**\n` +
     `📊 المستوى: **${app.character_level}**\n` +
-    `⚔️ الكلاس: **${app.class_name ?? "—"}**`;
+    `⚔️ الكلاس: **${app.class_name ?? "—"}**\n` +
+    `🌍 السيرفر: **${app.server_name ?? "—"}**\n` +
+    `🧬 العرق: **${app.race_name ?? "—"}**`;
 
   const fields = [
     { name: "معلومات الشخصية", value: infoBlock, inline: false },
-    { name: "قوة القتال (Combat Power) ⚔️", value: `★  **${cpDisplay}**  ★`, inline: false },
+    { name: "🏆 الرتب (Rankings)", value: rankingsText, inline: false },
+    { name: "🎖️ الألقاب المجهزة (Titles)", value: titlesText, inline: false },
+    { name: "قوة القتال (Combat Power) ⚔️", value: `★  **${cpDisplay}**  ★  *(Item Level: ${itemLevel})*`, inline: false },
   ];
 
   if (memberData) {

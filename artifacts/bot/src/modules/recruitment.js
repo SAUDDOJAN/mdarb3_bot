@@ -399,8 +399,29 @@ async function submitToReview(interaction, app) {
   const cpDisplay = app.combat_power > 0 ? numFmt(app.combat_power) : "—";
   const branchLabel = app.guild_branch === 'pvp' ? "⚔️ PvP Guild" : "🛡️ PvE Guild";
 
+  let rankingsText = "—";
+  let itemLevel = "—";
+  let titlesText = "—";
+
+  if (app.character_data) {
+    const data = typeof app.character_data === 'string' ? JSON.parse(app.character_data) : app.character_data;
+    if (data.itemLevel) itemLevel = numFmt(data.itemLevel);
+    
+    if (data.rankings && data.rankings.length > 0) {
+      rankingsText = data.rankings.map(r => `• ${r.name}: ${r.rank} (${numFmt(r.point || 0)})`).join("\n");
+    } else {
+      rankingsText = `• Abyss: ${app.abyss_rank ?? "—"} (${app.abyss_score?.toLocaleString() ?? 0})`;
+    }
+
+    if (data.equippedTitles && data.equippedTitles.length > 0) {
+      titlesText = data.equippedTitles.map(t => `• **${t.category}:** ${t.name}`).join("\n");
+    } else if (data.titles && data.titles.active) {
+      titlesText = data.titles.active;
+    }
+  }
+
   const description =
-    `[🔗 عرض البروفايل على shugo.gg](${app.shugo_url})\n` +
+    `[🔗 عرض البروفايل](${app.shugo_url})\n` +
     `👑 مقدم الطلب: ${interaction.user}\n` +
     `🚩 القسم المطلوب: **${branchLabel}**`;
 
@@ -409,12 +430,13 @@ async function submitToReview(interaction, app) {
     `📊 المستوى: **${app.character_level}**\n` +
     `⚔️ الكلاس: **${app.class_name ?? "—"}**\n` +
     `🌍 السيرفر: **${app.server_name ?? "—"}**\n` +
-    `🧬 العرق: **${app.race_name ?? "—"}**\n` +
-    `🏆 الرتبة (Abyss): **${app.abyss_rank ?? "—"}** (${app.abyss_score?.toLocaleString() ?? 0})`;
+    `🧬 العرق: **${app.race_name ?? "—"}**`;
 
   const fields = [
     { name: "معلومات الشخصية", value: infoBlock, inline: false },
-    { name: "قوة القتال (Combat Power) ⚔️", value: `★  **${cpDisplay}**  ★`, inline: false },
+    { name: "🏆 الرتب (Rankings)", value: rankingsText, inline: false },
+    { name: "🎖️ الألقاب المجهزة (Titles)", value: titlesText, inline: false },
+    { name: "قوة القتال (Combat Power) ⚔️", value: `★  **${cpDisplay}**  ★  *(Item Level: ${itemLevel})*`, inline: false },
   ];
 
   if (app.character_data) {
@@ -542,7 +564,8 @@ async function acceptApplicant(interaction, userId, appId) {
         `ارحبوا بالبطل الجديد ${member} وحياك الله معنا 🎉\n\n` +
         `**الشخصية:** ${app.character_name}\n**الفئة:** ${app.class_name ?? "—"}\n` +
         `**القسم:** ${app.guild_branch === 'pvp' ? '⚔️ PvP Guild' : '🛡️ PvE Guild'}\n` +
-        `**المستوى:** ${app.character_level}\n**قوة القتال:** ${app.combat_power?.toLocaleString() ?? "—"}\n\n` +
+        `**المستوى:** ${app.character_level}\n**قوة القتال:** ${app.combat_power?.toLocaleString() ?? "—"}\n` +
+        `🔗 **[عرض البروفايل](${app.shugo_url})**\n\n` +
         `> *ستظهر بطاقة قوته في Power Radar خلال 24 ساعة.*`
       )
       .setFooter({ text: `تم القبول بواسطة ${interaction.user.tag}` })
