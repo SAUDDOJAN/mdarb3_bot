@@ -445,7 +445,10 @@ async function handleSageAccept(interaction, targetUserId, appId) {
       // Check if this is the first accepted member (Leader)
       const countRes = await query("SELECT COUNT(*) FROM sage_recruitment WHERE guild_role_id = $1 AND user_id != $2 AND status = 'accepted'", [app.guild_role_id, targetUserId]);
       const isGuildLeader = parseInt(countRes.rows[0].count, 10) === 0;
-      if (isGuildLeader) {
+      
+      const isSoloPlayer = app.guild_name && app.guild_name.toLowerCase().includes("solo");
+
+      if (isGuildLeader && !isSoloPlayer) {
         const LEADER_ROLE_ID = "1507733486671233175";
         await member.roles.add(LEADER_ROLE_ID).catch(() => {});
       }
