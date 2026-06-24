@@ -357,9 +357,46 @@ function extractTitles(raw) {
 
   return {
     active:     profileTitleName ?? activeName,
-    ownedCount,
-    totalCount: null, // not returned by character/info
+    ownedCount: raw?.title?.ownedCount ?? ownedCount,
+    totalCount: raw?.title?.totalCount ?? null,
   };
+}
+
+// ─── Advanced Data Extraction (Rankings, Item Level, Equipped Titles) ───────
+function extractRankings(raw) {
+  const rankingList = raw?.ranking?.rankingList ?? [];
+  const results = [];
+  for (const r of rankingList) {
+    if (r.rank) {
+      results.push({
+        name: r.rankingContentsName ?? "Unknown",
+        rank: r.rank,
+        point: r.point ?? null,
+      });
+    }
+  }
+  return results;
+}
+
+function extractEquippedTitles(raw) {
+  // title.titleList contains the currently equipped titles for Attack, Defense, Etc
+  const titleList = raw?.title?.titleList ?? [];
+  const equipped = [];
+  for (const t of titleList) {
+    if (t.name) {
+      equipped.push({
+        category: t.equipCategory ?? "Title",
+        name: t.name
+      });
+    }
+  }
+  return equipped;
+}
+
+function extractItemLevel(raw) {
+  const statList = raw?.stat?.statList ?? [];
+  const itemLevelStat = statList.find(s => s.type === "ItemLevel" || s.name === "아이템레벨" || s.name === "Item Level");
+  return itemLevelStat ? itemLevelStat.value : null;
 }
 
 // ─── Equipment parsing ─────────────────────────────────────────────────────────
@@ -503,6 +540,9 @@ export async function scrapeProfile(inputUrl) {
       // ── Stats (base character stats) ──────────────────────────────────────
       const stats  = extractBaseStats(raw);
       const titles = extractTitles(raw);
+      const itemLevel = extractItemLevel(raw);
+      const rankings = extractRankings(raw);
+      const equippedTitles = extractEquippedTitles(raw);
 
       const cpNum = cp !== null ? parseInt(cp, 10) : null;
 
@@ -563,6 +603,9 @@ export async function scrapeProfile(inputUrl) {
           serverId:       String(serverId),
           region,
           stats,
+          itemLevel,
+          rankings,
+          equippedTitles,
           gear,
           titles,
           source: "character/info",

@@ -417,6 +417,21 @@ async function sendToSageReview(interaction, app, targetChannel, isLeader) {
 
   const titlePrefix = isLeader ? "👑 Guild Leader Application — Siege Alliance" : "📋 New Join Application — Siege Alliance";
 
+  const statsData = typeof app.stats === "string" ? JSON.parse(app.stats) : (app.stats || {});
+  const itemLevel = statsData.itemLevel ? numFmt(statsData.itemLevel) : "—";
+
+  let rankingsText = "—";
+  if (statsData.rankings && statsData.rankings.length > 0) {
+    rankingsText = statsData.rankings.map(r => `• ${r.name}: ${r.rank} (${numFmt(r.point || 0)})`).join("\n");
+  }
+
+  let titlesText = "—";
+  if (statsData.equippedTitles && statsData.equippedTitles.length > 0) {
+    titlesText = statsData.equippedTitles.map(t => `• **${t.category}:** ${t.name}`).join("\n");
+  } else if (statsData.titles && statsData.titles.active) {
+    titlesText = statsData.titles.active;
+  }
+
   const reviewEmbed = new EmbedBuilder()
     .setColor(0xd4af37)
     .setTitle(titlePrefix)
@@ -425,12 +440,15 @@ async function sendToSageReview(interaction, app, targetChannel, isLeader) {
       `[🔗 View Character Profile](${app.shugo_url})`
     )
     .addFields(
-      { name: "⚔️ Selected Guild", value: app.guild_name ?? "—" },
-      { name: "👤 Character", value: app.character_name ?? "—" },
-      { name: "📊 Level", value: String(app.character_level ?? "—") },
-      { name: "🎮 Class", value: app.class_name ?? "—" },
-      { name: "🌍 Server", value: app.server_name ?? "—" },
-      { name: "⚡ Combat Power (CP)", value: `★ **${cpDisplay}** ★` },
+      { name: "⚔️ Selected Guild", value: app.guild_name ?? "—", inline: false },
+      { name: "👤 Character", value: app.character_name ?? "—", inline: true },
+      { name: "📊 Level", value: String(app.character_level ?? "—"), inline: true },
+      { name: "🎮 Class", value: app.class_name ?? "—", inline: true },
+      { name: "🌍 Server", value: app.server_name ?? "—", inline: true },
+      { name: "🧬 Race", value: app.race ?? "—", inline: true },
+      { name: "🏆 Rankings", value: rankingsText, inline: false },
+      { name: "🎖️ Equipped Titles", value: titlesText, inline: false },
+      { name: "⚡ Combat Power (CP)", value: `★ **${cpDisplay}** ★  *(Item Level: ${itemLevel})*`, inline: false }
     )
     .setThumbnail(classIconUrl(app.class_name))
     .setFooter({ text: `Discord ID: ${interaction.user.id}  •  App DB ID: ${app.id}` })
@@ -671,6 +689,21 @@ async function postRosterCard(channel, app, member) {
   const cpDisplay = app.combat_power > 0 ? numFmt(app.combat_power) : "—";
   const displayName = member?.displayName ?? app.discord_tag;
 
+  const statsData = typeof app.stats === "string" ? JSON.parse(app.stats) : (app.stats || {});
+  const itemLevel = statsData.itemLevel ? numFmt(statsData.itemLevel) : "—";
+
+  let rankingsText = "—";
+  if (statsData.rankings && statsData.rankings.length > 0) {
+    rankingsText = statsData.rankings.map(r => `> • ${r.name}: ${r.rank} (${numFmt(r.point || 0)})`).join("\n");
+  }
+
+  let titlesText = "—";
+  if (statsData.equippedTitles && statsData.equippedTitles.length > 0) {
+    titlesText = statsData.equippedTitles.map(t => `> • **${t.category}:** ${t.name}`).join("\n");
+  } else if (statsData.titles && statsData.titles.active) {
+    titlesText = `> ${statsData.titles.active}`;
+  }
+
   const rosterEmbed = new EmbedBuilder()
     .setColor(0xd4af37)
     .setTitle(`⚔️ ${app.character_name}`)
@@ -682,7 +715,9 @@ async function postRosterCard(channel, app, member) {
       `> 🎮 **Class:** ${app.class_name ?? "—"}\n` +
       `> 🧬 **Race:** ${app.race_name ?? "—"}\n` +
       `> 🌍 **Server:** ${app.server_name ?? "—"}\n` +
-      `> ⚡ **CP:** ★ ${cpDisplay} ★\n\n` +
+      `> ⚡ **CP:** ★ ${cpDisplay} ★  *(Item Level: ${itemLevel})*\n\n` +
+      `🏆 **Rankings:**\n${rankingsText}\n\n` +
+      `🎖️ **Equipped Titles:**\n${titlesText}\n\n` +
       `🔗 **[View Full Profile](${app.shugo_url})**`
     )
     .setThumbnail(classIconUrl(app.class_name))
@@ -756,6 +791,21 @@ async function handleFraudConfirm(interaction, oldUserId) {
 async function sendToLeaderVerification(interaction, app, targetChannel, leaderId) {
   const cpDisplay = app.combat_power > 0 ? numFmt(app.combat_power) : "—";
 
+  const statsData = typeof app.stats === "string" ? JSON.parse(app.stats) : (app.stats || {});
+  const itemLevel = statsData.itemLevel ? numFmt(statsData.itemLevel) : "—";
+
+  let rankingsText = "—";
+  if (statsData.rankings && statsData.rankings.length > 0) {
+    rankingsText = statsData.rankings.map(r => `• ${r.name}: ${r.rank} (${numFmt(r.point || 0)})`).join("\n");
+  }
+
+  let titlesText = "—";
+  if (statsData.equippedTitles && statsData.equippedTitles.length > 0) {
+    titlesText = statsData.equippedTitles.map(t => `• **${t.category}:** ${t.name}`).join("\n");
+  } else if (statsData.titles && statsData.titles.active) {
+    titlesText = statsData.titles.active;
+  }
+
   const verifyEmbed = new EmbedBuilder()
     .setColor(0x3498db) // Blue for verification
     .setTitle("🛡️ طلب تحقق من هوية عضو (Leader Verification)")
@@ -763,13 +813,17 @@ async function sendToLeaderVerification(interaction, app, targetChannel, leaderI
       `مرحباً قائد القيلد <@${leaderId}>،\n` +
       `هناك عضو جديد يطلب الانضمام إلى قيلدك (**${app.guild_name}**). يرجى التحقق مما إذا كان هذا العضو تابعاً لكم حقاً.\n\n` +
       `👤 **المتقدم:** ${interaction.user}\n` +
-      `[🔗 عرض البروفايل على shugo.gg](${app.shugo_url})`
+      `[🔗 عرض البروفايل](${app.shugo_url})`
     )
     .addFields(
       { name: "👤 الشخصية", value: app.character_name ?? "—", inline: true },
       { name: "📊 المستوى", value: String(app.character_level ?? "—"), inline: true },
       { name: "🎮 الكلاس", value: app.class_name ?? "—", inline: true },
-      { name: "⚡ قوة القتال (CP)", value: `★ **${cpDisplay}** ★`, inline: false }
+      { name: "🌍 السيرفر", value: app.server_name ?? "—", inline: true },
+      { name: "🧬 العرق", value: app.race ?? "—", inline: true },
+      { name: "🏆 الرتب (Rankings)", value: rankingsText, inline: false },
+      { name: "🎖️ الألقاب المجهزة", value: titlesText, inline: false },
+      { name: "⚡ قوة القتال (CP)", value: `★ **${cpDisplay}** ★  *(Item Level: ${itemLevel})*`, inline: false }
     )
     .setThumbnail(classIconUrl(app.class_name))
     .setFooter({ text: `Discord ID: ${interaction.user.id}  •  App DB ID: ${app.id}` })
