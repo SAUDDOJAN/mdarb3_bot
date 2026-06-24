@@ -206,17 +206,38 @@ function parseShugUrl(inputUrl) {
   } catch {
     return null;
   }
-  const id     = url.searchParams.get("id");
-  const server = url.searchParams.get("server");
-  const region = url.searchParams.get("region");
-  const name   = url.searchParams.get("name");
-  if (!id || !server) return null;
-  return {
-    id:     decodeURIComponent(id),
-    server: server.trim(),
-    region: (region ?? "TW").trim().toUpperCase(),
-    name:   stripHtml(name ?? ""),
-  };
+  
+  // 1. Shugo.gg Format
+  if (url.hostname.includes("shugo.gg")) {
+    const id     = url.searchParams.get("id");
+    const server = url.searchParams.get("server");
+    const region = url.searchParams.get("region");
+    const name   = url.searchParams.get("name");
+    if (!id || !server) return null;
+    return {
+      id:     decodeURIComponent(id),
+      server: server.trim(),
+      region: (region ?? "TW").trim().toUpperCase(),
+      name:   stripHtml(name ?? ""),
+    };
+  }
+
+  // 2. Official NCSoft Format: /characters/{serverId}/{characterId}
+  const ncMatch = url.pathname.match(/\/characters\/(\d+)\/([^/]+)/);
+  if (ncMatch) {
+    let region = "TW";
+    if (url.hostname.includes("plaync.com")) {
+      region = "KR";
+    }
+    return {
+      id:     decodeURIComponent(ncMatch[2]),
+      server: ncMatch[1].trim(),
+      region: region,
+      name:   "", // Name will be fetched from API
+    };
+  }
+
+  return null;
 }
 
 // ─── Proxy URL builder ────────────────────────────────────────────────────────
@@ -444,8 +465,9 @@ export async function scrapeProfile(inputUrl) {
     return {
       success: false,
       error:
-        "Invalid URL. Please provide a valid shugo.gg character link:\n" +
-        "https://shugo.gg/character?id=...&server=...&region=TW&name=...",
+        "Invalid URL. Please provide a valid character link:\n" +
+        "- https://shugo.gg/character?id=...\n" +
+        "- OR https://tw.ncsoft.com/aion2/characters/...",
     };
   }
 

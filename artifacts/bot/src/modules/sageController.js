@@ -267,9 +267,9 @@ async function handleGuildSelect(interaction) {
 
   const shugoInput = new TextInputBuilder()
     .setCustomId("sage_shugo_url")
-    .setLabel("shugo.gg Profile URL") // max 45 chars ✓
+    .setLabel("Profile URL (shugo.gg or NCSoft)") 
     .setStyle(TextInputStyle.Short)
-    .setPlaceholder("https://shugo.gg/character?id=...&server=...&region=TW&name=...")
+    .setPlaceholder("shugo.gg/... OR tw.ncsoft.com/...")
     .setRequired(true);
 
   modal.addComponents(new ActionRowBuilder().addComponents(shugoInput));
@@ -284,7 +284,7 @@ async function handleProfileModal(interaction, selectedRoleId) {
   await interaction.deferReply({ flags: 64 });
 
   const shugoUrl = interaction.fields.getTextInputValue("sage_shugo_url").trim();
-  await interaction.editReply({ content: "⏳ Fetching your profile from shugo.gg..." });
+  await interaction.editReply({ content: "⏳ Fetching your profile from the provided URL..." });
 
   const result = await scrapeProfile(shugoUrl);
 
@@ -292,7 +292,7 @@ async function handleProfileModal(interaction, selectedRoleId) {
     await interaction.editReply({
       content:
         `❌ **Failed to fetch profile.**\n` +
-        `Make sure the URL is correct and public on shugo.gg.\n` +
+        `Make sure the URL is correct and your profile is public.\n` +
         `\`\`\`${result.error}\`\`\``,
     });
     return;
