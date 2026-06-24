@@ -535,7 +535,19 @@ export async function scrapeProfile(inputUrl) {
       const raceId     = extractField(raw, "raceId", "race");
       const raceName   = extractField(raw, "raceName", "race_name") ?? RACE_MAP[parseInt(raceId, 10)] ?? "Unknown";
       const serverName = extractField(raw, "serverName", "server_name") ?? `Server ${serverId}`;
-      const profileImage = extractField(raw, "profileImage", "profileImg", "profileImageUrl") ?? null;
+      
+      let profileImage = extractField(raw, "profileImage", "profileImg", "profileImageUrl") ?? null;
+      if (profileImage && profileImage.includes("profileimg.plaync.com")) {
+        try {
+          const imgRes = await fetch(profileImage, { redirect: 'manual', signal: AbortSignal.timeout(5000) });
+          if ([301, 302, 307, 308].includes(imgRes.status)) {
+            const loc = imgRes.headers.get('location');
+            if (loc) profileImage = loc.split('#')[0]; // Remove hash fragment for Discord embed
+          }
+        } catch(e) {
+          console.warn("[Scraper] Failed to resolve image URL:", e.message);
+        }
+      }
 
       // ── Stats (base character stats) ──────────────────────────────────────
       const stats  = extractBaseStats(raw);
