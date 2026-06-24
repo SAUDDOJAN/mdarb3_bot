@@ -196,9 +196,6 @@ export function buildProfileEmbed(memberData, interactionUser, app, isReview = f
     const baseStats = fmtBaseStats(memberData.stats);
     if (baseStats) fields.push({ name: "الخصائص الأساسية (Base Stats)", value: baseStats, inline: false });
 
-    const titles = fmtTitles(memberData.titles);
-    if (titles) fields.push({ name: "الألقاب (Titles)", value: titles, inline: false });
-
     const gear = memberData.gear || {};
     const weapons = fmtGearSection(gear.weapons);
     if (weapons) fields.push({ name: "⚔️ الأسلحة (Weapons)", value: weapons, inline: false });

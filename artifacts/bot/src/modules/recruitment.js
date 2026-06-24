@@ -445,9 +445,6 @@ async function submitToReview(interaction, app) {
     const baseStats = fmtBaseStats(data.stats);
     if (baseStats) fields.push({ name: "الخصائص الأساسية (Base Stats)", value: baseStats, inline: false });
 
-    const titles = fmtTitles(data.titles);
-    if (titles) fields.push({ name: "الألقاب (Titles)", value: titles, inline: false });
-
     const gear = data.gear || {};
     const weapons = fmtGearSection(gear.weapons);
     if (weapons) fields.push({ name: "⚔️ الأسلحة (Weapons)", value: weapons, inline: false });
