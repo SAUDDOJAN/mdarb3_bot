@@ -808,6 +808,7 @@ export async function handleLfgVoiceLeave(client, member, channelId) {
 
 export async function awardLfgPoints(client, guildId, userId, groupId) {
   const { addPoints } = await import("./management.js");
+  const { sendPushNotification } = await import("../services/push.js");
   const DUNGEON_POINTS = 10;
   
   // Prevent double awarding
@@ -827,6 +828,14 @@ export async function awardLfgPoints(client, guildId, userId, groupId) {
        VALUES ($1,$2,$3,$4,$5)`,
       [guildId, userId, group.dungeon_name, group.difficulty, DUNGEON_POINTS]
     ).catch(() => {});
+    
+    // Send Push Notification
+    await sendPushNotification(
+      userId,
+      "إضافة نقاط نشاط ⭐️",
+      `حصلت على ${DUNGEON_POINTS} نقاط لمشاركتك في الدنجن. استمر بالتعاون مع أعضاء الجيلد للحصول على ترقيات وجوائز في المستقبل!`,
+      { type: "dungeon_points" }
+    ).catch(e => console.error("[LFG:Points] Push notification error:", e));
   }
 }
 
