@@ -777,14 +777,6 @@ async function handleCloseGroup(interaction, groupId) {
     await vc.delete().catch(() => {});
   }
 
-  if (group.invite_message_id && group.channel_id) {
-    const invCh = await guild.channels.fetch(group.channel_id).catch(() => null);
-    if (invCh) {
-      const invMsg = await invCh.messages.fetch(group.invite_message_id).catch(() => null);
-      if (invMsg) await invMsg.delete().catch(() => {});
-    }
-  }
-
   const channel = await guild.channels.fetch(group.channel_id).catch(() => null);
   if (channel) {
     const msg = await channel.messages.fetch(group.message_id).catch(() => null);
@@ -796,6 +788,20 @@ async function handleCloseGroup(interaction, groupId) {
         .setDescription("تم إغلاق هذا الدنجن من قبل القائد، وتم حذف الروم الصوتي المؤقت. شكراً لجميع المشاركين!");
       await msg.edit({ embeds: [expiredEmbed], components: [] }).catch(() => {});
     }
+  }
+
+  // Delete general invite message if it still exists
+  const trackedMsg = generalMsgTimers.get(parseInt(groupId));
+  if (trackedMsg) {
+    clearTimeout(trackedMsg.timeoutId);
+    try {
+      const genChannel = await interaction.client.channels.fetch(trackedMsg.channelId).catch(() => null);
+      if (genChannel) {
+        const genMsg = await genChannel.messages.fetch(trackedMsg.messageId).catch(() => null);
+        if (genMsg) await genMsg.delete().catch(() => {});
+      }
+    } catch (e) {}
+    generalMsgTimers.delete(parseInt(groupId));
   }
 }
 
@@ -968,13 +974,18 @@ export async function cleanUpEmptyLfg(client, groupId) {
       }
     }
 
-    // Delete invite message from groups channel
-    if (group.invite_message_id && group.channel_id) {
-      const invCh = await guild.channels.fetch(group.channel_id).catch(() => null);
-      if (invCh) {
-        const invMsg = await invCh.messages.fetch(group.invite_message_id).catch(() => null);
-        if (invMsg) await invMsg.delete().catch(() => {});
-      }
+    // Delete general invite message if it still exists
+    const trackedMsg = generalMsgTimers.get(parseInt(groupId));
+    if (trackedMsg) {
+      clearTimeout(trackedMsg.timeoutId);
+      try {
+        const genChannel = await client.channels.fetch(trackedMsg.channelId).catch(() => null);
+        if (genChannel) {
+          const genMsg = await genChannel.messages.fetch(trackedMsg.messageId).catch(() => null);
+          if (genMsg) await genMsg.delete().catch(() => {});
+        }
+      } catch (e) {}
+      generalMsgTimers.delete(parseInt(groupId));
     }
 
     // Update/Delete original Discord message
