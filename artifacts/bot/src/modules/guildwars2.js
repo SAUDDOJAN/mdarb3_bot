@@ -12,7 +12,7 @@ try {
 }
 
 const GW2_ROLE_ID = "1511293343353667656";
-const GW2_EVENTS_CHANNEL_ID = "1511559008153243699";
+const GW2_EVENTS_CHANNEL_ID = null; // "1511559008153243699";
 const GW2_MEMBERS_CHANNEL_ID = "1511308034939289700";
 
 const GW2_CLASSES = [
@@ -171,6 +171,7 @@ export function startGw2EventCron(client) {
   // Check every minute for upcoming events
   setInterval(async () => {
     try {
+      if (!GW2_EVENTS_CHANNEL_ID) return;
       const channel = await client.channels.fetch(GW2_EVENTS_CHANNEL_ID).catch(() => null);
       if (!channel) return;
 
