@@ -20,10 +20,34 @@ const STAT_DISPLAY = {
 const trunc = (s, n) => (String(s ?? "").length > n ? String(s).slice(0, n - 1) + "…" : String(s ?? ""));
 const numFmt = (n) => Number(n).toLocaleString("en-US");
 
+function getSlotEmoji(slotName) {
+  if (!slotName) return "🔹";
+  const s = slotName.toLowerCase();
+  if (s.includes("mainhand") || s.includes("weapon")) return "🗡️";
+  if (s.includes("subhand") || s.includes("shield")) return "🛡️";
+  if (s.includes("head") || s.includes("helmet")) return "🪖";
+  if (s.includes("chest") || s.includes("torso") || s.includes("body")) return "🦺";
+  if (s.includes("leg") || s.includes("pants")) return "👖";
+  if (s.includes("glove")) return "🧤";
+  if (s.includes("boot") || s.includes("shoe")) return "👢";
+  if (s.includes("back") || s.includes("cape") || s.includes("cloak")) return "🧥";
+  if (s.includes("neck")) return "📿";
+  if (s.includes("ring")) return "💍";
+  if (s.includes("earring")) return "💎";
+  if (s.includes("belt") || s.includes("waist")) return "🥋";
+  if (s.includes("bracelet")) return "🧿";
+  if (s.includes("arcana")) return "🎴";
+  if (s.includes("rune")) return "🪨";
+  if (s.includes("orb") || s.includes("brooch")) return "🔮";
+  if (s.includes("wing")) return "🪽";
+  return "🔹";
+}
+
 function fmtItem(item, showSlot = true) {
   const prefix = item.enchant > 0 ? `+${item.enchant} ` : "";
   const slot = showSlot && item.slot ? ` *(${item.slot})*` : "";
-  return `${prefix}${item.name}${slot}`;
+  const emoji = getSlotEmoji(item.slot);
+  return `${emoji} ${prefix}**${item.name}**${slot}`;
 }
 
 export function fmtGearSection(items, showSlot = true) {
