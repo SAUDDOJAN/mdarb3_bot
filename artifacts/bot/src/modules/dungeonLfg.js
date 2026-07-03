@@ -188,6 +188,8 @@ export async function handleLfgInteraction(interaction) {
       await handleJoinGroup(interaction, rest[0]);
     } else if (action === "leave") {
       await handleLeaveGroup(interaction, rest[0]);
+    } else if (action === "close") {
+      await handleCloseGroup(interaction, rest[0]);
     } else if (action === "voice") {
       await handleVoiceAccess(interaction, rest[0]);
     }
@@ -750,6 +752,53 @@ async function handleLeaveGroup(interaction, groupId) {
   await interaction.editReply({ content: "✅ تم تسجيل مغادرتك من الفريق بنجاح." });
 }
 
+// ─── 3.5 Closing LFG Group (Leader Only) ─────────────────────────────────────
+async function handleCloseGroup(interaction, groupId) {
+  await interaction.deferReply({ flags: 64 });
+  const res = await query("SELECT * FROM dungeon_lfg_groups WHERE id=$1", [groupId]);
+  const group = res.rows[0];
+
+  if (!group || group.status === "expired") {
+    await interaction.editReply({ content: "❌ هذه المجموعة انتهت صلاحيتها أو تم إغلاقها مسبقاً." });
+    return;
+  }
+
+  if (interaction.user.id !== group.leader_id) {
+    await interaction.editReply({ content: "❌ عذراً، قائد المجموعة فقط هو من يمكنه إغلاقها." });
+    return;
+  }
+
+  await interaction.editReply({ content: "✅ تم إغلاق الدنجن وإنهاء الفعالية بنجاح." });
+  await query("UPDATE dungeon_lfg_groups SET status='expired' WHERE id=$1", [groupId]);
+
+  const guild = interaction.guild;
+  const vc = await guild.channels.fetch(group.voice_channel_id).catch(() => null);
+  if (vc) {
+    await vc.delete().catch(() => {});
+  }
+
+  if (group.invite_message_id && group.channel_id) {
+    const invCh = await guild.channels.fetch(group.channel_id).catch(() => null);
+    if (invCh) {
+      const invMsg = await invCh.messages.fetch(group.invite_message_id).catch(() => null);
+      if (invMsg) await invMsg.delete().catch(() => {});
+    }
+  }
+
+  const channel = await guild.channels.fetch(group.channel_id).catch(() => null);
+  if (channel) {
+    const msg = await channel.messages.fetch(group.message_id).catch(() => null);
+    if (msg) {
+      const { EmbedBuilder } = await import("discord.js");
+      const expiredEmbed = new EmbedBuilder()
+        .setColor(0x7289da)
+        .setTitle(`✅ تم الانتهاء من الفعالية — ${group.dungeon_name}`)
+        .setDescription("تم إغلاق هذا الدنجن من قبل القائد، وتم حذف الروم الصوتي المؤقت. شكراً لجميع المشاركين!");
+      await msg.edit({ embeds: [expiredEmbed], components: [] }).catch(() => {});
+    }
+  }
+}
+
 // ─── 4. Voice State Tracking & Auto-cleanup ─────────────────────────────────────
 
 export async function handleLfgVoiceJoin(member, channel) {
@@ -843,18 +892,25 @@ export async function cleanUpEmptyLfg(client, groupId) {
   const res = await query("SELECT * FROM dungeon_lfg_groups WHERE id=$1", [groupId]);
   const group = res.rows[0];
 
-  if (!group || group.status === "expired") return;
+  if (!group) return;
 
   const guild = await client.guilds.fetch(group.guild_id).catch(() => null);
   if (!guild) return;
 
   const vc = await guild.channels.fetch(group.voice_channel_id).catch(() => null);
+  const isEmpty = !vc || vc.members.size === 0;
+
+  if (group.status === "expired") {
+    if (vc && isEmpty) {
+      console.log(`[LFG:Cleanup] Deleting orphaned VC for expired group #${groupId}`);
+      await vc.delete().catch(() => {});
+    }
+    return;
+  }
   
   // Calculate elapsed time
   const elapsedMs = Date.now() - new Date(group.created_at).getTime();
   const hasHourPassed = elapsedMs >= 59 * 60 * 1000;
-
-  const isEmpty = !vc || vc.members.size === 0;
 
   // Quick Finish logic: If room is empty, but someone was in it before, consider it finished.
   let isQuickFinish = false;
@@ -994,6 +1050,13 @@ function buildGroupButtons(groupId, inviteUrl, isFull = false) {
         .setStyle(ButtonStyle.Primary)
     );
   }
+
+  row.addComponents(
+    new ButtonBuilder()
+      .setCustomId(`lfg:close:${groupId}`)
+      .setLabel("إغلاق المجموعة ❌")
+      .setStyle(ButtonStyle.Danger)
+  );
 
   return [row];
 }
