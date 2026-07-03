@@ -64,6 +64,35 @@ export async function handleDungeonsApi(req, res, parsedUrl) {
     return true;
   }
 
+  // GET /api/emojis
+  if (req.method === "GET" && parsedUrl.pathname === "/api/emojis") {
+    try {
+      // Get main guild or fallback to first
+      const guildId = "861355983975874601";
+      const guild = client.guilds.cache.get(guildId) || client.guilds.cache.first();
+      
+      if (!guild) {
+        res.writeHead(404, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ success: false, error: "Guild not found" }));
+        return true;
+      }
+
+      const emojis = guild.emojis.cache.map(e => ({
+        id: e.id,
+        name: e.name,
+        animated: e.animated
+      }));
+
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ success: true, data: emojis }));
+    } catch (err) {
+      console.error("[API] Error fetching emojis:", err);
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ success: false, error: "Internal Server Error" }));
+    }
+    return true;
+  }
+
   // Handle POST /api/dungeons/join
   if (req.method === "POST" && parsedUrl.pathname === "/api/dungeons/join") {
     let body = "";
