@@ -93,6 +93,30 @@ export async function handleDungeonsApi(req, res, parsedUrl) {
     return true;
   }
 
+  // GET /api/user/points
+  if (req.method === "GET" && parsedUrl.pathname === "/api/user/points") {
+    try {
+      const discordId = parsedUrl.searchParams.get("discordId");
+      if (!discordId) {
+        res.writeHead(400, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ success: false, error: "Missing discordId parameter" }));
+        return true;
+      }
+      
+      const guildId = "861355983975874601";
+      const ptsRes = await query("SELECT total_points FROM points WHERE guild_id=$1 AND user_id=$2", [guildId, discordId]);
+      const points = ptsRes.rows[0] ? ptsRes.rows[0].total_points : 0;
+
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ success: true, points: points }));
+    } catch (err) {
+      console.error("[API] Error fetching user points:", err);
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ success: false, error: "Internal Server Error" }));
+    }
+    return true;
+  }
+
   // Handle POST /api/dungeons/join
   if (req.method === "POST" && parsedUrl.pathname === "/api/dungeons/join") {
     let body = "";
