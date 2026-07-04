@@ -86,136 +86,81 @@ function calculateTimers() {
   let currentHour = now.getHours();
   nextShugo.setHours(currentHour + (currentHour % 2 === 0 ? 2 : 1), 0, 0, 0);
 
-  // 5. TL Field Bosses (World Boss) at [1, 4, 15, 18, 22]
-  let nextFieldBoss = new Date(now);
-  const tlBossHours = [1, 4, 15, 18, 22];
-  let foundFieldBoss = false;
-  for (let h of tlBossHours) {
-    let possibleTime = new Date(now);
-    possibleTime.setHours(h, 0, 0, 0);
-    if (possibleTime > now) {
-      nextFieldBoss = possibleTime;
-      foundFieldBoss = true;
-      break;
-    }
-  }
-  if (!foundFieldBoss) {
-    nextFieldBoss.setDate(nextFieldBoss.getDate() + 1);
-    nextFieldBoss.setHours(tlBossHours[0], 0, 0, 0);
-  }
-
-  // 5.5 TL Arc Boss (Tue, Wed, Fri, Sat at 20:00 and 23:00)
-  let nextArcBoss = new Date(now);
-  const arcBossSchedule = [
-    { day: 2, hours: [20, 23] },
-    { day: 3, hours: [20, 23] },
-    { day: 5, hours: [20, 23] },
-    { day: 6, hours: [20, 23] },
-  ];
-  let foundArcBoss = false;
-  for (let i = 0; i < 7; i++) {
-    let checkDate = new Date(now);
-    checkDate.setDate(now.getDate() + i);
-    let dayOfWeek = checkDate.getDay();
-    let daySchedule = arcBossSchedule.find(s => s.day === dayOfWeek);
-    if (daySchedule) {
-      for (let h of daySchedule.hours) {
-        let possibleTime = new Date(checkDate);
-        possibleTime.setHours(h, 0, 0, 0);
-        if (possibleTime > now) {
-          nextArcBoss = possibleTime;
-          foundArcBoss = true;
-          break;
+  // ─── Throne and Liberty Timers (KSA Timezone GMT+3) ──────────────────────
+  // Helper to get next KSA event regardless of server timezone
+  const getNextKsaEvent = (hoursArray, min = 0) => {
+    let nextEvent = null;
+    for (let i = 0; i <= 2; i++) {
+      for (let h of hoursArray) {
+        let d = new Date(now.getTime());
+        d.setUTCHours(h - 3, min, 0, 0);
+        d.setUTCDate(d.getUTCDate() + i);
+        if (d > now) {
+          if (!nextEvent || d < nextEvent) nextEvent = d;
         }
       }
     }
-    if (foundArcBoss) break;
+    return nextEvent;
+  };
+
+  const getNextWeeklyKsaEvent = (dayOfWeek, hour, min = 0) => {
+    let nextEvent = null;
+    for (let i = 0; i <= 7; i++) {
+      let d = new Date(now.getTime());
+      d.setUTCHours(hour - 3, min, 0, 0);
+      d.setUTCDate(d.getUTCDate() + i);
+      let ksaDay = new Date(d.getTime() + 3 * 3600 * 1000).getUTCDay();
+      if (ksaDay === dayOfWeek && d > now) {
+        if (!nextEvent || d < nextEvent) nextEvent = d;
+      }
+    }
+    return nextEvent;
+  };
+
+  // 5. TL Field Bosses (World Boss) at [0, 2, 14, 17, 22, 23]
+  let nextFieldBoss = getNextKsaEvent([0, 2, 14, 17, 22, 23]);
+
+  // 5.5 TL Arc Boss (Wed, Sat at 20:00 and 23:00)
+  let nextArcBoss = null;
+  const arcBossSchedule = [
+    { day: 3, hours: [20, 23] }, // Wednesday
+    { day: 6, hours: [20, 23] }  // Saturday
+  ];
+  for (let sch of arcBossSchedule) {
+    for (let h of sch.hours) {
+      let d = getNextWeeklyKsaEvent(sch.day, h);
+      if (d) {
+        if (!nextArcBoss || d < nextArcBoss) nextArcBoss = d;
+      }
+    }
   }
 
   let nextOverallBoss = nextFieldBoss;
   let bossType = 'field';
   let isPeaceful = false;
 
-  if (nextArcBoss < nextFieldBoss) {
+  if (nextArcBoss && nextFieldBoss && nextArcBoss < nextFieldBoss) {
     nextOverallBoss = nextArcBoss;
     bossType = 'arc';
-    let bossDay = nextArcBoss.getDay();
-    if (bossDay === 2 || bossDay === 6) {
-      isPeaceful = true;
-    }
+  } else if (!nextFieldBoss && nextArcBoss) {
+    nextOverallBoss = nextArcBoss;
+    bossType = 'arc';
   }
 
-  // 6. TL Dynamic Events at [1, 4, 7, 10, 13, 16, 20, 23]
-  let nextTlEvent = new Date(now);
-  const tlEventHours = [1, 4, 7, 10, 13, 16, 20, 23];
-  let foundEvent = false;
-  for (let h of tlEventHours) {
-    let possibleTime = new Date(now);
-    possibleTime.setHours(h, 0, 0, 0);
-    if (possibleTime > now) {
-      nextTlEvent = possibleTime;
-      foundEvent = true;
-      break;
-    }
-  }
-  if (!foundEvent) {
-    nextTlEvent.setDate(nextTlEvent.getDate() + 1);
-    nextTlEvent.setHours(tlEventHours[0], 0, 0, 0);
-  }
+  // 6. TL Dynamic Events at [1, 4, 7, 10, 13, 16, 21]
+  let nextTlEvent = getNextKsaEvent([1, 4, 7, 10, 13, 16, 21]);
 
-  // 7. TL Dungeon Events at [19, 22]
-  let nextTlDungeon = new Date(now);
-  const tlDungeonHours = [19, 22];
-  let foundDungeon = false;
-  for (let h of tlDungeonHours) {
-    let possibleTime = new Date(now);
-    possibleTime.setHours(h, 0, 0, 0);
-    if (possibleTime > now) {
-      nextTlDungeon = possibleTime;
-      foundDungeon = true;
-      break;
-    }
-  }
-  if (!foundDungeon) {
-    nextTlDungeon.setDate(nextTlDungeon.getDate() + 1);
-    nextTlDungeon.setHours(tlDungeonHours[0], 0, 0, 0);
-  }
+  // 7. TL Dungeon Events (Removed from schedule, setting to far future)
+  let nextTlDungeon = new Date(now.getTime() + 365 * 24 * 3600 * 1000);
 
-  // 8. TL Whale (Gigantrite) at [0, 3, 6, 9, 12, 15, 18, 21]
-  let nextTlWhale = new Date(now);
-  const tlWhaleHours = [0, 3, 6, 9, 12, 15, 18, 21];
-  let foundWhale = false;
-  for (let h of tlWhaleHours) {
-    let possibleTime = new Date(now);
-    possibleTime.setHours(h, 0, 0, 0);
-    if (possibleTime > now) {
-      nextTlWhale = possibleTime;
-      foundWhale = true;
-      break;
-    }
-  }
-  if (!foundWhale) {
-    nextTlWhale.setDate(nextTlWhale.getDate() + 1);
-    nextTlWhale.setHours(tlWhaleHours[0], 0, 0, 0);
-  }
+  // 8. TL Whale (Gigantrite) at [0, 3, 6, 9, 12, 15, 18, 23]
+  let nextTlWhale = getNextKsaEvent([0, 3, 6, 9, 12, 15, 18, 23]);
 
   // 9. TL Siege (Every Sunday at 21:00)
-  let nextTlSiege = new Date(now);
-  let daysUntilSun = (0 - now.getDay() + 7) % 7;
-  nextTlSiege.setDate(now.getDate() + daysUntilSun);
-  nextTlSiege.setHours(21, 0, 0, 0);
-  if (now >= nextTlSiege) {
-    nextTlSiege.setDate(nextTlSiege.getDate() + 7);
-  }
+  let nextTlSiege = getNextWeeklyKsaEvent(0, 21) || new Date(now.getTime() + 7 * 24 * 3600 * 1000);
 
-  // 10. TL Tax Delivery
-  let nextTlTax = new Date(now);
-  let daysUntilSat = (6 - now.getDay() + 7) % 7;
-  nextTlTax.setDate(now.getDate() + daysUntilSat);
-  nextTlTax.setHours(22, 0, 0, 0);
-  if (nextTlTax < now) {
-    nextTlTax.setDate(nextTlTax.getDate() + 7);
-  }
+  // 10. TL Tax Delivery (Every Sunday at 20:30)
+  let nextTlTax = getNextWeeklyKsaEvent(0, 20, 30) || new Date(now.getTime() + 7 * 24 * 3600 * 1000);
 
   // 11. GW2 Timers (UTC)
   const calcGw2Timer = (hours, min) => {
