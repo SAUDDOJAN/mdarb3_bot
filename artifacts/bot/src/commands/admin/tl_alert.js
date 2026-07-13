@@ -52,9 +52,24 @@ export async function execute(interaction) {
     return interaction.reply({ content: "❌ لم أتمكن من العثور على روم التنبيهات المخصص.", ephemeral: true });
   }
 
+  let finalDescription = description;
+  if (type === "guild_raid") {
+    const d = new Date();
+    let daysUntilThursday = 4 - d.getUTCDay();
+    if (daysUntilThursday < 0 || (daysUntilThursday === 0 && d.getUTCHours() >= 11)) {
+      daysUntilThursday += 7;
+    }
+    const deadline = new Date(d);
+    deadline.setUTCDate(deadline.getUTCDate() + daysUntilThursday);
+    deadline.setUTCHours(11, 0, 0, 0);
+    const unixTime = Math.floor(deadline.getTime() / 1000);
+    
+    finalDescription += `\n\n⏳ **يغلق التسجيل:** <t:${unixTime}:R> (<t:${unixTime}:f>)`;
+  }
+
   const embed = new EmbedBuilder()
     .setTitle(title)
-    .setDescription(description)
+    .setDescription(finalDescription)
     .setColor("#E74C3C")
     .setTimestamp()
     .setFooter({ text: `مرسل التنبيه: ${interaction.user.tag}`, iconURL: interaction.user.displayAvatarURL() });
