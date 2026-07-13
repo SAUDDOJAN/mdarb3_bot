@@ -675,8 +675,29 @@ async function handleRaidTimes(interaction) {
 
   try {
     await registerTlRaid(raidMessageId, userId, selectedDays, selectedTimes);
+    
+    // Update the original message
+    try {
+      const originalMessage = await interaction.channel.messages.fetch(raidMessageId);
+      if (originalMessage && originalMessage.embeds.length > 0) {
+        const regs = await getTlRaidRegistrations(raidMessageId);
+        const embed = EmbedBuilder.from(originalMessage.embeds[0]);
+        
+        const mentions = regs.map(r => `<@${r.user_id}>`).join("، ");
+        
+        // Remove previous fields if any
+        embed.setFields([]);
+        // Add updated field
+        embed.addFields({ name: `👥 المسجلين للحضور (${regs.length})`, value: mentions || "لا يوجد" });
+        
+        await originalMessage.edit({ embeds: [embed] });
+      }
+    } catch (e) {
+      console.error("[ThroneLiberty] Error updating original raid message:", e);
+    }
+
     await interaction.update({
-      content: `🎉 **تم تسجيل وقتك بنجاح!**\n\n🗓️ الأيام: ${selectedDays}\n⏰ الأوقات: ${selectedTimes}\n\nستقوم الإدارة بمراجعة الأوقات لتحديد الموعد الأنسب للجميع.`,
+      content: `🎉 **تم تسجيل وقتك بنجاح!**\n\n🗓️ الأيام: ${selectedDays}\n⏰ الأوقات: ${selectedTimes}\n\nتم إضافة اسمك في قائمة المسجلين.`,
       components: []
     });
   } catch (err) {
