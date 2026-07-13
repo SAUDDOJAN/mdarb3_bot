@@ -34,7 +34,7 @@ const getNotificationDetails = (key, bossType, isPeaceful) => {
       const peaceText = isPeaceful ? '(نسخة سلمية 🕊️)' : '';
       return { title: `ظهور ${bossName} (TL) ${peaceText}`, body: `الزعيم بيظهر بعد 16 دقيقة! اجتمعوا` };
     case 'tl_whale': return { title: 'الحوت Gigantrite (TL)', body: 'الحوت بيطير بعد 8 دقايق! لا يفوتك' };
-    case 'tl_event': return { title: 'فعاليات العالم (TL)', body: 'الفعاليات بتبدأ بعد 4 دقايق! الحق' };
+    case 'tl_event': return { title: 'فعاليات العالم المفتوح Event', body: 'الفعاليات بتبدأ بعد 4 دقايق! الحق' };
     case 'tl_tax': return { title: 'توصيل الضرائب (TL) 💰', body: 'التوصيل بيبدأ بعد 45 دقيقة! استعدوا' };
     case 'tl_siege': return { title: 'حصار القلعة (TL) 🏰', body: 'الحصار الكبير بيبدأ بعد ساعة ونص! منشن حلفائك واستعدوا للحرب' };
 
