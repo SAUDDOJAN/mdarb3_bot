@@ -645,7 +645,7 @@ async function closeRaidMessage(message) {
 async function handleRaidJoin(interaction) {
   if (isRaidExpired(interaction.message.createdAt)) {
     await closeRaidMessage(interaction.message);
-    return interaction.reply({ content: "❌ عذراً، تم إغلاق التسجيل لهذا الريد (التسجيل ينتهي كل خميس الساعة 2 ظهراً).", ephemeral: true });
+    return interaction.reply({ content: "❌ عذراً، تم إغلاق التسجيل لهذا الريد (التسجيل ينتهي كل خميس الساعة 2 ظهراً بتوقيت مكة المكرمة).", ephemeral: true });
   }
 
   const raidMessageId = interaction.message.id;
