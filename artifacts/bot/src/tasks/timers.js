@@ -118,8 +118,12 @@ function calculateTimers() {
     return nextEvent;
   };
 
-  // 5. TL Field Bosses (World Boss) at [0, 2, 14, 17, 22, 23]
-  let nextFieldBoss = getNextKsaEvent([0, 2, 14, 17, 22, 23]);
+  // 5. TL Field Bosses (World Boss) at [0:00, 0:30, 2:00, 14:00, 17:00]
+  let nextFieldBossHour = getNextKsaEvent([0, 2, 14, 17], 0);
+  let nextFieldBossHalf = getNextKsaEvent([0], 30);
+  let nextFieldBoss = (nextFieldBossHour && nextFieldBossHalf) 
+    ? (nextFieldBossHour < nextFieldBossHalf ? nextFieldBossHour : nextFieldBossHalf) 
+    : (nextFieldBossHour || nextFieldBossHalf);
 
   // 5.5 TL Arc Boss (Wed, Sat at 20:00 and 23:00)
   let nextArcBoss = null;
