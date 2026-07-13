@@ -148,14 +148,14 @@ function calculateTimers() {
     bossType = 'arc';
   }
 
-  // 6. TL Dynamic Events at [1, 4, 7, 10, 13, 16, 21]
-  let nextTlEvent = getNextKsaEvent([1, 4, 7, 10, 13, 16, 21]);
+  // 6. TL Dynamic Events at [1, 4, 7, 10, 13, 16, 21, 23]
+  let nextTlEvent = getNextKsaEvent([1, 4, 7, 10, 13, 16, 21, 23]);
 
   // 7. TL Dungeon Events (Removed from schedule, setting to far future)
   let nextTlDungeon = new Date(now.getTime() + 365 * 24 * 3600 * 1000);
 
-  // 8. TL Whale (Gigantrite) at [0, 3, 6, 9, 12, 15, 18, 23]
-  let nextTlWhale = getNextKsaEvent([0, 3, 6, 9, 12, 15, 18, 23]);
+  // 8. TL Whale (Gigantrite) at [0, 3, 6, 9, 12, 15, 18]
+  let nextTlWhale = getNextKsaEvent([0, 3, 6, 9, 12, 15, 18]);
 
   // 9. TL Siege (Every Sunday at 21:00)
   let nextTlSiege = getNextWeeklyKsaEvent(0, 21) || new Date(now.getTime() + 7 * 24 * 3600 * 1000);
