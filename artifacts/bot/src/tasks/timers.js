@@ -1,4 +1,5 @@
 import { broadcastPushNotification } from "../services/push.js";
+import { EmbedBuilder } from "discord.js";
 
 const THRESHOLDS = {
   shugo: { time: 240 },
@@ -207,7 +208,7 @@ function calculateTimers() {
 // Keep track of recently triggered events so we don't spam
 const triggeredEvents = {};
 
-export function setupGameTimers() {
+export function setupGameTimers(client) {
   console.log("[Timers] Global game timers started.");
   
   setInterval(async () => {
@@ -238,6 +239,36 @@ export function setupGameTimers() {
           
           console.log(`[Timers] Triggering Push Notification for: ${key} with prefs:`, prefKeys);
           await broadcastPushNotification(title, body, { type: 'timer_event', eventKey: key }, prefKeys);
+
+          // Discord Notification for Throne and Liberty
+          if (client && key.startsWith('tl_')) {
+            try {
+              const channelId = "1526297989734334554";
+              const roleId = "1292754458492796982";
+              const channel = await client.channels.fetch(channelId).catch(() => null);
+              if (channel) {
+                let color = 0x2b2d31; // Default
+                if (key === 'tl_boss') color = 0x9b59b6; // Purple
+                else if (key === 'tl_event') color = 0x2ecc71; // Green
+                else if (key === 'tl_whale') color = 0xf1c40f; // Yellow
+                else if (key === 'tl_siege' || key === 'tl_tax') color = 0xe67e22; // Orange
+
+                const embed = new EmbedBuilder()
+                  .setTitle(title)
+                  .setDescription(`**${body}**\n\n🕒 **الوقت المتبقي:** أقل من ${Math.ceil(threshold / 60)} دقيقة`)
+                  .setColor(color)
+                  .setTimestamp();
+
+                await channel.send({
+                  content: `<@&${roleId}>`,
+                  embeds: [embed]
+                });
+                console.log(`[Timers] Sent Discord embed for ${key} to channel ${channelId}`);
+              }
+            } catch (err) {
+              console.error("[Timers] Failed to send Discord message:", err);
+            }
+          }
         }
       }
     }

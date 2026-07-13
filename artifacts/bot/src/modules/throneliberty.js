@@ -583,6 +583,35 @@ async function handleMgmtListButton(interaction) {
   }
 }
 
+// ─── إرسال تنبيه مخصص ────────────────────────────────────────────────────────
+async function handleAlertModal(interaction) {
+  const title = interaction.fields.getTextInputValue("alertTitle");
+  const message = interaction.fields.getTextInputValue("alertMessage");
+
+  const channelId = "1526297989734334554";
+  const roleId = "1292754458492796982";
+
+  const channel = interaction.guild.channels.cache.get(channelId) || await interaction.guild.channels.fetch(channelId).catch(() => null);
+  
+  if (!channel) {
+    return interaction.reply({ content: "❌ لم أتمكن من العثور على روم التنبيهات المخصص.", ephemeral: true });
+  }
+
+  const embed = new EmbedBuilder()
+    .setTitle(`📢 ${title}`)
+    .setDescription(message)
+    .setColor("#E74C3C")
+    .setTimestamp()
+    .setFooter({ text: `مرسل التنبيه: ${interaction.user.tag}`, iconURL: interaction.user.displayAvatarURL() });
+
+  await channel.send({
+    content: `<@&${roleId}>`,
+    embeds: [embed]
+  });
+
+  await interaction.reply({ content: "✅ تم إرسال التنبيه بنجاح!", ephemeral: true });
+}
+
 // ─── الموجه الرئيسي ─────────────────────────────────────────────────────────
 export async function handleInteraction(interaction) {
   const customId = interaction.customId;
@@ -610,6 +639,8 @@ export async function handleInteraction(interaction) {
       await handleMgmtRemoveModal(interaction);
     } else if (customId === "tl:mgmt:list") {
       await handleMgmtListButton(interaction);
+    } else if (customId === "tl:alert_modal") {
+      await handleAlertModal(interaction);
     }
   } catch (err) {
     console.error(`[TL] Error handling interaction "${customId}":`, err);

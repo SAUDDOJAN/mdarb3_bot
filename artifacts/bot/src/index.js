@@ -192,7 +192,7 @@ async function main() {
     initPush();
     
     const { setupGameTimers } = await import("./tasks/timers.js").catch(() => ({ setupGameTimers: () => {} }));
-    setupGameTimers();
+    setupGameTimers(client);
 
     // Start scheduled reminders checker
     setInterval(async () => {
