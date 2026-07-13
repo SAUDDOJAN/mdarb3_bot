@@ -7,7 +7,7 @@ const THRESHOLDS = {
   reset: { time: 3600 },
   maint: { time: 10800 },
   tl_dungeon: { time: 780 },
-  tl_boss: { time: 960 },
+  tl_boss: { time: 600 },
   tl_whale: { time: 480 },
   tl_event: { time: 240 },
   tl_tax: { time: 2700 },
@@ -32,7 +32,7 @@ const getNotificationDetails = (key, bossType, isPeaceful) => {
     case 'tl_boss': 
       const bossName = bossType === 'arc' ? 'زعيم الأرك' : 'زعيم العالم';
       const peaceText = isPeaceful ? '(نسخة سلمية 🕊️)' : '';
-      return { title: `ظهور ${bossName} (TL) ${peaceText}`, body: `الزعيم بيظهر بعد 16 دقيقة! اجتمعوا` };
+      return { title: `ظهور ${bossName} (TL) ${peaceText}`, body: `الزعيم بيظهر بعد 10 دقائق! اجتمعوا` };
     case 'tl_whale': return { title: 'الحوت Gigantrite (TL)', body: 'الحوت بيطير بعد 8 دقايق! لا يفوتك' };
     case 'tl_event': return { title: 'فعاليات العالم المفتوح Event', body: 'الفعاليات بتبدأ بعد 4 دقايق! الحق' };
     case 'tl_tax': return { title: 'توصيل الضرائب (TL) 💰', body: 'التوصيل بيبدأ بعد 45 دقيقة! استعدوا' };
