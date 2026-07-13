@@ -248,16 +248,26 @@ export function setupGameTimers(client) {
               const channel = await client.channels.fetch(channelId).catch(() => null);
               if (channel) {
                 let color = 0x2b2d31; // Default
-                if (key === 'tl_boss') color = 0x9b59b6; // Purple
-                else if (key === 'tl_event') color = 0x2ecc71; // Green
-                else if (key === 'tl_whale') color = 0xf1c40f; // Yellow
-                else if (key === 'tl_siege' || key === 'tl_tax') color = 0xe67e22; // Orange
+                let thumbUrl = null;
+                if (key === 'tl_boss') {
+                  color = 0x9b59b6; // Purple
+                  thumbUrl = "https://cdn.discordapp.com/attachments/1290449971639881849/1526317944290807961/image.png?ex=6a5695db&is=6a55445b&hm=772a4676241a71552047c76d6f71f7c1193c3dd7cf0a78f41a9752838e0431a0&";
+                } else if (key === 'tl_event') {
+                  color = 0x2ecc71; // Green
+                  thumbUrl = "https://cdn.discordapp.com/attachments/1290449971639881849/1526317907662078053/image.png?ex=6a5695d2&is=6a554452&hm=ed37726f3f21411b86488cf3377f08ff925e70fbe500e278321d064ee4b8b7f4&";
+                } else if (key === 'tl_whale') {
+                  color = 0xf1c40f; // Yellow
+                } else if (key === 'tl_siege' || key === 'tl_tax') {
+                  color = 0xe67e22; // Orange
+                }
 
                 const embed = new EmbedBuilder()
                   .setTitle(title)
                   .setDescription(`**${body}**\n\n🕒 **الوقت المتبقي:** أقل من ${Math.ceil(threshold / 60)} دقيقة`)
                   .setColor(color)
                   .setTimestamp();
+
+                if (thumbUrl) embed.setThumbnail(thumbUrl);
 
                 await channel.send({
                   content: `<@&${roleId}>`,
