@@ -1,4 +1,4 @@
-import { ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder, EmbedBuilder } from "discord.js";
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder, EmbedBuilder, PermissionFlagsBits } from "discord.js";
 
 const TL_JOIN_CHANNEL_ID = "1509250363939880990";
 const TL_MEMBERS_CHANNEL_ID = "1511464947425476799";
