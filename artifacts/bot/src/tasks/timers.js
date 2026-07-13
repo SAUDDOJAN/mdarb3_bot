@@ -251,7 +251,11 @@ export function setupGameTimers(client) {
                 let thumbUrl = null;
                 if (key === 'tl_boss') {
                   color = 0x9b59b6; // Purple
-                  thumbUrl = "https://cdn.discordapp.com/attachments/1290449971639881849/1526317944290807961/image.png?ex=6a5695db&is=6a55445b&hm=772a4676241a71552047c76d6f71f7c1193c3dd7cf0a78f41a9752838e0431a0&";
+                  if (title && title.includes('الأرك')) {
+                    thumbUrl = "https://cdn.discordapp.com/attachments/1290449971639881849/1526318552246784100/image.png?ex=6a56966c&is=6a5544ec&hm=4861276549d6169ee3b368afa7f3dd17aa46e648866e25c36a9d8c23cb751c30&";
+                  } else {
+                    thumbUrl = "https://cdn.discordapp.com/attachments/1290449971639881849/1526317944290807961/image.png?ex=6a5695db&is=6a55445b&hm=772a4676241a71552047c76d6f71f7c1193c3dd7cf0a78f41a9752838e0431a0&";
+                  }
                 } else if (key === 'tl_event') {
                   color = 0x2ecc71; // Green
                   thumbUrl = "https://cdn.discordapp.com/attachments/1290449971639881849/1526317907662078053/image.png?ex=6a5695d2&is=6a554452&hm=ed37726f3f21411b86488cf3377f08ff925e70fbe500e278321d064ee4b8b7f4&";
