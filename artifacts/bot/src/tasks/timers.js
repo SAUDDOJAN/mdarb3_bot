@@ -6,10 +6,10 @@ const THRESHOLDS = {
   rift: { time: 300 },
   reset: { time: 3600 },
   maint: { time: 10800 },
-  tl_dungeon: { time: 780 },
-  tl_boss: { time: 600 },
-  tl_whale: { time: 480 },
-  tl_event: { time: 240 },
+  tl_dungeon: { time: 300 },
+  tl_boss: { time: 300 },
+  tl_whale: { time: 300 },
+  tl_event: { time: 300 },
   tl_tax: { time: 2700 },
   tl_siege: { time: 5400 },
   gw2_teq: { time: 420 },
@@ -28,13 +28,13 @@ const getNotificationDetails = (key, bossType, isPeaceful) => {
     case 'maint': return { title: 'الصيانة الأسبوعية ⚠️', body: 'باقي 3 ساعات على الصيانة! خلص محتواك بسرعة' };
     
     // Throne & Liberty
-    case 'tl_dungeon': return { title: 'أحداث الدنجن (TL)', body: 'دنجنات مفتوحة بعد 13 دقيقة! جهز البارتي' };
+    case 'tl_dungeon': return { title: 'أحداث الدنجن (TL)', body: 'دنجنات مفتوحة بعد 5 دقائق! جهز البارتي' };
     case 'tl_boss': 
       const bossName = bossType === 'arc' ? 'زعيم الأرك' : 'زعيم العالم';
       const peaceText = isPeaceful ? '(نسخة سلمية 🕊️)' : '';
-      return { title: `ظهور ${bossName} (TL) ${peaceText}`, body: `الزعيم بيظهر بعد 10 دقائق! اجتمعوا` };
-    case 'tl_whale': return { title: 'الحوت Gigantrite (TL)', body: 'الحوت بيطير بعد 8 دقايق! لا يفوتك' };
-    case 'tl_event': return { title: 'فعاليات العالم المفتوح Event', body: 'الفعاليات بتبدأ بعد 4 دقايق! الحق' };
+      return { title: `ظهور ${bossName} (TL) ${peaceText}`, body: `الزعيم بيظهر بعد 5 دقائق! اجتمعوا` };
+    case 'tl_whale': return { title: 'الحوت Gigantrite (TL)', body: 'الحوت بيطير بعد 5 دقايق! لا يفوتك' };
+    case 'tl_event': return { title: 'فعاليات العالم المفتوح Event', body: 'الفعاليات بتبدأ بعد 5 دقايق! الحق' };
     case 'tl_tax': return { title: 'توصيل الضرائب (TL) 💰', body: 'التوصيل بيبدأ بعد 45 دقيقة! استعدوا' };
     case 'tl_siege': return { title: 'حصار القلعة (TL) 🏰', body: 'الحصار الكبير بيبدأ بعد ساعة ونص! منشن حلفائك واستعدوا للحرب' };
 
