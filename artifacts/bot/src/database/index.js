@@ -96,6 +96,26 @@ export async function updateWikiArticle(id, game, title, content, date_tag) {
   return result.rows[0];
 }
 
+export async function registerTlRaid(message_id, user_id, days, times) {
+  const result = await query(
+    `INSERT INTO tl_raid_registrations (message_id, user_id, days, times) 
+     VALUES ($1, $2, $3, $4)
+     ON CONFLICT (message_id, user_id) 
+     DO UPDATE SET days = $3, times = $4, created_at = NOW()
+     RETURNING *`,
+    [message_id, user_id, days, times]
+  );
+  return result.rows[0];
+}
+
+export async function getTlRaidRegistrations(message_id) {
+  const result = await query(
+    `SELECT * FROM tl_raid_registrations WHERE message_id = $1 ORDER BY created_at ASC`,
+    [message_id]
+  );
+  return result.rows;
+}
+
 export async function initDb() {
   await query(`
     CREATE TABLE IF NOT EXISTS guild_config (
@@ -109,6 +129,18 @@ export async function initDb() {
       mute_role_id TEXT,
       created_at TIMESTAMPTZ DEFAULT NOW(),
       updated_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+
+  await query(`
+    CREATE TABLE IF NOT EXISTS tl_raid_registrations (
+      id SERIAL PRIMARY KEY,
+      message_id TEXT NOT NULL,
+      user_id TEXT NOT NULL,
+      days TEXT NOT NULL,
+      times TEXT NOT NULL,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      UNIQUE(message_id, user_id)
     )
   `);
 

@@ -1,40 +1,87 @@
-import { SlashCommandBuilder, PermissionFlagsBits, ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } from "discord.js";
+import { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } from "discord.js";
 
 export const data = new SlashCommandBuilder()
   .setName("tl_alert")
   .setDescription("إرسال تنبيه مخصص لروم إشعارات Throne and Liberty")
-  .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild);
+  .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
+  .addStringOption(option =>
+    option.setName("type")
+      .setDescription("نوع التنبيه")
+      .setRequired(true)
+      .addChoices(
+        { name: "Guild Raid (بوس القيلد)", value: "guild_raid" },
+        { name: "Remnant of NIX (فارم نيكس)", value: "nix" },
+        { name: "مخصص (Custom)", value: "custom" }
+      )
+  )
+  .addStringOption(option =>
+    option.setName("description")
+      .setDescription("وصف الحدث أو التنبيه")
+      .setRequired(true)
+  )
+  .addStringOption(option =>
+    option.setName("custom_title")
+      .setDescription("عنوان مخصص (فقط إذا اخترت نوع مخصص)")
+      .setRequired(false)
+  )
+  .addAttachmentOption(option =>
+    option.setName("image")
+      .setDescription("صورة مرفقة للتنبيه (يمكنك لصق الصورة هنا)")
+      .setRequired(false)
+  );
 
 export async function execute(interaction) {
-  // Create the modal
-  const modal = new ModalBuilder()
-    .setCustomId("tl:alert_modal")
-    .setTitle("إرسال تنبيه Throne and Liberty");
+  const type = interaction.options.getString("type");
+  const description = interaction.options.getString("description");
+  const customTitle = interaction.options.getString("custom_title");
+  const imageAttachment = interaction.options.getAttachment("image");
 
-  // Create text input components
-  const titleInput = new TextInputBuilder()
-    .setCustomId("alertTitle")
-    .setLabel("عنوان التنبيه")
-    .setPlaceholder("مثال: تجميع لقتل زعيم الأرك")
-    .setStyle(TextInputStyle.Short)
-    .setRequired(true)
-    .setMaxLength(100);
+  let title = "";
+  if (type === "guild_raid") title = "📢 Guild Raid";
+  else if (type === "nix") title = "📢 فارم Remnant of NIX";
+  else title = customTitle ? `📢 ${customTitle}` : "📢 إعلان Throne and Liberty";
 
-  const messageInput = new TextInputBuilder()
-    .setCustomId("alertMessage")
-    .setLabel("نص التنبيه")
-    .setPlaceholder("مثال: تعالوا روم الصوت الآن، التجميع في المدينة...")
-    .setStyle(TextInputStyle.Paragraph)
-    .setRequired(true)
-    .setMaxLength(2000);
+  const channelId = "1526297989734334554";
+  const roleId = "1292754458492796982";
 
-  // Add inputs to action rows
-  const firstActionRow = new ActionRowBuilder().addComponents(titleInput);
-  const secondActionRow = new ActionRowBuilder().addComponents(messageInput);
+  const channel = interaction.guild.channels.cache.get(channelId) || await interaction.guild.channels.fetch(channelId).catch(() => null);
+  
+  if (!channel) {
+    return interaction.reply({ content: "❌ لم أتمكن من العثور على روم التنبيهات المخصص.", ephemeral: true });
+  }
 
-  // Add action rows to modal
-  modal.addComponents(firstActionRow, secondActionRow);
+  const embed = new EmbedBuilder()
+    .setTitle(title)
+    .setDescription(description)
+    .setColor("#E74C3C")
+    .setTimestamp()
+    .setFooter({ text: `مرسل التنبيه: ${interaction.user.tag}`, iconURL: interaction.user.displayAvatarURL() });
 
-  // Show the modal to the user
-  await interaction.showModal(modal);
+  if (imageAttachment) {
+    embed.setImage(imageAttachment.url);
+  }
+
+  const payload = {
+    content: `<@&${roleId}>`,
+    embeds: [embed]
+  };
+
+  if (type === "guild_raid") {
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId("throne:raid_join")
+        .setLabel("أرغب بالانضمام معكم (مطلوب تسجيل الوقت)")
+        .setStyle(ButtonStyle.Success)
+        .setEmoji("⚔️"),
+      new ButtonBuilder()
+        .setCustomId("throne:raid_view")
+        .setLabel("عرض الأوقات المسجلة")
+        .setStyle(ButtonStyle.Secondary)
+        .setEmoji("📋")
+    );
+    payload.components = [row];
+  }
+
+  await channel.send(payload);
+  await interaction.reply({ content: "✅ تم إرسال التنبيه إلى روم الإشعارات بنجاح!", ephemeral: true });
 }

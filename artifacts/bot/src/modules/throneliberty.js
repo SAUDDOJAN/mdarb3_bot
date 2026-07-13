@@ -612,6 +612,123 @@ async function handleAlertModal(interaction) {
   await interaction.reply({ content: "✅ تم إرسال التنبيه بنجاح!", ephemeral: true });
 }
 
+// ─── نظام تسجيل الريد (Raid Registration) ────────────────────────────────────
+import { registerTlRaid, getTlRaidRegistrations } from "../database/index.js";
+
+async function handleRaidJoin(interaction) {
+  const raidMessageId = interaction.message.id;
+  
+  const daysMenu = new StringSelectMenuBuilder()
+    .setCustomId(`throne:raid_days:${raidMessageId}`)
+    .setPlaceholder("اختر الأيام المناسبة لك")
+    .setMinValues(1)
+    .setMaxValues(7)
+    .addOptions(
+      { label: "السبت", value: "السبت", emoji: "🗓️" },
+      { label: "الأحد", value: "الأحد", emoji: "🗓️" },
+      { label: "الإثنين", value: "الإثنين", emoji: "🗓️" },
+      { label: "الثلاثاء", value: "الثلاثاء", emoji: "🗓️" },
+      { label: "الأربعاء", value: "الأربعاء", emoji: "🗓️" },
+      { label: "الخميس", value: "الخميس", emoji: "🗓️" },
+      { label: "الجمعة", value: "الجمعة", emoji: "🗓️" }
+    );
+
+  const row = new ActionRowBuilder().addComponents(daysMenu);
+  
+  await interaction.reply({
+    content: "📅 **الخطوة 1:** الرجاء تحديد الأيام التي يمكنك الحضور فيها:",
+    components: [row],
+    ephemeral: true
+  });
+}
+
+async function handleRaidDays(interaction) {
+  const raidMessageId = interaction.customId.split(":")[2];
+  const selectedDays = interaction.values.join("، ");
+  
+  const timesMenu = new StringSelectMenuBuilder()
+    .setCustomId(`throne:raid_times:${raidMessageId}:${encodeURIComponent(selectedDays)}`)
+    .setPlaceholder("اختر الأوقات المناسبة لك")
+    .setMinValues(1)
+    .setMaxValues(4)
+    .addOptions(
+      { label: "العصر (3PM - 6PM)", value: "العصر", emoji: "🌇" },
+      { label: "المغرب/العشاء (6PM - 9PM)", value: "المغرب-العشاء", emoji: "🌆" },
+      { label: "الليل (9PM - 12AM)", value: "الليل", emoji: "🌃" },
+      { label: "آخر الليل (12AM - 4AM)", value: "آخر الليل", emoji: "🌌" }
+    );
+
+  const row = new ActionRowBuilder().addComponents(timesMenu);
+
+  await interaction.update({
+    content: `✅ تم اختيار الأيام: **${selectedDays}**\n\n⏰ **الخطوة 2:** الرجاء تحديد الأوقات المناسبة لك في هذه الأيام:`,
+    components: [row]
+  });
+}
+
+async function handleRaidTimes(interaction) {
+  const parts = interaction.customId.split(":");
+  const raidMessageId = parts[2];
+  const selectedDays = decodeURIComponent(parts[3]);
+  const selectedTimes = interaction.values.join("، ");
+  const userId = interaction.user.id;
+
+  try {
+    await registerTlRaid(raidMessageId, userId, selectedDays, selectedTimes);
+    await interaction.update({
+      content: `🎉 **تم تسجيل وقتك بنجاح!**\n\n🗓️ الأيام: ${selectedDays}\n⏰ الأوقات: ${selectedTimes}\n\nستقوم الإدارة بمراجعة الأوقات لتحديد الموعد الأنسب للجميع.`,
+      components: []
+    });
+  } catch (err) {
+    console.error("[ThroneLiberty] Error registering raid:", err);
+    await interaction.update({
+      content: "❌ حدث خطأ أثناء التسجيل، يرجى المحاولة لاحقاً.",
+      components: []
+    });
+  }
+}
+
+async function handleRaidView(interaction) {
+  // Check if admin or has manage guild
+  if (!interaction.member.permissions.has(PermissionFlagsBits.ManageGuild)) {
+    return interaction.reply({ content: "❌ لا تملك صلاحية لعرض المسجلين.", ephemeral: true });
+  }
+
+  const raidMessageId = interaction.message.id;
+  try {
+    const regs = await getTlRaidRegistrations(raidMessageId);
+    
+    if (regs.length === 0) {
+      return interaction.reply({ content: "لا يوجد أي لاعب مسجل حتى الآن لهذا الريد.", ephemeral: true });
+    }
+
+    // Group by days and times
+    const groups = {};
+    for (const r of regs) {
+      const key = `🗓️ ${r.days} | ⏰ ${r.times}`;
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(`<@${r.user_id}>`);
+    }
+
+    const embed = new EmbedBuilder()
+      .setTitle("📋 ملخص أوقات المسجلين للريد")
+      .setColor("#3498DB")
+      .setTimestamp();
+
+    let desc = `إجمالي المسجلين: **${regs.length}** لاعب\n\n`;
+    for (const [key, users] of Object.entries(groups)) {
+      desc += `**${key}** (${users.length} لاعب)\n${users.join("، ")}\n\n`;
+    }
+
+    embed.setDescription(desc);
+
+    await interaction.reply({ embeds: [embed], ephemeral: true });
+  } catch (err) {
+    console.error("[ThroneLiberty] Error viewing raid registrations:", err);
+    await interaction.reply({ content: "❌ حدث خطأ أثناء جلب البيانات.", ephemeral: true });
+  }
+}
+
 // ─── الموجه الرئيسي ─────────────────────────────────────────────────────────
 export async function handleInteraction(interaction) {
   const customId = interaction.customId;
@@ -638,9 +755,17 @@ export async function handleInteraction(interaction) {
     } else if (customId === "tl:mgmt:remove_modal") {
       await handleMgmtRemoveModal(interaction);
     } else if (customId === "tl:mgmt:list") {
-      await handleMgmtListButton(interaction);
+      await handleMgmtList(interaction);
     } else if (customId === "tl:alert_modal") {
       await handleAlertModal(interaction);
+    } else if (customId === "throne:raid_join") {
+      await handleRaidJoin(interaction);
+    } else if (customId === "throne:raid_view") {
+      await handleRaidView(interaction);
+    } else if (customId.startsWith("throne:raid_days:")) {
+      await handleRaidDays(interaction);
+    } else if (customId.startsWith("throne:raid_times:")) {
+      await handleRaidTimes(interaction);
     }
   } catch (err) {
     console.error(`[TL] Error handling interaction "${customId}":`, err);
