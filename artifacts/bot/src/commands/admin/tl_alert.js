@@ -41,7 +41,9 @@ export async function execute(interaction) {
   else if (type === "nix") title = "📢 فارم Remnant of NIX";
   else title = customTitle ? `📢 ${customTitle}` : "📢 إعلان Throne and Liberty";
 
-  const channelId = "1526297989734334554";
+  let channelId = "1526297989734334554";
+  if (type === "guild_raid") channelId = "1526362737884795011";
+  
   const roleId = "1292754458492796982";
 
   const channel = interaction.guild.channels.cache.get(channelId) || await interaction.guild.channels.fetch(channelId).catch(() => null);
