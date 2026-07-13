@@ -615,7 +615,39 @@ async function handleAlertModal(interaction) {
 // ─── نظام تسجيل الريد (Raid Registration) ────────────────────────────────────
 import { registerTlRaid, getTlRaidRegistrations } from "../database/index.js";
 
+function isRaidExpired(messageDate) {
+  const d = new Date(messageDate);
+  let daysUntilThursday = 4 - d.getUTCDay();
+  
+  if (daysUntilThursday < 0 || (daysUntilThursday === 0 && d.getUTCHours() >= 11)) {
+    daysUntilThursday += 7;
+  }
+  
+  const deadline = new Date(d);
+  deadline.setUTCDate(deadline.getUTCDate() + daysUntilThursday);
+  deadline.setUTCHours(11, 0, 0, 0); // 11:00 UTC = 14:00 KSA
+  
+  return Date.now() > deadline.getTime();
+}
+
+async function closeRaidMessage(message) {
+  if (!message || !message.embeds || message.embeds.length === 0) return;
+  const embed = EmbedBuilder.from(message.embeds[0]);
+  embed.setColor("#7f8c8d");
+  
+  if (!embed.data.title?.includes("(مغلق)")) {
+    embed.setTitle((embed.data.title || "") + " (مغلق)");
+  }
+
+  await message.edit({ embeds: [embed], components: [] }).catch(() => {});
+}
+
 async function handleRaidJoin(interaction) {
+  if (isRaidExpired(interaction.message.createdAt)) {
+    await closeRaidMessage(interaction.message);
+    return interaction.reply({ content: "❌ عذراً، تم إغلاق التسجيل لهذا الريد (التسجيل ينتهي كل خميس الساعة 2 ظهراً).", ephemeral: true });
+  }
+
   const raidMessageId = interaction.message.id;
   
   const daysMenu = new StringSelectMenuBuilder()
@@ -710,6 +742,10 @@ async function handleRaidTimes(interaction) {
 }
 
 async function handleRaidView(interaction) {
+  if (isRaidExpired(interaction.message.createdAt)) {
+    await closeRaidMessage(interaction.message);
+  }
+
   // Check if admin or has manage guild
   if (!interaction.member.permissions.has(PermissionFlagsBits.ManageGuild)) {
     return interaction.reply({ content: "❌ لا تملك صلاحية لعرض المسجلين.", ephemeral: true });
