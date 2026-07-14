@@ -118,8 +118,12 @@ function calculateTimers() {
     return nextEvent;
   };
 
-  // 5. TL Field Bosses (World Boss) at [0:00, 2:00, 14:00, 17:00]
-  let nextFieldBoss = getNextKsaEvent([0, 2, 14, 17]);
+  // 5. TL Field Bosses (World Boss) at [0:00, 2:00, 14:00, 17:00, 23:00] and 00:30
+  let nextFieldBoss = getNextKsaEvent([0, 2, 14, 17, 23]);
+  let nextFieldBossHalf = getNextKsaEvent([0], 30);
+  if (nextFieldBossHalf && nextFieldBossHalf < nextFieldBoss) {
+    nextFieldBoss = nextFieldBossHalf;
+  }
 
   // 5.5 TL Arc Boss (Wed, Sat at 20:00 and 23:00)
   let nextArcBoss = null;
@@ -148,14 +152,14 @@ function calculateTimers() {
     bossType = 'arc';
   }
 
-  // 6. TL Dynamic Events at [1, 4, 7, 10, 13, 16, 21]
-  let nextTlEvent = getNextKsaEvent([1, 4, 7, 10, 13, 16, 21]);
+  // 6. TL Dynamic Events at [1, 4, 7, 10, 13, 16, 21, 22]
+  let nextTlEvent = getNextKsaEvent([1, 4, 7, 10, 13, 16, 21, 22]);
 
   // 7. TL Dungeon Events (Removed from schedule, setting to far future)
   let nextTlDungeon = new Date(now.getTime() + 365 * 24 * 3600 * 1000);
 
-  // 8. TL Whale (Gigantrite) at [0, 3, 6, 9, 12, 15, 18]
-  let nextTlWhale = getNextKsaEvent([0, 3, 6, 9, 12, 15, 18]);
+  // 8. TL Whale (Gigantrite) at [0, 3, 6, 9, 12, 15, 18, 23]
+  let nextTlWhale = getNextKsaEvent([0, 3, 6, 9, 12, 15, 18, 23]);
 
   // 9. TL Siege (Every Sunday at 21:00)
   let nextTlSiege = getNextWeeklyKsaEvent(0, 21) || new Date(now.getTime() + 7 * 24 * 3600 * 1000);
