@@ -94,7 +94,12 @@ export async function execute(interaction) {
         .setCustomId("throne:raid_view")
         .setLabel("عرض الأوقات المسجلة")
         .setStyle(ButtonStyle.Secondary)
-        .setEmoji("📋")
+        .setEmoji("📋"),
+      new ButtonBuilder()
+        .setCustomId("throne:raid_start")
+        .setLabel("بدء الريد (إغلاق التسجيل)")
+        .setStyle(ButtonStyle.Danger)
+        .setEmoji("🔒")
     );
     payload.components = [row];
   }

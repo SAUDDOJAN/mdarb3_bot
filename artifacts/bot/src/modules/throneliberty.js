@@ -786,6 +786,19 @@ async function handleRaidView(interaction) {
   }
 }
 
+async function handleRaidStart(interaction) {
+  if (!interaction.member.permissions.has(PermissionFlagsBits.ManageGuild)) {
+    return interaction.reply({ content: "❌ عذراً، الإدارة فقط يمكنها بدء الريد وإغلاق التسجيل.", ephemeral: true });
+  }
+
+  if (isRaidExpired(interaction.message.createdAt)) {
+    return interaction.reply({ content: "⚠️ هذا الريد مغلق بالفعل.", ephemeral: true });
+  }
+
+  await closeRaidMessage(interaction.message);
+  await interaction.reply({ content: "🔒 تم بدء الريد وإغلاق التسجيل بنجاح!", ephemeral: true });
+}
+
 // ─── الموجه الرئيسي ─────────────────────────────────────────────────────────
 export async function handleInteraction(interaction) {
   const customId = interaction.customId;
@@ -819,6 +832,8 @@ export async function handleInteraction(interaction) {
       await handleRaidJoin(interaction);
     } else if (customId === "throne:raid_view") {
       await handleRaidView(interaction);
+    } else if (customId === "throne:raid_start") {
+      await handleRaidStart(interaction);
     } else if (customId.startsWith("throne:raid_days:")) {
       await handleRaidDays(interaction);
     } else if (customId.startsWith("throne:raid_times:")) {
