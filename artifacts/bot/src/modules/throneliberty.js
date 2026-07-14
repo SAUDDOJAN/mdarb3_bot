@@ -725,10 +725,41 @@ async function handleRaidTimes(interaction) {
         
         const mentions = regs.map(r => `<@${r.user_id}>`).join("، ");
         
-        // Remove previous fields if any
-        embed.setFields([]);
-        // Add updated field
-        embed.addFields({ name: `👥 المسجلين للحضور (${regs.length})`, value: mentions || "لا يوجد" });
+        let bestTimeStr = "لم يحدد بعد";
+        if (regs.length > 0) {
+          const tally = {};
+          for (const r of regs) {
+            const dList = r.days.split("، ");
+            const tList = r.times.split("، ");
+            for (const d of dList) {
+              for (const t of tList) {
+                const key = `${d} | ${t}`;
+                tally[key] = (tally[key] || 0) + 1;
+              }
+            }
+          }
+          
+          let maxCount = 0;
+          let bestKeys = [];
+          for (const [key, count] of Object.entries(tally)) {
+            if (count > maxCount) {
+              maxCount = count;
+              bestKeys = [key];
+            } else if (count === maxCount) {
+              bestKeys.push(key);
+            }
+          }
+          
+          if (maxCount > 0) {
+            const topKeys = bestKeys.slice(0, 2).map(k => `\`${k}\``).join(" أو ");
+            bestTimeStr = `${topKeys} (يتناسب مع ${maxCount} لاعبين)`;
+          }
+        }
+        
+        embed.setFields([
+          { name: `⭐️ أنسب وقت مقترح`, value: bestTimeStr },
+          { name: `👥 المسجلين للحضور (${regs.length})`, value: mentions || "لا يوجد" }
+        ]);
         
         await originalMessage.edit({ embeds: [embed] });
       }
