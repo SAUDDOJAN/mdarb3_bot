@@ -612,6 +612,44 @@ async function handleAlertModal(interaction) {
   await interaction.reply({ content: "✅ تم إرسال التنبيه بنجاح!", ephemeral: true });
 }
 
+// ─── نظام الإعلانات والتنويهات ───────────────────────────────────────────────
+import { recordAnnouncementRead, getAnnouncementReads } from "../database/index.js";
+
+async function handleAnnounceRead(interaction) {
+  const messageId = interaction.message.id;
+  const userId = interaction.user.id;
+
+  try {
+    const record = await recordAnnouncementRead(messageId, userId);
+    
+    if (!record) {
+      return interaction.reply({ content: "✅ أنت مسجل مسبقاً بأنك قرأت هذا التنويه.", ephemeral: true });
+    }
+
+    const reads = await getAnnouncementReads(messageId);
+    const mentions = reads.map(r => `<@${r.user_id}>`).join("، ");
+
+    const embed = EmbedBuilder.from(interaction.message.embeds[0]);
+    
+    // Remove old read field if exists and add new one
+    const fields = embed.data.fields || [];
+    const filteredFields = fields.filter(f => !f.name.includes("قرأ التنويه"));
+    
+    filteredFields.push({
+      name: `👁️ قرأ التنويه (${reads.length})`,
+      value: mentions
+    });
+
+    embed.setFields(filteredFields);
+
+    await interaction.message.edit({ embeds: [embed] });
+    await interaction.reply({ content: "✅ شكراً لتفاعلك! تم تسجيل أنك قرأت التنويه.", ephemeral: true });
+  } catch (err) {
+    console.error("[Announce] Error recording read:", err);
+    await interaction.reply({ content: "❌ حدث خطأ، يرجى المحاولة لاحقاً.", ephemeral: true });
+  }
+}
+
 // ─── نظام تسجيل الريد (Raid Registration) ────────────────────────────────────
 import { registerTlRaid, getTlRaidRegistrations } from "../database/index.js";
 
@@ -935,6 +973,8 @@ export async function handleInteraction(interaction) {
       await handleRaidStart(interaction);
     } else if (customId === "throne:raid_reopen") {
       await handleRaidReopen(interaction);
+    } else if (customId === "tl:announce:read") {
+      await handleAnnounceRead(interaction);
     } else if (customId.startsWith("throne:raid_days:")) {
       await handleRaidDays(interaction);
     } else if (customId.startsWith("throne:raid_times:")) {

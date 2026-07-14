@@ -116,6 +116,25 @@ export async function getTlRaidRegistrations(message_id) {
   return result.rows;
 }
 
+export async function recordAnnouncementRead(message_id, user_id) {
+  const result = await query(
+    `INSERT INTO tl_announcement_reads (message_id, user_id) 
+     VALUES ($1, $2)
+     ON CONFLICT (message_id, user_id) DO NOTHING
+     RETURNING *`,
+    [message_id, user_id]
+  );
+  return result.rows[0];
+}
+
+export async function getAnnouncementReads(message_id) {
+  const result = await query(
+    `SELECT * FROM tl_announcement_reads WHERE message_id = $1 ORDER BY created_at ASC`,
+    [message_id]
+  );
+  return result.rows;
+}
+
 export async function initDb() {
   await query(`
     CREATE TABLE IF NOT EXISTS guild_config (
@@ -139,6 +158,16 @@ export async function initDb() {
       user_id TEXT NOT NULL,
       days TEXT NOT NULL,
       times TEXT NOT NULL,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      UNIQUE(message_id, user_id)
+    )
+  `);
+
+  await query(`
+    CREATE TABLE IF NOT EXISTS tl_announcement_reads (
+      id SERIAL PRIMARY KEY,
+      message_id TEXT NOT NULL,
+      user_id TEXT NOT NULL,
       created_at TIMESTAMPTZ DEFAULT NOW(),
       UNIQUE(message_id, user_id)
     )
