@@ -639,7 +639,15 @@ async function closeRaidMessage(message) {
     embed.setTitle((embed.data.title || "") + " (مغلق)");
   }
 
-  await message.edit({ embeds: [embed], components: [] }).catch(() => {});
+  const row = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId("throne:raid_reopen")
+      .setLabel("إعادة فتح الريد")
+      .setStyle(ButtonStyle.Primary)
+      .setEmoji("🔓")
+  );
+
+  await message.edit({ embeds: [embed], components: [row] }).catch(() => {});
 }
 
 async function handleRaidJoin(interaction) {
@@ -820,6 +828,45 @@ async function handleRaidStart(interaction) {
   await interaction.editReply(`🔒 تم بدء الريد وإغلاق التسجيل بنجاح!\n📨 تم إرسال رسائل خاصة لـ **${successCount}** لاعب. (${failCount} مقفلين الخاص)`);
 }
 
+async function handleRaidReopen(interaction) {
+  if (!interaction.member.permissions.has(PermissionFlagsBits.ManageGuild)) {
+    return interaction.reply({ content: "❌ عذراً، الإدارة فقط يمكنها إعادة فتح الريد.", ephemeral: true });
+  }
+
+  if (isRaidExpired(interaction.message.createdAt)) {
+    return interaction.reply({ content: "⚠️ لا يمكن إعادة فتح هذا الريد لأنه تجاوز موعد الإغلاق النهائي (الخميس 2 ظهراً).", ephemeral: true });
+  }
+
+  const message = interaction.message;
+  const embed = EmbedBuilder.from(message.embeds[0]);
+  embed.setColor("#E74C3C"); // Original red color
+  
+  if (embed.data.title?.includes(" (مغلق)")) {
+    embed.setTitle(embed.data.title.replace(" (مغلق)", ""));
+  }
+
+  const row = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId("throne:raid_join")
+      .setLabel("أرغب بالانضمام معكم (مطلوب تسجيل الوقت)")
+      .setStyle(ButtonStyle.Success)
+      .setEmoji("⚔️"),
+    new ButtonBuilder()
+      .setCustomId("throne:raid_view")
+      .setLabel("عرض الأوقات المسجلة")
+      .setStyle(ButtonStyle.Secondary)
+      .setEmoji("📋"),
+    new ButtonBuilder()
+      .setCustomId("throne:raid_start")
+      .setLabel("بدء الريد (إغلاق التسجيل)")
+      .setStyle(ButtonStyle.Danger)
+      .setEmoji("🔒")
+  );
+
+  await message.edit({ embeds: [embed], components: [row] }).catch(() => {});
+  await interaction.reply({ content: "🔓 تم إعادة فتح التسجيل للريد بنجاح!", ephemeral: true });
+}
+
 // ─── الموجه الرئيسي ─────────────────────────────────────────────────────────
 export async function handleInteraction(interaction) {
   const customId = interaction.customId;
@@ -855,6 +902,8 @@ export async function handleInteraction(interaction) {
       await handleRaidView(interaction);
     } else if (customId === "throne:raid_start") {
       await handleRaidStart(interaction);
+    } else if (customId === "throne:raid_reopen") {
+      await handleRaidReopen(interaction);
     } else if (customId.startsWith("throne:raid_days:")) {
       await handleRaidDays(interaction);
     } else if (customId.startsWith("throne:raid_times:")) {
