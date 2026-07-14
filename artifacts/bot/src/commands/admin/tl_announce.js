@@ -33,6 +33,11 @@ export const data = new SlashCommandBuilder()
     option.setName("image")
       .setDescription("صورة مرفقة للإعلان (اختياري)")
       .setRequired(false)
+  )
+  .addStringOption(option =>
+    option.setName("image_url")
+      .setDescription("رابط صورة (استخدمه إذا لم يعمل خيار الإرفاق)")
+      .setRequired(false)
   );
 
 export async function execute(interaction) {
@@ -41,6 +46,7 @@ export async function execute(interaction) {
   const requireInteraction = interaction.options.getBoolean("require_interaction") || false;
   const dmAll = interaction.options.getBoolean("dm_all") || false;
   const imageAttachment = interaction.options.getAttachment("image");
+  const imageUrl = interaction.options.getString("image_url");
 
   let title = "📢 إعلان Throne and Liberty";
   let color = "#3498DB";
@@ -72,6 +78,8 @@ export async function execute(interaction) {
 
   if (imageAttachment) {
     embed.setImage(imageAttachment.url);
+  } else if (imageUrl) {
+    embed.setImage(imageUrl);
   }
 
   const payload = { embeds: [embed] };
