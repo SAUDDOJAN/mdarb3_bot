@@ -817,7 +817,7 @@ async function handleRaidStart(interaction) {
     try {
       const user = await interaction.client.users.fetch(r.user_id);
       if (user) {
-        await user.send(`⚔️ **تنبيه بدء الريد!**\nالريد اللي سجلت فيه لـ (Throne and Liberty) بيبدأ الآن. يرجى التوجه للروم الصوتي والتجهيز!`);
+        await user.send(`⚔️ **تنبيه بدء الريد!**\nالريد اللي سجلت فيه لـ (Throne and Liberty) بيبدأ الآن. يرجى التوجه للروم الصوتي وقاعة القيلد (Guild Hall) الآن للتجهيز!`);
         successCount++;
       }
     } catch (e) {
