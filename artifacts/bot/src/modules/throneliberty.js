@@ -795,8 +795,29 @@ async function handleRaidStart(interaction) {
     return interaction.reply({ content: "⚠️ هذا الريد مغلق بالفعل.", ephemeral: true });
   }
 
+  await interaction.deferReply({ ephemeral: true });
+
+  const raidMessageId = interaction.message.id;
+  const regs = await getTlRaidRegistrations(raidMessageId);
+
   await closeRaidMessage(interaction.message);
-  await interaction.reply({ content: "🔒 تم بدء الريد وإغلاق التسجيل بنجاح!", ephemeral: true });
+
+  let successCount = 0;
+  let failCount = 0;
+
+  for (const r of regs) {
+    try {
+      const user = await interaction.client.users.fetch(r.user_id);
+      if (user) {
+        await user.send(`⚔️ **تنبيه بدء الريد!**\nالريد اللي سجلت فيه لـ (Throne and Liberty) بيبدأ الآن. يرجى التوجه للروم الصوتي والتجهيز!`);
+        successCount++;
+      }
+    } catch (e) {
+      failCount++;
+    }
+  }
+
+  await interaction.editReply(`🔒 تم بدء الريد وإغلاق التسجيل بنجاح!\n📨 تم إرسال رسائل خاصة لـ **${successCount}** لاعب. (${failCount} مقفلين الخاص)`);
 }
 
 // ─── الموجه الرئيسي ─────────────────────────────────────────────────────────
