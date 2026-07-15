@@ -297,10 +297,23 @@ export function setupGameTimers(client) {
                 });
                 console.log(`[Timers] Sent Discord embed for ${key} to channel ${channelId}`);
               }
-              
+              // Map eventType for Overlay App
+              let overlayEventType = key;
+              if (key === 'tl_boss') {
+                overlayEventType = (title && title.includes('الأرك')) ? "Arch Boss" : "Field Boss";
+              } else if (key === 'tl_event') {
+                overlayEventType = "Dynamic Event";
+              } else if (key === 'tl_whale') {
+                overlayEventType = "Gigantrite";
+              } else if (key === 'tl_tax') {
+                overlayEventType = "Tax Delivery";
+              } else if (key === 'tl_siege') {
+                overlayEventType = "Castle Siege";
+              }
+
               // Publish to Windows Desktop Overlay App
               await publishOverlayEvent(
-                key, // eventType
+                overlayEventType, // eventType mapped to AI's requested names
                 title, // eventName
                 thumbUrl, // imageUrl
                 Math.ceil(threshold / 60) // timerMinutes

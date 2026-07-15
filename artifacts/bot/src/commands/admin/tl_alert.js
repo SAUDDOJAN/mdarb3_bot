@@ -109,7 +109,7 @@ export async function execute(interaction) {
 
   if (type === "guild_raid") {
     const imgUrl = imageAttachment ? imageAttachment.url : null;
-    await publishOverlayEvent("raid", title, imgUrl, 60); // 60 minutes default overlay display
+    await publishOverlayEvent("Guild Raid", title, imgUrl, 60); // 60 minutes default overlay display
   }
 
   await interaction.reply({ content: "✅ تم إرسال التنبيه إلى روم الإشعارات بنجاح!", ephemeral: true });
