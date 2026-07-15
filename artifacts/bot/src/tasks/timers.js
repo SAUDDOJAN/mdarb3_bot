@@ -118,8 +118,8 @@ function calculateTimers() {
     return nextEvent;
   };
 
-  // 5. TL Field Bosses (World Boss) at [0:00, 2:00, 14:00, 17:00, 23:00] and 00:30
-  let nextFieldBoss = getNextKsaEvent([0, 2, 14, 17, 23]);
+  // 5. TL Field Bosses (World Boss) at [0:00, 2:00, 14:00, 17:00, 20:00, 23:00] and 00:30
+  let nextFieldBoss = getNextKsaEvent([0, 2, 14, 17, 20, 23]);
   let nextFieldBossHalf = getNextKsaEvent([0], 30);
   if (nextFieldBossHalf && nextFieldBossHalf < nextFieldBoss) {
     nextFieldBoss = nextFieldBossHalf;
