@@ -291,7 +291,7 @@ export function setupGameTimers(client) {
                 thumbUrl = "https://cdn.discordapp.com/attachments/1290449971639881849/1526922446295269506/siege.png?ex=6a58c8d8&is=6a577758&hm=a32091f1c1ce0ff79a9b0221c12db39608ac7eb03ea79508c54cb51502130a82&";
               } else if (key === 'tl_gate') {
                 color = 0x3498db; // Blue
-                thumbUrl = null; // Pending user url
+                thumbUrl = "https://cdn.discordapp.com/attachments/1290449971639881849/1526941223900942386/Gate_of_Memory.png?ex=6a58da54&is=6a5788d4&hm=965af4cd324233af92be0b5a1ee8c1ce82a7a391ef53a1d5c5b0d30563001696&";
               }
 
               const channel = await client.channels.fetch(channelId).catch(() => null);
