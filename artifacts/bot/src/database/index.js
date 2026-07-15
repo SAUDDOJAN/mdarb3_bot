@@ -756,10 +756,17 @@ export async function initDb() {
 
 export async function publishOverlayEvent(eventType, eventName, imageUrl, timerMinutes) {
   try {
-    await query(`
+    const res = await query(`
       INSERT INTO overlay_events (event_type, event_name, image_url, timer_minutes)
       VALUES ($1, $2, $3, $4)
+      RETURNING *
     `, [eventType, eventName, imageUrl, timerMinutes]);
+    
+    // Broadcast via Postgres native NOTIFY so Desktop Overlay can LISTEN
+    if (res.rows.length > 0) {
+      await query(`SELECT pg_notify('overlay_channel', $1)`, [JSON.stringify(res.rows[0])]);
+    }
+
     console.log(`[Overlay] Published event: ${eventName} (${timerMinutes}m)`);
   } catch (err) {
     console.error("[Overlay] Error publishing event:", err);
