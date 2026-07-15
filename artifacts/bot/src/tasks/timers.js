@@ -155,8 +155,8 @@ function calculateTimers() {
     bossType = 'arc';
   }
 
-  // 6. TL Dynamic Events at [1, 4, 7, 10, 13, 16, 21, 22]
-  let nextTlEvent = getNextKsaEvent([1, 4, 7, 10, 13, 16, 21, 22]);
+  // 6. TL Dynamic Events at [1, 4, 7, 10, 13, 16, 21]
+  let nextTlEvent = getNextKsaEvent([1, 4, 7, 10, 13, 16, 21]);
 
   // 7. TL Dungeon Events (Removed from schedule, setting to far future)
   let nextTlDungeon = new Date(now.getTime() + 365 * 24 * 3600 * 1000);
