@@ -280,7 +280,7 @@ export function setupGameTimers(client) {
                 thumbUrl = "https://cdn.discordapp.com/attachments/1290449971639881849/1526922320461959319/tax.png?ex=6a58c8ba&is=6a57773a&hm=2b27bac4eaf986c90045c08feec631423b7e8b3a91f2977599fbc2b697b2c84e&";
               } else if (key === 'tl_siege') {
                 color = 0xe67e22; // Orange
-                thumbUrl = "https://cdn.discordapp.com/attachments/1290449971639881849/1526318853913706718/image.png?ex=6a5696b4&is=6a554534&hm=985c6e18eed5ff4428697e42c50c5046802fa4b1804d17fbac84b2fa4176a1a2&";
+                thumbUrl = "https://cdn.discordapp.com/attachments/1290449971639881849/1526922446295269506/siege.png?ex=6a58c8d8&is=6a577758&hm=a32091f1c1ce0ff79a9b0221c12db39608ac7eb03ea79508c54cb51502130a82&";
               }
 
               const channel = await client.channels.fetch(channelId).catch(() => null);
