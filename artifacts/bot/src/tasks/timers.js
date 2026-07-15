@@ -271,7 +271,7 @@ export function setupGameTimers(client) {
                 }
               } else if (key === 'tl_event') {
                 color = 0x2ecc71; // Green
-                thumbUrl = "https://cdn.discordapp.com/attachments/1290449971639881849/1526317907662078053/image.png?ex=6a5695d2&is=6a554452&hm=ed37726f3f21411b86488cf3377f08ff925e70fbe500e278321d064ee4b8b7f4&";
+                thumbUrl = "https://cdn.discordapp.com/attachments/1290449971639881849/1526922801620193401/dynamic.png?ex=6a58c92c&is=6a5777ac&hm=3477a829e91733cc82d8e2cfc99197bdb9f899d6538c67c6f629f207fee2dfa1&";
               } else if (key === 'tl_whale') {
                 color = 0xf1c40f; // Yellow
                 thumbUrl = "https://cdn.discordapp.com/attachments/1290449971639881849/1526922077624336496/whale.png?ex=6a58c880&is=6a577700&hm=ed416a40f7c8e794debe6b3cfdb5c3e61270cb26876364197cf3d8b24ed0b0e2&";
