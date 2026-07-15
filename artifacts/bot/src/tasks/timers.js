@@ -11,6 +11,7 @@ const THRESHOLDS = {
   tl_boss: { time: 300 },
   tl_whale: { time: 300 },
   tl_event: { time: 300 },
+  tl_gate: { time: 300 },
   tl_tax: { time: 2700 },
   tl_siege: { time: 5400 },
   gw2_teq: { time: 420 },
@@ -36,6 +37,7 @@ const getNotificationDetails = (key, bossType, isPeaceful) => {
       return { title: `ظهور ${bossName} (TL) ${peaceText}`, body: `الزعيم بيظهر بعد 5 دقائق! اجتمعوا` };
     case 'tl_whale': return { title: 'الحوت Gigantrite (TL)', body: 'الحوت بيطير بعد 5 دقايق! لا يفوتك' };
     case 'tl_event': return { title: 'فعاليات العالم المفتوح Event', body: 'الفعاليات بتبدأ بعد 5 دقايق! الحق' };
+    case 'tl_gate': return { title: 'بوابة الذكريات (Gate of Memory) ⏳', body: 'بوابة الذكريات تفتح بعد 5 دقائق! استعد' };
     case 'tl_tax': return { title: 'توصيل الضرائب (TL) 💰', body: 'التوصيل بيبدأ بعد 45 دقيقة! استعدوا' };
     case 'tl_siege': return { title: 'حصار القلعة (TL) 🏰', body: 'الحصار الكبير بيبدأ بعد ساعة ونص! منشن حلفائك واستعدوا للحرب' };
 
@@ -177,7 +179,12 @@ function calculateTimers() {
     nextTlTax = new Date(now.getTime() + 7 * 24 * 3600 * 1000);
   }
 
-  // 11. GW2 Timers (UTC)
+  // 11. TL Gate of Memory
+  const gateAnchor = Date.parse('2026-07-13T18:50:15+03:00');
+  const gateCycleMs = (3 * 3600 + 16 * 60 + 46) * 1000;
+  const nextTlGate = new Date(gateAnchor + (Math.floor((now.getTime() - gateAnchor) / gateCycleMs) + 1) * gateCycleMs);
+
+  // 12. GW2 Timers (UTC)
   const calcGw2Timer = (hours, min) => {
     let nextTime = new Date(now);
     let found = false;
@@ -210,6 +217,7 @@ function calculateTimers() {
     tl_whale: Math.max(0, Math.floor((nextTlWhale.getTime() - now.getTime()) / 1000)),
     tl_siege: Math.max(0, Math.floor((nextTlSiege.getTime() - now.getTime()) / 1000)),
     tl_tax: Math.max(0, Math.floor((nextTlTax.getTime() - now.getTime()) / 1000)),
+    tl_gate: Math.max(0, Math.floor((nextTlGate.getTime() - now.getTime()) / 1000)),
     gw2_teq: calcGw2Timer([0, 4, 8, 12, 16, 20], 0),
     gw2_karka: calcGw2Timer([2, 6, 10, 14, 18, 22], 0),
     gw2_triple: calcGw2Timer([1, 5, 9, 13, 17, 21], 0),
@@ -281,6 +289,9 @@ export function setupGameTimers(client) {
               } else if (key === 'tl_siege') {
                 color = 0xe67e22; // Orange
                 thumbUrl = "https://cdn.discordapp.com/attachments/1290449971639881849/1526922446295269506/siege.png?ex=6a58c8d8&is=6a577758&hm=a32091f1c1ce0ff79a9b0221c12db39608ac7eb03ea79508c54cb51502130a82&";
+              } else if (key === 'tl_gate') {
+                color = 0x3498db; // Blue
+                thumbUrl = null; // Pending user url
               }
 
               const channel = await client.channels.fetch(channelId).catch(() => null);
@@ -312,6 +323,8 @@ export function setupGameTimers(client) {
                 overlayEventType = "Tax Delivery";
               } else if (key === 'tl_siege') {
                 overlayEventType = "Castle Siege";
+              } else if (key === 'tl_gate') {
+                overlayEventType = "Gate of Memory";
               }
 
               // Publish to Windows Desktop Overlay App
