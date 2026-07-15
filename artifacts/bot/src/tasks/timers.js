@@ -259,27 +259,29 @@ export function setupGameTimers(client) {
             try {
               const channelId = "1526297989734334554";
               const roleId = "1292754458492796982";
+              
+              let color = 0x2b2d31; // Default
+              let thumbUrl = null;
+              if (key === 'tl_boss') {
+                color = 0x9b59b6; // Purple
+                if (title && title.includes('الأرك')) {
+                  thumbUrl = "https://cdn.discordapp.com/attachments/1290449971639881849/1526318552246784100/image.png?ex=6a56966c&is=6a5544ec&hm=4861276549d6169ee3b368afa7f3dd17aa46e648866e25c36a9d8c23cb751c30&";
+                } else {
+                  thumbUrl = "https://cdn.discordapp.com/attachments/1290449971639881849/1526317944290807961/image.png?ex=6a5695db&is=6a55445b&hm=772a4676241a71552047c76d6f71f7c1193c3dd7cf0a78f41a9752838e0431a0&";
+                }
+              } else if (key === 'tl_event') {
+                color = 0x2ecc71; // Green
+                thumbUrl = "https://cdn.discordapp.com/attachments/1290449971639881849/1526317907662078053/image.png?ex=6a5695d2&is=6a554452&hm=ed37726f3f21411b86488cf3377f08ff925e70fbe500e278321d064ee4b8b7f4&";
+              } else if (key === 'tl_whale') {
+                color = 0xf1c40f; // Yellow
+                thumbUrl = "https://cdn.discordapp.com/attachments/1290449971639881849/1526318314253582366/image.png?ex=6a569633&is=6a5544b3&hm=6fcb662f1cc521c533ff3788037d76a373983f17836af08d3b10aed1877f68fe&";
+              } else if (key === 'tl_siege' || key === 'tl_tax') {
+                color = 0xe67e22; // Orange
+                thumbUrl = "https://cdn.discordapp.com/attachments/1290449971639881849/1526318853913706718/image.png?ex=6a5696b4&is=6a554534&hm=985c6e18eed5ff4428697e42c50c5046802fa4b1804d17fbac84b2fa4176a1a2&";
+              }
+
               const channel = await client.channels.fetch(channelId).catch(() => null);
               if (channel) {
-                let color = 0x2b2d31; // Default
-                let thumbUrl = null;
-                if (key === 'tl_boss') {
-                  color = 0x9b59b6; // Purple
-                  if (title && title.includes('الأرك')) {
-                    thumbUrl = "https://cdn.discordapp.com/attachments/1290449971639881849/1526318552246784100/image.png?ex=6a56966c&is=6a5544ec&hm=4861276549d6169ee3b368afa7f3dd17aa46e648866e25c36a9d8c23cb751c30&";
-                  } else {
-                    thumbUrl = "https://cdn.discordapp.com/attachments/1290449971639881849/1526317944290807961/image.png?ex=6a5695db&is=6a55445b&hm=772a4676241a71552047c76d6f71f7c1193c3dd7cf0a78f41a9752838e0431a0&";
-                  }
-                } else if (key === 'tl_event') {
-                  color = 0x2ecc71; // Green
-                  thumbUrl = "https://cdn.discordapp.com/attachments/1290449971639881849/1526317907662078053/image.png?ex=6a5695d2&is=6a554452&hm=ed37726f3f21411b86488cf3377f08ff925e70fbe500e278321d064ee4b8b7f4&";
-                } else if (key === 'tl_whale') {
-                  color = 0xf1c40f; // Yellow
-                  thumbUrl = "https://cdn.discordapp.com/attachments/1290449971639881849/1526318314253582366/image.png?ex=6a569633&is=6a5544b3&hm=6fcb662f1cc521c533ff3788037d76a373983f17836af08d3b10aed1877f68fe&";
-                } else if (key === 'tl_siege' || key === 'tl_tax') {
-                  color = 0xe67e22; // Orange
-                  thumbUrl = "https://cdn.discordapp.com/attachments/1290449971639881849/1526318853913706718/image.png?ex=6a5696b4&is=6a554534&hm=985c6e18eed5ff4428697e42c50c5046802fa4b1804d17fbac84b2fa4176a1a2&";
-                }
 
                 const embed = new EmbedBuilder()
                   .setTitle(title)
