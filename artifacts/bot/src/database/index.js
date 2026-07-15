@@ -280,6 +280,17 @@ export async function initDb() {
   `);
 
   await query(`
+    CREATE TABLE IF NOT EXISTS overlay_events (
+      id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+      event_type TEXT NOT NULL,
+      event_name TEXT NOT NULL,
+      image_url TEXT,
+      timer_minutes INTEGER,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+
+  await query(`
     ALTER TABLE guild_config
     ADD COLUMN IF NOT EXISTS alert_channel_id TEXT
   `);
@@ -743,4 +754,14 @@ export async function initDb() {
   console.log("[DB] All tables initialized.");
 }
 
-
+export async function publishOverlayEvent(eventType, eventName, imageUrl, timerMinutes) {
+  try {
+    await query(`
+      INSERT INTO overlay_events (event_type, event_name, image_url, timer_minutes)
+      VALUES ($1, $2, $3, $4)
+    `, [eventType, eventName, imageUrl, timerMinutes]);
+    console.log(`[Overlay] Published event: ${eventName} (${timerMinutes}m)`);
+  } catch (err) {
+    console.error("[Overlay] Error publishing event:", err);
+  }
+}

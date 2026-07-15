@@ -1,4 +1,5 @@
 import { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } from "discord.js";
+import { publishOverlayEvent } from "../../database/index.js";
 
 export const data = new SlashCommandBuilder()
   .setName("tl_alert")
@@ -105,5 +106,11 @@ export async function execute(interaction) {
   }
 
   await channel.send(payload);
+
+  if (type === "guild_raid") {
+    const imgUrl = imageAttachment ? imageAttachment.url : null;
+    await publishOverlayEvent("raid", title, imgUrl, 60); // 60 minutes default overlay display
+  }
+
   await interaction.reply({ content: "✅ تم إرسال التنبيه إلى روم الإشعارات بنجاح!", ephemeral: true });
 }

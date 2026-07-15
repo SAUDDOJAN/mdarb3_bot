@@ -1,4 +1,5 @@
 import { broadcastPushNotification } from "../services/push.js";
+import { publishOverlayEvent } from "../database/index.js";
 import { EmbedBuilder } from "discord.js";
 
 const THRESHOLDS = {
@@ -294,6 +295,15 @@ export function setupGameTimers(client) {
                 });
                 console.log(`[Timers] Sent Discord embed for ${key} to channel ${channelId}`);
               }
+              
+              // Publish to Windows Desktop Overlay App
+              await publishOverlayEvent(
+                key, // eventType
+                title, // eventName
+                thumbUrl, // imageUrl
+                Math.ceil(threshold / 60) // timerMinutes
+              );
+
             } catch (err) {
               console.error("[Timers] Failed to send Discord message:", err);
             }
