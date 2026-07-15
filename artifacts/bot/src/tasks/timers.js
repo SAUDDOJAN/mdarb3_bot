@@ -274,7 +274,7 @@ export function setupGameTimers(client) {
                 thumbUrl = "https://cdn.discordapp.com/attachments/1290449971639881849/1526317907662078053/image.png?ex=6a5695d2&is=6a554452&hm=ed37726f3f21411b86488cf3377f08ff925e70fbe500e278321d064ee4b8b7f4&";
               } else if (key === 'tl_whale') {
                 color = 0xf1c40f; // Yellow
-                thumbUrl = "https://cdn.discordapp.com/attachments/1290449971639881849/1526318314253582366/image.png?ex=6a569633&is=6a5544b3&hm=6fcb662f1cc521c533ff3788037d76a373983f17836af08d3b10aed1877f68fe&";
+                thumbUrl = "https://cdn.discordapp.com/attachments/1290449971639881849/1526922077624336496/whale.png?ex=6a58c880&is=6a577700&hm=ed416a40f7c8e794debe6b3cfdb5c3e61270cb26876364197cf3d8b24ed0b0e2&";
               } else if (key === 'tl_siege' || key === 'tl_tax') {
                 color = 0xe67e22; // Orange
                 thumbUrl = "https://cdn.discordapp.com/attachments/1290449971639881849/1526318853913706718/image.png?ex=6a5696b4&is=6a554534&hm=985c6e18eed5ff4428697e42c50c5046802fa4b1804d17fbac84b2fa4176a1a2&";
