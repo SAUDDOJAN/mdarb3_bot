@@ -265,7 +265,7 @@ export function setupGameTimers(client) {
               if (key === 'tl_boss') {
                 color = 0x9b59b6; // Purple
                 if (title && title.includes('الأرك')) {
-                  thumbUrl = "https://cdn.discordapp.com/attachments/1290449971639881849/1526318552246784100/image.png?ex=6a56966c&is=6a5544ec&hm=4861276549d6169ee3b368afa7f3dd17aa46e648866e25c36a9d8c23cb751c30&";
+                  thumbUrl = "https://cdn.discordapp.com/attachments/1290449971639881849/1526923128633032724/archboss.png?ex=6a58c97a&is=6a5777fa&hm=2e632e58f16aa1fa9e163ad81a5f1b323b8fef2add2b6454cadda2a3f588b6d0&";
                 } else {
                   thumbUrl = "https://cdn.discordapp.com/attachments/1290449971639881849/1526922983220969502/boss.png?ex=6a58c958&is=6a5777d8&hm=41cd4728c14eaba52543ebe8da794ce564d2326acff6472a4ea72b7eae388f3e&";
                 }
