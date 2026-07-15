@@ -164,8 +164,17 @@ function calculateTimers() {
   // 9. TL Siege (Every Sunday at 21:00)
   let nextTlSiege = getNextWeeklyKsaEvent(0, 21) || new Date(now.getTime() + 7 * 24 * 3600 * 1000);
 
-  // 10. TL Tax Delivery (Every Sunday at 20:30)
-  let nextTlTax = getNextWeeklyKsaEvent(0, 20, 30) || new Date(now.getTime() + 7 * 24 * 3600 * 1000);
+  // 10. TL Tax Delivery (Bi-weekly on Sunday at 20:30)
+  let nextTlTax = getNextWeeklyKsaEvent(0, 20, 30);
+  if (nextTlTax) {
+    const knownTaxDate = new Date(Date.UTC(2026, 6, 19, 17, 30, 0)); // July 19, 2026 20:30 KSA
+    const diffWeeks = Math.round((nextTlTax.getTime() - knownTaxDate.getTime()) / (7 * 24 * 3600 * 1000));
+    if (diffWeeks % 2 !== 0) {
+      nextTlTax.setDate(nextTlTax.getDate() + 7);
+    }
+  } else {
+    nextTlTax = new Date(now.getTime() + 7 * 24 * 3600 * 1000);
+  }
 
   // 11. GW2 Timers (UTC)
   const calcGw2Timer = (hours, min) => {
