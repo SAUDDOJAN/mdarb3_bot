@@ -121,9 +121,20 @@ function calculateTimers() {
     return nextEvent;
   };
 
-  // 5. TL Field Bosses (World Boss) at [0:00, 2:00, 14:00, 17:00, 20:00, 23:00] and 00:30
-  let nextFieldBoss = getNextKsaEvent([0, 2, 14, 17, 20, 23]);
-  let nextFieldBossHalf = getNextKsaEvent([0], 30);
+  // Exception for Thursday (day 4)
+  let bossHours = [0, 2, 14, 17, 20, 23];
+  let bossHalfHours = [0];
+  let eventHours = [1, 4, 7, 10, 13, 16, 21];
+
+  if (now.getDay() === 4) { // Thursday
+    bossHours = [0, 2, 14, 17, 21];
+    bossHalfHours = [0, 21];
+    eventHours = [1, 4, 7, 10, 13, 16, 20, 23];
+  }
+
+  // 5. TL Field Bosses (World Boss)
+  let nextFieldBoss = getNextKsaEvent(bossHours);
+  let nextFieldBossHalf = getNextKsaEvent(bossHalfHours, 30);
   if (nextFieldBossHalf && nextFieldBossHalf < nextFieldBoss) {
     nextFieldBoss = nextFieldBossHalf;
   }
@@ -155,8 +166,8 @@ function calculateTimers() {
     bossType = 'arc';
   }
 
-  // 6. TL Dynamic Events at [1, 4, 7, 10, 13, 16, 21]
-  let nextTlEvent = getNextKsaEvent([1, 4, 7, 10, 13, 16, 21]);
+  // 6. TL Dynamic Events
+  let nextTlEvent = getNextKsaEvent(eventHours);
 
   // 7. TL Dungeon Events (Removed from schedule, setting to far future)
   let nextTlDungeon = new Date(now.getTime() + 365 * 24 * 3600 * 1000);
