@@ -143,6 +143,7 @@ function calculateTimers() {
   let nextArcBoss = null;
   const arcBossSchedule = [
     { day: 3, hours: [20, 23] }, // Wednesday
+    { day: 5, hours: [20, 23] }, // Friday (Based on new game schedule)
     { day: 6, hours: [20, 23] }  // Saturday
   ];
   for (let sch of arcBossSchedule) {
