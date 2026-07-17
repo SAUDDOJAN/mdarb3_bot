@@ -1,4 +1,5 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder, EmbedBuilder, PermissionFlagsBits } from "discord.js";
+import { publishOverlayEvent } from "../../database/index.js";
 
 const TL_JOIN_CHANNEL_ID = "1509250363939880990";
 const TL_MEMBERS_CHANNEL_ID = "1511464947425476799";
@@ -878,6 +879,11 @@ async function handleRaidStart(interaction) {
   const regs = await getTlRaidRegistrations(raidMessageId);
 
   await closeRaidMessage(interaction.message);
+
+  // تفعيل الإشعار في تطبيق سطح المكتب عند بدء الريد فعلياً
+  const embedTitle = interaction.message.embeds[0]?.title || "Guild Raid";
+  const embedImage = interaction.message.embeds[0]?.image?.url || null;
+  await publishOverlayEvent("Guild Raid", embedTitle, embedImage, 60);
 
   let successCount = 0;
   let failCount = 0;

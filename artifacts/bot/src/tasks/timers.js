@@ -192,9 +192,11 @@ function calculateTimers() {
   }
 
   // 11. TL Gate of Memory
-  const gateAnchor = Date.parse('2026-07-13T18:50:15+03:00');
-  const gateCycleMs = (3 * 3600 + 16 * 60 + 46) * 1000;
-  const nextTlGate = new Date(gateAnchor + (Math.floor((now.getTime() - gateAnchor) / gateCycleMs) + 1) * gateCycleMs);
+  // Mathematical Rule: every 3h 16m 46s, duration 4 mins.
+  // Updated Anchor based on metaforge (after server maintenance shift)
+  const anchorTimeTlGate = new Date('2026-07-17T11:58:46Z').getTime();
+  const cycleTlGateMs = (3 * 3600 + 16 * 60 + 46) * 1000;
+  const nextTlGate = new Date(anchorTimeTlGate + (Math.floor((now.getTime() - anchorTimeTlGate) / cycleTlGateMs) + 1) * cycleTlGateMs);
 
   // 12. GW2 Timers (UTC)
   const calcGw2Timer = (hours, min) => {
