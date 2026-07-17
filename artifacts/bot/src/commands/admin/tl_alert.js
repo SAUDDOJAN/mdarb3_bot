@@ -29,13 +29,21 @@ export const data = new SlashCommandBuilder()
     option.setName("image")
       .setDescription("صورة مرفقة للتنبيه (يمكنك لصق الصورة هنا)")
       .setRequired(false)
+  )
+  .addBooleanOption(option =>
+    option.setName("send_dm")
+      .setDescription("إرسال رسائل خاصة بالحدث لأعضاء رتبة TL Guild؟")
+      .setRequired(false)
   );
 
 export async function execute(interaction) {
+  await interaction.deferReply({ ephemeral: true });
+
   const type = interaction.options.getString("type");
   const description = interaction.options.getString("description");
   const customTitle = interaction.options.getString("custom_title");
   const imageAttachment = interaction.options.getAttachment("image");
+  const sendDm = interaction.options.getBoolean("send_dm") || false;
 
   let title = "";
   if (type === "guild_raid") title = "📢 Guild Raid";
@@ -110,7 +118,35 @@ export async function execute(interaction) {
   if (type === "guild_raid") {
     const imgUrl = imageAttachment ? imageAttachment.url : null;
     await publishOverlayEvent("Guild Raid", "الجيلد يستعد لريد، التسجيل مفتوح بالديسكورد", imgUrl, null);
+
+    if (sendDm) {
+      const role = interaction.guild.roles.cache.find(r => r.name.toLowerCase() === 'tl guild');
+      if (role) {
+        await interaction.editReply({ content: "⏳ جاري إرسال الرسائل الخاصة للأعضاء، الرجاء الانتظار..." });
+        
+        // Members might need to be fetched if they are not all cached
+        await interaction.guild.members.fetch();
+        const members = role.members;
+        
+        let successCount = 0;
+        let failCount = 0;
+        
+        for (const [id, member] of members) {
+          if (member.user.bot) continue;
+          try {
+            await member.send({ content: `🔔 **تنبيه إدارة القيلد (Guild Raid)!**\n\n${description}\n\n*الرجاء التوجه لروم الديسكورد للتسجيل!*` });
+            successCount++;
+            await new Promise(resolve => setTimeout(resolve, 1500)); // 1.5 seconds delay to prevent rate limit
+          } catch (e) {
+            failCount++;
+          }
+        }
+        await interaction.followUp({ content: `✅ انتهى إرسال الـ DM! نجح: ${successCount}، فشل: ${failCount} (ربما مقفلين الخاص).`, ephemeral: true });
+      } else {
+        await interaction.followUp({ content: "⚠️ لم أتمكن من العثور على رتبة باسم TL Guild لإرسال الـ DM.", ephemeral: true });
+      }
+    }
   }
 
-  await interaction.reply({ content: "✅ تم إرسال التنبيه إلى روم الإشعارات بنجاح!", ephemeral: true });
+  await interaction.editReply({ content: "✅ تم إرسال التنبيه إلى الروم بنجاح!" });
 }
