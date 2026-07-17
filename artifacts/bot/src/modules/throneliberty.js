@@ -374,11 +374,13 @@ async function handleAppAccept(interaction, userId) {
 
 // ─── رفض الطلب من الإدارة ──────────────────────────────────────────────────
 async function handleAppReject(interaction, userId) {
+  await interaction.deferReply({ ephemeral: true });
+
   const { query } = await import("../database/index.js");
   const res = await query("SELECT * FROM tl_recruits WHERE user_id = $1 AND status = 'pending'", [userId]);
   
   if (res.rowCount === 0) {
-    return interaction.reply({ content: "❌ الطلب غير موجود أو تمت معالجته مسبقاً.", ephemeral: true });
+    return interaction.editReply({ content: "❌ الطلب غير موجود أو تمت معالجته مسبقاً." });
   }
 
   const row = new ActionRowBuilder().addComponents(
@@ -392,10 +394,9 @@ async function handleAppReject(interaction, userId) {
       ])
   );
 
-  await interaction.reply({
+  await interaction.editReply({
     content: "الرجاء تحديد سبب الرفض لإبلاغ اللاعب:",
-    components: [row],
-    ephemeral: true
+    components: [row]
   });
 }
 
