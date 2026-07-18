@@ -327,7 +327,7 @@ export function setupGameTimers(client) {
               let thumbUrl = null;
               if (key === 'tl_boss') {
                 color = 0x9b59b6; // Purple
-                if (title && title.includes('الأرك')) {
+                if (title && (title.includes('الأرك') || title.includes('الآرك'))) {
                   thumbUrl = "https://cdn.discordapp.com/attachments/1290449971639881849/1526923128633032724/archboss.png?ex=6a58c97a&is=6a5777fa&hm=2e632e58f16aa1fa9e163ad81a5f1b323b8fef2add2b6454cadda2a3f588b6d0&";
                 } else {
                   thumbUrl = "https://cdn.discordapp.com/attachments/1290449971639881849/1526922983220969502/boss.png?ex=6a58c958&is=6a5777d8&hm=41cd4728c14eaba52543ebe8da794ce564d2326acff6472a4ea72b7eae388f3e&";
@@ -369,7 +369,7 @@ export function setupGameTimers(client) {
               // Map eventType for Overlay App
               let overlayEventType = key;
               if (key === 'tl_boss') {
-                overlayEventType = (title && title.includes('الأرك')) ? "Arch Boss" : "Field Boss";
+                overlayEventType = (title && (title.includes('الأرك') || title.includes('الآرك'))) ? "Arch Boss" : "Field Boss";
               } else if (key === 'tl_event') {
                 overlayEventType = "Dynamic Event";
               } else if (key === 'tl_whale') {
