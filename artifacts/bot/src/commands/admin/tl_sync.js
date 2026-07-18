@@ -122,6 +122,12 @@ Make sure to combine findings from all provided images.
 
   } catch (error) {
     console.error("[TL Sync] Error:", error);
-    await interaction.editReply(`❌ حدث خطأ أثناء تحليل الصور: ${error.message}`);
+    const keyPrefix = process.env.GEMINI_API_KEY ? process.env.GEMINI_API_KEY.substring(0, 10) + "..." : "No Key";
+    await interaction.editReply(
+      `❌ حدث خطأ أثناء تحليل الصور.\n` +
+      `**تفاصيل الخطأ:** ${error.message}\n` +
+      `**المفتاح المستخدم حالياً في السيرفر يبدأ بـ:** \`${keyPrefix}\`\n\n` +
+      `إذا كان هذا المفتاح هو المفتاح القديم، فهذا يعني أن السيرفر لم يتحدث بعد. الرجاء إعادة تشغيل البوت يدوياً من Railway.`
+    );
   }
 }
