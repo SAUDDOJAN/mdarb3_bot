@@ -79,12 +79,15 @@ CRITICAL RULES FOR CLASSIFICATION:
 3. Dynamic Events (⚔️): A row of multiple small icons (4-6 icons in a row).
 4. Whale (Gigantrite 🐋): The Whale icon.
 Note: IGNORE small modifier icons like a blue dove (peace), green shield (guild), or red crossed swords (conflict). Look ONLY at the main monster in the icon!
-CRITICAL: If a specific hour block contains BOTH an Arc Boss and a Field Boss (e.g. 3 bosses where one is Arc and two are Field), you MUST add that same hour to BOTH 'field_boss_hours' AND 'arc_boss_hours' arrays! Do NOT skip adding the hour to the Arc Boss array just because there is also a Field Boss.
 
-Your task is to return ONLY a pure JSON object with the following structure (no markdown tags, no explanations, just the JSON):
+Your task is to return ONLY a pure JSON object with the following structure (no markdown tags, no explanations, just the JSON).
+List EACH boss icon you see in the 'bosses' array with its hour and type ('field' or 'arc'):
 {
-  "field_boss_hours": [list of integer hours (0-23) where Field Boss appears],
-  "arc_boss_hours": [list of integer hours (0-23) where Arc Boss appears],
+  "bosses": [
+    { "hour": 14, "type": "field" },
+    { "hour": 23, "type": "arc" },
+    { "hour": 23, "type": "field" }
+  ],
   "event_hours": [list of integer hours (0-23) where Dynamic Events appear],
   "whale_hours": [list of integer hours (0-23) where Whale appears]
 }
@@ -106,8 +109,23 @@ Make sure to combine findings from all provided images.
     }
 
     const scheduleData = JSON.parse(cleanedJson);
-    const fieldBossHours = Array.isArray(scheduleData.field_boss_hours) ? scheduleData.field_boss_hours.join(",") : "";
-    const arcBossHours = Array.isArray(scheduleData.arc_boss_hours) ? scheduleData.arc_boss_hours.join(",") : "";
+    
+    let fHours = [];
+    let aHours = [];
+    
+    if (Array.isArray(scheduleData.bosses)) {
+      scheduleData.bosses.forEach(b => {
+        if (b.type === 'field') fHours.push(b.hour);
+        if (b.type === 'arc') aHours.push(b.hour);
+      });
+    } else {
+      fHours = scheduleData.field_boss_hours || [];
+      aHours = scheduleData.arc_boss_hours || [];
+    }
+
+    const fieldBossHours = [...new Set(fHours)].join(",");
+    const arcBossHours = [...new Set(aHours)].join(",");
+    
     const eventHours = Array.isArray(scheduleData.event_hours) ? scheduleData.event_hours.join(",") : "";
     const whaleHours = Array.isArray(scheduleData.whale_hours) ? scheduleData.whale_hours.join(",") : "";
 
