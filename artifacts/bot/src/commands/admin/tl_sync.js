@@ -69,11 +69,15 @@ export async function execute(interaction) {
 You are analyzing screenshots of the Throne and Liberty event schedule.
 I need you to extract the hours (0 to 23) for three categories: Bosses, Events, and Whales.
 CRITICAL RULES FOR CLASSIFICATION:
-1. Field Boss: Any icon inside a DIAMOND (rhombus) shape background (can be red or purple).
-2. Arc Boss: Any icon inside a HEXAGON (6-sided) shape background (purple). These are large bosses like the giant tree, screaming skull, hooded figure, or winged queen.
-3. Dynamic Events: A row of multiple small icons (4-6 icons in a row).
-4. Whale (Gigantrite): The Whale icon.
-Note: IGNORE small modifier icons like a blue dove (peace), green shield (guild), or red crossed swords (conflict). Look ONLY at the background shape of the boss!
+1. Arc Boss (👾): There are ONLY 4 specific Arc Bosses. You must classify a boss as Arc Boss ONLY if it visually matches one of these:
+   - A purple tree-like monster with a cloud-like top and roots at the bottom.
+   - A purple screaming skull/ghostly face.
+   - A purple hooded/cloaked figure showing a hand or glove.
+   - A purple winged queen/figure holding a long staff.
+2. Field Boss (👹): ANY OTHER boss icon that does NOT match the 4 Arc Bosses above.
+3. Dynamic Events (⚔️): A row of multiple small icons (4-6 icons in a row).
+4. Whale (Gigantrite 🐋): The Whale icon.
+Note: IGNORE small modifier icons like a blue dove (peace), green shield (guild), or red crossed swords (conflict). Look ONLY at the main monster in the icon!
 
 Your task is to return ONLY a pure JSON object with the following structure (no markdown tags, no explanations, just the JSON):
 {
