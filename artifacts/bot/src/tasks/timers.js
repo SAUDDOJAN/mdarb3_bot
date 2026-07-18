@@ -133,7 +133,8 @@ async function calculateTimers() {
     const s = schedules.find(x => x.day_of_week === dayIndex);
     if (!s) return null;
     return {
-      boss: s.boss_hours ? s.boss_hours.split(',').map(Number) : [],
+      field_boss: s.field_boss_hours ? s.field_boss_hours.split(',').map(Number) : [],
+      arc_boss: s.arc_boss_hours ? s.arc_boss_hours.split(',').map(Number) : [],
       event: s.event_hours ? s.event_hours.split(',').map(Number) : [],
       whale: s.whale_hours ? s.whale_hours.split(',').map(Number) : []
     };
@@ -166,24 +167,26 @@ async function calculateTimers() {
   let defaultEvent = [1, 4, 7, 10, 13, 16, 21];
   let defaultWhale = [0, 3, 6, 9, 12, 15, 18, 23];
 
-  let nextFieldBoss = getNextKsaEventDb('boss', defaultBoss);
+  let nextFieldBoss = getNextKsaEventDb('field_boss', defaultBoss);
   let nextFieldBossHalf = getNextKsaEvent([0], 30); // Keep 00:30 half-hour boss fixed for now
-  if (nextFieldBossHalf && nextFieldBossHalf < nextFieldBoss) {
+  if (nextFieldBossHalf && (!nextFieldBoss || nextFieldBossHalf < nextFieldBoss)) {
     nextFieldBoss = nextFieldBossHalf;
   }
 
-  // 5.5 TL Arc Boss (Wed, Sat at 20:00 and 23:00)
-  let nextArcBoss = null;
-  const arcBossSchedule = [
-    { day: 3, hours: [20, 23] }, // Wednesday
-    { day: 5, hours: [20, 23] }, // Friday (Based on new game schedule)
-    { day: 6, hours: [20, 23] }  // Saturday
-  ];
-  for (let sch of arcBossSchedule) {
-    for (let h of sch.hours) {
-      let d = getNextWeeklyKsaEvent(sch.day, h);
-      if (d) {
-        if (!nextArcBoss || d < nextArcBoss) nextArcBoss = d;
+  // 5.5 TL Arc Boss
+  let nextArcBoss = getNextKsaEventDb('arc_boss', []); // empty array default so it doesn't default to field boss hours
+  if (!nextArcBoss) {
+    const arcBossSchedule = [
+      { day: 3, hours: [20, 23] }, // Wednesday
+      { day: 5, hours: [20, 23] }, // Friday (Based on new game schedule)
+      { day: 6, hours: [20, 23] }  // Saturday
+    ];
+    for (let sch of arcBossSchedule) {
+      for (let h of sch.hours) {
+        let d = getNextWeeklyKsaEvent(sch.day, h);
+        if (d) {
+          if (!nextArcBoss || d < nextArcBoss) nextArcBoss = d;
+        }
       }
     }
   }

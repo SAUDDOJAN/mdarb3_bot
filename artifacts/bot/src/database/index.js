@@ -34,12 +34,29 @@ export async function setupDatabase() {
     await query(`
       CREATE TABLE IF NOT EXISTS tl_schedule (
         day_of_week INTEGER PRIMARY KEY,
-        boss_hours TEXT,
+        field_boss_hours TEXT,
+        arc_boss_hours TEXT,
         event_hours TEXT,
         whale_hours TEXT,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
     `);
+    
+    // DB Migrations for existing table
+    try {
+      await query(`
+        DO $$
+        BEGIN
+          IF EXISTS(SELECT * FROM information_schema.columns WHERE table_name='tl_schedule' AND column_name='boss_hours') THEN
+              ALTER TABLE tl_schedule RENAME COLUMN boss_hours TO field_boss_hours;
+          END IF;
+        END $$;
+      `);
+      await query(`ALTER TABLE tl_schedule ADD COLUMN IF NOT EXISTS arc_boss_hours TEXT;`);
+    } catch (e) {
+      console.log("[DB] Migration ignored or already applied.");
+    }
+    
     console.log("[DB] TL Schedule table verified.");
   } catch (err) {
     console.error("[DB] Error setting up database:", err);
@@ -76,14 +93,14 @@ export async function getOverlayEvents(limit = 10) {
 
 // ─── TL Schedule Helpers ─────────────────────────────────────────────────────
 
-export async function saveTlSchedule(dayOfWeek, bossHours, eventHours, whaleHours) {
+export async function saveTlSchedule(dayOfWeek, fieldBossHours, arcBossHours, eventHours, whaleHours) {
   const result = await query(
-    `INSERT INTO tl_schedule (day_of_week, boss_hours, event_hours, whale_hours)
-     VALUES ($1, $2, $3, $4)
+    `INSERT INTO tl_schedule (day_of_week, field_boss_hours, arc_boss_hours, event_hours, whale_hours)
+     VALUES ($1, $2, $3, $4, $5)
      ON CONFLICT (day_of_week) 
-     DO UPDATE SET boss_hours = $2, event_hours = $3, whale_hours = $4, updated_at = NOW()
+     DO UPDATE SET field_boss_hours = $2, arc_boss_hours = $3, event_hours = $4, whale_hours = $5, updated_at = NOW()
      RETURNING *`,
-    [dayOfWeek, bossHours, eventHours, whaleHours]
+    [dayOfWeek, fieldBossHours, arcBossHours, eventHours, whaleHours]
   );
   return result.rows[0];
 }

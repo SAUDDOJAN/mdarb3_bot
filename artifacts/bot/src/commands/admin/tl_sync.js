@@ -77,7 +77,8 @@ Note: IGNORE small modifier icons like a blue dove (peace), green shield (guild)
 
 Your task is to return ONLY a pure JSON object with the following structure (no markdown tags, no explanations, just the JSON):
 {
-  "boss_hours": [list of integer hours (0-23) where either Field Boss or Arc Boss appears],
+  "field_boss_hours": [list of integer hours (0-23) where Field Boss appears],
+  "arc_boss_hours": [list of integer hours (0-23) where Arc Boss appears],
   "event_hours": [list of integer hours (0-23) where Dynamic Events appear],
   "whale_hours": [list of integer hours (0-23) where Whale appears]
 }
@@ -99,22 +100,23 @@ Make sure to combine findings from all provided images.
     }
 
     const scheduleData = JSON.parse(cleanedJson);
+    const fieldBossHours = Array.isArray(scheduleData.field_boss_hours) ? scheduleData.field_boss_hours.join(",") : "";
+    const arcBossHours = Array.isArray(scheduleData.arc_boss_hours) ? scheduleData.arc_boss_hours.join(",") : "";
+    const eventHours = Array.isArray(scheduleData.event_hours) ? scheduleData.event_hours.join(",") : "";
+    const whaleHours = Array.isArray(scheduleData.whale_hours) ? scheduleData.whale_hours.join(",") : "";
 
-    const bossHours = scheduleData.boss_hours.join(",");
-    const eventHours = scheduleData.event_hours.join(",");
-    const whaleHours = scheduleData.whale_hours.join(",");
-
-    await saveTlSchedule(dayOfWeek, bossHours, eventHours, whaleHours);
+    await saveTlSchedule(dayOfWeek, fieldBossHours, arcBossHours, eventHours, whaleHours);
 
     const dayNames = ["الأحد", "الإثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
-    
+
     const embed = new EmbedBuilder()
-      .setTitle(`✅ تم مزامنة جدول يوم ${dayNames[dayOfWeek]}`)
-      .setColor("Green")
+      .setTitle(`✅ تم حفظ جدول يوم ${dayNames[dayOfWeek]}`)
+      .setColor("#00ff00")
       .addFields(
-        { name: "👹 أوقات الزعماء (Bosses)", value: bossHours.length > 0 ? bossHours : "لا يوجد", inline: false },
-        { name: "⚔️ أوقات الفعاليات (Events)", value: eventHours.length > 0 ? eventHours : "لا يوجد", inline: false },
-        { name: "🐋 أوقات الحوت (Whales)", value: whaleHours.length > 0 ? whaleHours : "لا يوجد", inline: false }
+        { name: "👹 أوقات الزعماء (Field Boss)", value: fieldBossHours || "لا يوجد", inline: false },
+        { name: "👾 أوقات زعماء الآرك (Arc Boss)", value: arcBossHours || "لا يوجد", inline: false },
+        { name: "⚔️ أوقات الفعاليات (Events)", value: eventHours || "لا يوجد", inline: false },
+        { name: "🐋 أوقات الحوت (Whales)", value: whaleHours || "لا يوجد", inline: false }
       )
       .setFooter({ text: "تم تحليل الصور عبر الذكاء الاصطناعي (Gemini Vision)" });
 
