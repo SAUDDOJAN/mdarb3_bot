@@ -4,7 +4,7 @@ import { EmbedBuilder } from "discord.js";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { query } from "../database/index.js";
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "AIzaSyB01XsrWwXTOoBznwK4Xp4TajzTTUH3kdI");
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const geminiModel = genAI.getGenerativeModel({ model: "gemini-flash-latest" });
 
 const SHUGO_HEADERS = {
