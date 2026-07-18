@@ -76,7 +76,7 @@ If an event appears at a half-hour like 00:30, ignore it, we only want the main 
 Make sure to combine findings from all provided images.
     `;
 
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-pro-latest" });
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-pro" });
     const result = await model.generateContent([prompt, ...imageParts]);
     const responseText = result.response.text();
     
