@@ -1,5 +1,5 @@
 import { broadcastPushNotification } from "../services/push.js";
-import { publishOverlayEvent } from "../database/index.js";
+import { publishOverlayEvent, getAllTlSchedules } from "../database/index.js";
 import { EmbedBuilder } from "discord.js";
 
 const THRESHOLDS = {
@@ -53,7 +53,7 @@ const getNotificationDetails = (key, bossType, isPeaceful) => {
   }
 };
 
-function calculateTimers() {
+async function calculateTimers() {
   const now = new Date();
   
   // 1. Rift: Every 3 hours (0, 3, 6, 9, 12, 15, 18, 21)
@@ -121,20 +121,53 @@ function calculateTimers() {
     return nextEvent;
   };
 
-  // Exception for Thursday (day 4)
-  let bossHours = [0, 2, 14, 17, 20, 23];
-  let bossHalfHours = [0];
-  let eventHours = [1, 4, 7, 10, 13, 16, 21];
-
-  if (now.getDay() === 4) { // Thursday
-    bossHours = [0, 2, 14, 17, 21];
-    bossHalfHours = [0, 21];
-    eventHours = [1, 4, 7, 10, 13, 16, 20, 23];
+  // Fetch schedules from DB
+  let schedules = [];
+  try {
+    schedules = await getAllTlSchedules();
+  } catch (err) {
+    console.error("[Timers] Error fetching TL schedules:", err);
   }
 
-  // 5. TL Field Bosses (World Boss)
-  let nextFieldBoss = getNextKsaEvent(bossHours);
-  let nextFieldBossHalf = getNextKsaEvent(bossHalfHours, 30);
+  const getDbScheduleForDay = (dayIndex) => {
+    const s = schedules.find(x => x.day_of_week === dayIndex);
+    if (!s) return null;
+    return {
+      boss: s.boss_hours ? s.boss_hours.split(',').map(Number) : [],
+      event: s.event_hours ? s.event_hours.split(',').map(Number) : [],
+      whale: s.whale_hours ? s.whale_hours.split(',').map(Number) : []
+    };
+  };
+
+  // Helper to get next KSA event regardless of server timezone using DB schedules
+  const getNextKsaEventDb = (type, defaultHours) => {
+    let nextEvent = null;
+    for (let i = 0; i <= 2; i++) {
+      let dTest = new Date(now.getTime());
+      dTest.setUTCDate(dTest.getUTCDate() + i);
+      let ksaDay = new Date(dTest.getTime() + 3 * 3600 * 1000).getUTCDay();
+      
+      let dbSched = getDbScheduleForDay(ksaDay);
+      let hours = dbSched ? dbSched[type] : defaultHours;
+
+      for (let h of hours) {
+        let d = new Date(dTest.getTime());
+        d.setUTCHours(h - 3, 0, 0, 0); // Convert KSA hour to UTC hour
+        if (d > now) {
+          if (!nextEvent || d < nextEvent) nextEvent = d;
+        }
+      }
+    }
+    return nextEvent;
+  };
+
+  // Default fallback schedules if DB is empty
+  let defaultBoss = [0, 2, 14, 17, 20, 23];
+  let defaultEvent = [1, 4, 7, 10, 13, 16, 21];
+  let defaultWhale = [0, 3, 6, 9, 12, 15, 18, 23];
+
+  let nextFieldBoss = getNextKsaEventDb('boss', defaultBoss);
+  let nextFieldBossHalf = getNextKsaEvent([0], 30); // Keep 00:30 half-hour boss fixed for now
   if (nextFieldBossHalf && nextFieldBossHalf < nextFieldBoss) {
     nextFieldBoss = nextFieldBossHalf;
   }
@@ -168,13 +201,13 @@ function calculateTimers() {
   }
 
   // 6. TL Dynamic Events
-  let nextTlEvent = getNextKsaEvent(eventHours);
+  let nextTlEvent = getNextKsaEventDb('event', defaultEvent);
 
   // 7. TL Dungeon Events (Removed from schedule, setting to far future)
   let nextTlDungeon = new Date(now.getTime() + 365 * 24 * 3600 * 1000);
 
-  // 8. TL Whale (Gigantrite) at [0, 3, 6, 9, 12, 15, 18, 23]
-  let nextTlWhale = getNextKsaEvent([0, 3, 6, 9, 12, 15, 18, 23]);
+  // 8. TL Whale (Gigantrite)
+  let nextTlWhale = getNextKsaEventDb('whale', defaultWhale);
 
   // 9. TL Siege (Every Sunday at 21:00)
   let nextTlSiege = getNextWeeklyKsaEvent(0, 21) || new Date(now.getTime() + 7 * 24 * 3600 * 1000);
@@ -248,7 +281,7 @@ export function setupGameTimers(client) {
   console.log("[Timers] Global game timers started.");
   
   setInterval(async () => {
-    const timers = calculateTimers();
+    const timers = await calculateTimers();
     const nowMs = Date.now();
     
     // Clean up old triggered events

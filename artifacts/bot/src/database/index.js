@@ -27,6 +27,27 @@ export async function query(text, params) {
   }
 }
 
+// ─── Setup DB ─────────────────────────────────────────────────────────────
+
+export async function setupDatabase() {
+  try {
+    await query(`
+      CREATE TABLE IF NOT EXISTS tl_schedule (
+        day_of_week INTEGER PRIMARY KEY,
+        boss_hours TEXT,
+        event_hours TEXT,
+        whale_hours TEXT,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+    console.log("[DB] TL Schedule table verified.");
+  } catch (err) {
+    console.error("[DB] Error setting up database:", err);
+  }
+}
+
+setupDatabase();
+
 // ─── Notifications Helpers ───────────────────────────────────────────────────
 
 export async function createNotification(type, title, message, data = {}) {
@@ -42,6 +63,38 @@ export async function getNotifications(limit = 20) {
     `SELECT * FROM notifications ORDER BY created_at DESC LIMIT $1`,
     [limit]
   );
+  return result.rows;
+}
+
+export async function getOverlayEvents(limit = 10) {
+  const result = await query(
+    `SELECT * FROM overlay_events ORDER BY created_at DESC LIMIT $1`,
+    [limit]
+  );
+  return result.rows;
+}
+
+// ─── TL Schedule Helpers ─────────────────────────────────────────────────────
+
+export async function saveTlSchedule(dayOfWeek, bossHours, eventHours, whaleHours) {
+  const result = await query(
+    `INSERT INTO tl_schedule (day_of_week, boss_hours, event_hours, whale_hours)
+     VALUES ($1, $2, $3, $4)
+     ON CONFLICT (day_of_week) 
+     DO UPDATE SET boss_hours = $2, event_hours = $3, whale_hours = $4, updated_at = NOW()
+     RETURNING *`,
+    [dayOfWeek, bossHours, eventHours, whaleHours]
+  );
+  return result.rows[0];
+}
+
+export async function getTlSchedule(dayOfWeek) {
+  const result = await query(`SELECT * FROM tl_schedule WHERE day_of_week = $1`, [dayOfWeek]);
+  return result.rows[0];
+}
+
+export async function getAllTlSchedules() {
+  const result = await query(`SELECT * FROM tl_schedule ORDER BY day_of_week ASC`);
   return result.rows;
 }
 
