@@ -1,8 +1,8 @@
 import { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder } from "discord.js";
 import { saveTlSchedule } from "../../database/index.js";
-import OpenAI from "openai";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 export const data = new SlashCommandBuilder()
   .setName("tl_sync")
@@ -49,12 +49,21 @@ export async function execute(interaction) {
     interaction.options.getAttachment("image4")
   ].filter(img => img !== null);
 
-  if (!process.env.OPENAI_API_KEY) {
-    return interaction.editReply("❌ مفتاح `OPENAI_API_KEY` غير موجود في الإعدادات!");
+  if (!process.env.GEMINI_API_KEY) {
+    return interaction.editReply("❌ مفتاح `GEMINI_API_KEY` غير موجود في الإعدادات!");
   }
 
   try {
-    const imageUrls = images.map(img => img.url);
+    const imageParts = await Promise.all(images.map(async (img) => {
+      const response = await fetch(img.url);
+      const buffer = await response.arrayBuffer();
+      return {
+        inlineData: {
+          data: Buffer.from(buffer).toString("base64"),
+          mimeType: img.contentType || "image/png"
+        }
+      };
+    }));
 
     const prompt = `
 You are analyzing screenshots of the Throne and Liberty event schedule.
@@ -76,18 +85,10 @@ If an event appears at a half-hour like 00:30, ignore it, we only want the main 
 Make sure to combine findings from all provided images.
     `;
 
-    const contentArray = [{ type: "text", text: prompt }];
-    for (const url of imageUrls) {
-      contentArray.push({ type: "image_url", image_url: { url } });
-    }
-
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4o",
-      messages: [{ role: "user", content: contentArray }],
-      max_tokens: 1000
-    });
-
-    const responseText = completion.choices[0].message.content;
+    // Try gemini-1.5-flash
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    const result = await model.generateContent([prompt, ...imageParts]);
+    const responseText = result.response.text();
     
     // Clean up the text if it contains markdown JSON blocks
     let cleanedJson = responseText.trim();
