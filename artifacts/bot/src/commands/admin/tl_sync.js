@@ -69,12 +69,15 @@ export async function execute(interaction) {
 You are analyzing screenshots of the Throne and Liberty event schedule.
 I need you to extract the hours (0 to 23) for three categories: Bosses, Events, and Whales.
 CRITICAL RULES FOR CLASSIFICATION:
-1. Arc Boss (👾): There are ONLY 4 specific Arc Bosses. You must classify a boss as Arc Boss ONLY if it visually matches one of these:
+1. Field Boss (👹): These are the standard bosses. You must classify a boss as Field Boss if it visually matches one of these:
    - A purple tree-like monster with a cloud-like top and roots at the bottom.
    - A purple screaming skull/ghostly face.
    - A purple hooded/cloaked figure showing a hand or glove.
    - A purple winged queen/figure holding a long staff.
-2. Field Boss (👹): ANY OTHER boss icon that does NOT match the 4 Arc Bosses above.
+   - Any other standard boss icon.
+2. Arc Boss (👾): These are the massive server bosses. You must classify a boss as Arc Boss ONLY if it is:
+   - The giant branching purple monster (Tevent/Dragon).
+   - The giant sandworm (Excavator).
 3. Dynamic Events (⚔️): A row of multiple small icons (4-6 icons in a row).
 4. Whale (Gigantrite 🐋): The Whale icon.
 Note: IGNORE small modifier icons like a blue dove (peace), green shield (guild), or red crossed swords (conflict). Look ONLY at the main monster in the icon!
