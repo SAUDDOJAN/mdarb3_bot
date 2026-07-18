@@ -32,9 +32,11 @@ const getNotificationDetails = (key, bossType, isPeaceful) => {
     // Throne & Liberty
     case 'tl_dungeon': return { title: 'أحداث الدنجن (TL)', body: 'دنجنات مفتوحة بعد 5 دقائق! جهز البارتي' };
     case 'tl_boss': 
-      const bossName = bossType === 'arc' ? 'زعيم الأرك' : 'زعيم العالم';
+      let bossName = 'زعيم العالم';
+      if (bossType === 'arc') bossName = 'زعيم الأرك';
+      else if (bossType === 'both') bossName = 'زعماء العالم والآرك';
       const peaceText = isPeaceful ? '(نسخة سلمية 🕊️)' : '';
-      return { title: `ظهور ${bossName} (TL) ${peaceText}`, body: `الزعيم بيظهر بعد 5 دقائق! اجتمعوا` };
+      return { title: `ظهور ${bossName} (TL) ${peaceText}`, body: `الزعماء بيظهرون بعد 5 دقائق! اجتمعوا` };
     case 'tl_whale': return { title: 'الحوت Gigantrite (TL)', body: 'الحوت بيطير بعد 5 دقايق! لا يفوتك' };
     case 'tl_event': return { title: 'فعاليات العالم المفتوح Event', body: 'الفعاليات بتبدأ بعد 5 دقايق! الحق' };
     case 'tl_gate': return { title: 'بوابة الذكريات (Gate of Memory) ⏳', body: 'بوابة الذكريات تفتح بعد 5 دقائق! استعد' };
@@ -195,7 +197,10 @@ async function calculateTimers() {
   let bossType = 'field';
   let isPeaceful = false;
 
-  if (nextArcBoss && nextFieldBoss && nextArcBoss < nextFieldBoss) {
+  if (nextArcBoss && nextFieldBoss && nextArcBoss.getTime() === nextFieldBoss.getTime()) {
+    nextOverallBoss = nextArcBoss;
+    bossType = 'both';
+  } else if (nextArcBoss && nextFieldBoss && nextArcBoss < nextFieldBoss) {
     nextOverallBoss = nextArcBoss;
     bossType = 'arc';
   } else if (!nextFieldBoss && nextArcBoss) {
