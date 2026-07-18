@@ -1,8 +1,8 @@
 import { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder } from "discord.js";
 import { saveTlSchedule } from "../../database/index.js";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import OpenAI from "openai";
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 export const data = new SlashCommandBuilder()
   .setName("tl_sync")
@@ -49,12 +49,12 @@ export async function execute(interaction) {
     interaction.options.getAttachment("image4")
   ].filter(img => img !== null);
 
-  if (!process.env.GEMINI_API_KEY) {
-    return interaction.editReply("❌ مفتاح `GEMINI_API_KEY` غير موجود في الإعدادات!");
+  if (!process.env.OPENAI_API_KEY) {
+    return interaction.editReply("❌ مفتاح `OPENAI_API_KEY` غير موجود في الإعدادات!");
   }
 
   try {
-    const imageParts = await Promise.all(images.map(img => urlToGenerativePart(img.url, img.contentType || "image/png")));
+    const imageUrls = images.map(img => img.url);
 
     const prompt = `
 You are analyzing screenshots of the Throne and Liberty event schedule.
@@ -76,9 +76,18 @@ If an event appears at a half-hour like 00:30, ignore it, we only want the main 
 Make sure to combine findings from all provided images.
     `;
 
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-    const result = await model.generateContent([prompt, ...imageParts]);
-    const responseText = result.response.text();
+    const contentArray = [{ type: "text", text: prompt }];
+    for (const url of imageUrls) {
+      contentArray.push({ type: "image_url", image_url: { url } });
+    }
+
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4o",
+      messages: [{ role: "user", content: contentArray }],
+      max_tokens: 1000
+    });
+
+    const responseText = completion.choices[0].message.content;
     
     // Clean up the text if it contains markdown JSON blocks
     let cleanedJson = responseText.trim();
