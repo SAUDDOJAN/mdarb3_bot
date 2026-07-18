@@ -79,6 +79,7 @@ CRITICAL RULES FOR CLASSIFICATION:
 3. Dynamic Events (⚔️): A row of multiple small icons (4-6 icons in a row).
 4. Whale (Gigantrite 🐋): The Whale icon.
 Note: IGNORE small modifier icons like a blue dove (peace), green shield (guild), or red crossed swords (conflict). Look ONLY at the main monster in the icon!
+CRITICAL: If a specific hour block contains BOTH an Arc Boss and a Field Boss (e.g. 3 bosses where one is Arc and two are Field), you MUST add that same hour to BOTH `field_boss_hours` AND `arc_boss_hours` arrays! Do NOT skip adding the hour to the Arc Boss array just because there is also a Field Boss.
 
 Your task is to return ONLY a pure JSON object with the following structure (no markdown tags, no explanations, just the JSON):
 {
