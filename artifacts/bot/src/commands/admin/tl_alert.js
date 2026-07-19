@@ -53,8 +53,7 @@ export async function execute(interaction) {
   else title = customTitle ? `📢 ${customTitle}` : "📢 إعلان Throne and Liberty";
 
   let channelId = "1526297989734334554";
-  if (type === "guild_raid") channelId = "1526362737884795011";
-  else if (type === "calanthia_raid") channelId = "1294312574162178200";
+  if (type === "guild_raid" || type === "calanthia_raid") channelId = "1526362737884795011";
   
   const roleId = "1292754458492796982";
 
@@ -142,6 +141,14 @@ export async function execute(interaction) {
   if (type === "guild_raid" || type === "calanthia_raid") {
     const imgUrl = imageAttachment ? imageAttachment.url : (type === "calanthia_raid" ? "https://cdn.discordapp.com/attachments/1290449971639881849/1528383932264087662/Calanthia_-_768.png?ex=6a5e19f5&is=6a5cc875&hm=19e7544c9e9f4188271b0b5118d2ee8939c377d1e01a89d133150f34fc387bbe&" : null);
     await publishOverlayEvent(type === "guild_raid" ? "Guild Raid" : "Calanthia Raid", "الجيلد يستعد لريد، التسجيل مفتوح بالديسكورد", imgUrl, null);
+
+    if (type === "calanthia_raid") {
+      const generalChannelId = "1294312574162178200";
+      const generalChannel = interaction.guild.channels.cache.get(generalChannelId) || await interaction.guild.channels.fetch(generalChannelId).catch(() => null);
+      if (generalChannel) {
+        await generalChannel.send(`📢 **تنبيه ريد كلنثيا (Calanthia Raid)!**\n\nتم فتح تسجيل ريد كلنثيا! يرجى التوجه إلى روم <#1526362737884795011> للتسجيل وتسجيل أوقاتكم المناسبة للحضور.\n<@&${roleId}>`);
+      }
+    }
 
     if (sendDm) {
       const role = interaction.guild.roles.cache.find(r => r.name.toLowerCase() === 'tl guild');
