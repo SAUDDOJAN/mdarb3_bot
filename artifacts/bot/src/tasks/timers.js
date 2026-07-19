@@ -199,7 +199,7 @@ async function calculateTimers() {
 
   if (nextArcBoss && nextFieldBoss && nextArcBoss.getTime() === nextFieldBoss.getTime()) {
     nextOverallBoss = nextArcBoss;
-    bossType = 'both';
+    bossType = 'arc';
   } else if (nextArcBoss && nextFieldBoss && nextArcBoss < nextFieldBoss) {
     nextOverallBoss = nextArcBoss;
     bossType = 'arc';
