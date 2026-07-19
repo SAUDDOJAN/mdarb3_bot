@@ -14,13 +14,14 @@ export const data = new SlashCommandBuilder()
       .setRequired(true)
       .addChoices(
         { name: "جدول الساعات (الزعماء العاديين، أحداث، حوت)", value: "hourly" },
-        { name: "جدول الأيام (زعماء الآرك)", value: "daily" }
+        { name: "جدول الأيام (زعماء الآرك الأسبوعي)", value: "daily" }
       )
   )
+  .addAttachmentOption(option => option.setName("image1").setDescription("الصورة الأولى للجدول").setRequired(true))
   .addStringOption(option =>
     option.setName("day")
-      .setDescription("اليوم الخاص بالجدول")
-      .setRequired(true)
+      .setDescription("اليوم الخاص بالجدول (مطلوب فقط في جدول الساعات)")
+      .setRequired(false)
       .addChoices(
         { name: "الأحد (Sunday)", value: "0" },
         { name: "الإثنين (Monday)", value: "1" },
@@ -31,27 +32,20 @@ export const data = new SlashCommandBuilder()
         { name: "السبت (Saturday)", value: "6" }
       )
   )
-  .addAttachmentOption(option => option.setName("image1").setDescription("الصورة الأولى للجدول").setRequired(true))
   .addAttachmentOption(option => option.setName("image2").setDescription("الصورة الثانية (اختياري)").setRequired(false))
   .addAttachmentOption(option => option.setName("image3").setDescription("الصورة الثالثة (اختياري)").setRequired(false))
   .addAttachmentOption(option => option.setName("image4").setDescription("الصورة الرابعة (اختياري)").setRequired(false));
-
-async function urlToGenerativePart(url, mimeType) {
-  const response = await fetch(url);
-  const buffer = await response.arrayBuffer();
-  return {
-    inlineData: {
-      data: Buffer.from(buffer).toString("base64"),
-      mimeType
-    },
-  };
-}
 
 export async function execute(interaction) {
   await interaction.deferReply({ ephemeral: true });
 
   const scheduleType = interaction.options.getString("schedule_type");
-  const dayOfWeek = parseInt(interaction.options.getString("day"), 10);
+  const dayStr = interaction.options.getString("day");
+  
+  if (scheduleType === "hourly" && !dayStr) {
+    return interaction.editReply("❌ يجب عليك اختيار (اليوم) عند رفع جدول الساعات (Hourly)!");
+  }
+
   const images = [
     interaction.options.getAttachment("image1"),
     interaction.options.getAttachment("image2"),
@@ -109,20 +103,25 @@ Make sure to combine findings from all provided images.
 `;
     } else if (scheduleType === "daily") {
       prompt = `
-You are analyzing screenshots of the Throne and Liberty WEEKLY Arc Boss schedule.
-In this specific schedule, ALL bosses shown are massive server bosses (Arc Bosses).
-I need you to extract the hours (0 to 23) where these Arc Bosses appear.
-Do not worry about Field Bosses, Events, or Whales in this image.
+You are analyzing screenshots of the Throne and Liberty WEEKLY schedule (Daily Tab).
+This tab shows the events for the entire week, day by day (Date and Day name, e.g., "19/07 Sun", "22/07 Wed").
+Your job is to look at each Day block, identify if there is an Arc Boss icon, and record its hour.
+
+CRITICAL RULES FOR CLASSIFICATION:
+Arc Bosses are the massive server bosses. They appear as icons inside hexagons.
+We want to extract the Arc Boss hours for EACH DAY of the week shown.
+Day numbers for output: Sunday=0, Monday=1, Tuesday=2, Wednesday=3, Thursday=4, Friday=5, Saturday=6.
 
 Your task is to return ONLY a pure JSON object.
-List EACH boss you see in the 'bosses' array with its hour and type 'arc':
+Return an array called 'weekly_arc_bosses' containing objects for EACH day you found Arc Bosses on.
 {
-  "bosses": [
-    { "hour": 20, "type": "arc" },
-    { "hour": 23, "type": "arc" }
+  "weekly_arc_bosses": [
+    { "day": 3, "hours": [20, 23] },
+    { "day": 6, "hours": [20, 23] }
   ]
 }
 If a boss appears at a half-hour like 20:30, ignore it, we only want the main hour marks.
+If a day has NO Arc Bosses, you can omit it or pass empty hours array.
 Make sure to combine findings from all provided images.
 `;
     }
@@ -139,55 +138,75 @@ Make sure to combine findings from all provided images.
     }
 
     const scheduleData = JSON.parse(cleanedJson);
-    const existingSchedule = await getTlSchedule(dayOfWeek) || {};
-    
-    let fHours = [];
-    let aHours = [];
-    
-    if (Array.isArray(scheduleData.bosses)) {
-      scheduleData.bosses.forEach(b => {
-        if (b.type === 'field') fHours.push(b.hour);
-        if (b.type === 'arc') aHours.push(b.hour);
-      });
-    }
-
-    let fieldBossHours = existingSchedule.field_boss_hours || "";
-    let arcBossHours = existingSchedule.arc_boss_hours || "";
-    let eventHours = existingSchedule.event_hours || "";
-    let whaleHours = existingSchedule.whale_hours || "";
-
-    if (scheduleType === "hourly") {
-      fieldBossHours = [...new Set(fHours)].join(",");
-      eventHours = Array.isArray(scheduleData.event_hours) ? scheduleData.event_hours.join(",") : "";
-      whaleHours = Array.isArray(scheduleData.whale_hours) ? scheduleData.whale_hours.join(",") : "";
-    } else if (scheduleType === "daily") {
-      arcBossHours = [...new Set(aHours)].join(",");
-    }
-
-    await saveTlSchedule(dayOfWeek, fieldBossHours, arcBossHours, eventHours, whaleHours);
-
     const dayNames = ["الأحد", "الإثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
 
-    const embed = new EmbedBuilder()
-      .setTitle(`✅ تم تحديث جدول يوم ${dayNames[dayOfWeek]}`)
-      .setColor("#00ff00")
-      .setFooter({ text: "تم تحليل الصور عبر الذكاء الاصطناعي (Gemini Vision)" });
-
     if (scheduleType === "hourly") {
-      embed.setDescription("تم تحديث أوقات (الزعماء العاديين، الفعاليات، الحوت) بنجاح مع الاحتفاظ بأوقات زعماء الآرك السابقة.");
-      embed.addFields(
-        { name: "👹 أوقات الزعماء (Field Boss)", value: fieldBossHours || "لا يوجد", inline: false },
-        { name: "⚔️ أوقات الفعاليات (Events)", value: eventHours || "لا يوجد", inline: false },
-        { name: "🐋 أوقات الحوت (Whales)", value: whaleHours || "لا يوجد", inline: false }
-      );
-    } else if (scheduleType === "daily") {
-      embed.setDescription("تم تحديث أوقات (زعماء الآرك) بنجاح مع الاحتفاظ بأوقات الجدول اليومي السابقة.");
-      embed.addFields(
-        { name: "👾 أوقات زعماء الآرك (Arc Boss)", value: arcBossHours || "لا يوجد", inline: false }
-      );
-    }
+      const dayOfWeek = parseInt(dayStr, 10);
+      const existingSchedule = await getTlSchedule(dayOfWeek) || {};
+      
+      let fHours = [];
+      
+      if (Array.isArray(scheduleData.bosses)) {
+        scheduleData.bosses.forEach(b => {
+          if (b.type === 'field') fHours.push(b.hour);
+        });
+      }
 
-    await interaction.editReply({ embeds: [embed] });
+      let fieldBossHours = [...new Set(fHours)].join(",");
+      let eventHours = Array.isArray(scheduleData.event_hours) ? scheduleData.event_hours.join(",") : "";
+      let whaleHours = Array.isArray(scheduleData.whale_hours) ? scheduleData.whale_hours.join(",") : "";
+      let arcBossHours = existingSchedule.arc_boss_hours || "";
+
+      await saveTlSchedule(dayOfWeek, fieldBossHours, arcBossHours, eventHours, whaleHours);
+
+      const embed = new EmbedBuilder()
+        .setTitle(`✅ تم تحديث جدول الساعات ليوم ${dayNames[dayOfWeek]}`)
+        .setColor("#00ff00")
+        .setDescription("تم تحديث أوقات (الزعماء العاديين، الفعاليات، الحوت) بنجاح مع الاحتفاظ بأوقات زعماء الآرك السابقة.")
+        .addFields(
+          { name: "👹 أوقات الزعماء (Field Boss)", value: fieldBossHours || "لا يوجد", inline: false },
+          { name: "⚔️ أوقات الفعاليات (Events)", value: eventHours || "لا يوجد", inline: false },
+          { name: "🐋 أوقات الحوت (Whales)", value: whaleHours || "لا يوجد", inline: false }
+        )
+        .setFooter({ text: "تم تحليل الصور عبر الذكاء الاصطناعي (Gemini Vision)" });
+
+      await interaction.editReply({ embeds: [embed] });
+
+    } else if (scheduleType === "daily") {
+      let updatedDays = [];
+
+      if (Array.isArray(scheduleData.weekly_arc_bosses)) {
+        for (const dailyData of scheduleData.weekly_arc_bosses) {
+          const d = dailyData.day;
+          if (d >= 0 && d <= 6) {
+            const existingSchedule = await getTlSchedule(d) || {};
+            let fieldBossHours = existingSchedule.field_boss_hours || "";
+            let eventHours = existingSchedule.event_hours || "";
+            let whaleHours = existingSchedule.whale_hours || "";
+            
+            let aHours = Array.isArray(dailyData.hours) ? dailyData.hours : [];
+            let arcBossHours = [...new Set(aHours)].join(",");
+
+            await saveTlSchedule(d, fieldBossHours, arcBossHours, eventHours, whaleHours);
+            
+            if (arcBossHours.length > 0) {
+                updatedDays.push(`${dayNames[d]}: ${arcBossHours}`);
+            }
+          }
+        }
+      }
+
+      const embed = new EmbedBuilder()
+        .setTitle(`✅ تم تحديث جدول زعماء الآرك الأسبوعي`)
+        .setColor("#00ff00")
+        .setDescription("تم استخراج أوقات زعماء الآرك لجميع الأيام وحفظها بنجاح مع الاحتفاظ بالجدول اليومي لكل يوم.")
+        .addFields(
+          { name: "👾 أيام زعماء الآرك المكتشفة", value: updatedDays.length > 0 ? updatedDays.join("\n") : "لم يتم العثور على زعماء آرك", inline: false }
+        )
+        .setFooter({ text: "تم تحليل الصور عبر الذكاء الاصطناعي (Gemini Vision)" });
+
+      await interaction.editReply({ embeds: [embed] });
+    }
 
   } catch (error) {
     console.error("[TL Sync] Error:", error);
