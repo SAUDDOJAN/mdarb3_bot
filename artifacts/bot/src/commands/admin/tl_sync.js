@@ -1,5 +1,5 @@
 import { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder } from "discord.js";
-import { saveTlSchedule } from "../../database/index.js";
+import { saveTlSchedule, getTlSchedule } from "../../database/index.js";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
@@ -8,6 +8,15 @@ export const data = new SlashCommandBuilder()
   .setName("tl_sync")
   .setDescription("رفع صور جدول اللعبة ليتم تحليلها وتحديث التوقيتات عبر الذكاء الاصطناعي")
   .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
+  .addStringOption(option =>
+    option.setName("schedule_type")
+      .setDescription("نوع الجدول المرفوع")
+      .setRequired(true)
+      .addChoices(
+        { name: "جدول الساعات (الزعماء العاديين، أحداث، حوت)", value: "hourly" },
+        { name: "جدول الأيام (زعماء الآرك)", value: "daily" }
+      )
+  )
   .addStringOption(option =>
     option.setName("day")
       .setDescription("اليوم الخاص بالجدول")
@@ -41,6 +50,7 @@ async function urlToGenerativePart(url, mimeType) {
 export async function execute(interaction) {
   await interaction.deferReply({ ephemeral: true });
 
+  const scheduleType = interaction.options.getString("schedule_type");
   const dayOfWeek = parseInt(interaction.options.getString("day"), 10);
   const images = [
     interaction.options.getAttachment("image1"),
@@ -65,11 +75,14 @@ export async function execute(interaction) {
       };
     }));
 
-    const prompt = `
-You are analyzing screenshots of the Throne and Liberty event schedule.
-I need you to extract the hours (0 to 23) for three categories: Bosses, Events, and Whales.
+    let prompt = "";
+
+    if (scheduleType === "hourly") {
+      prompt = `
+You are analyzing screenshots of the Throne and Liberty DAILY event schedule.
+I need you to extract the hours (0 to 23) for Bosses, Events, and Whales.
 CRITICAL RULES FOR CLASSIFICATION:
-1. Arc Boss (👾): These are the massive server bosses (often at 20:00). You must classify a boss as Arc Boss ONLY if it visually matches one of these:
+1. Arc Boss (👾): These are the massive server bosses. You must classify a boss as Arc Boss ONLY if it visually matches one of these:
    - A purple tree-like monster with a cloud-like top and roots at the bottom.
    - A purple screaming skull/ghostly face.
    - A purple hooded/cloaked figure showing a hand or glove.
@@ -80,7 +93,7 @@ CRITICAL RULES FOR CLASSIFICATION:
 4. Whale (Gigantrite 🐋): The Whale icon.
 Note: IGNORE small modifier icons like a blue dove (peace), green shield (guild), or red crossed swords (conflict). Look ONLY at the main monster in the icon!
 
-Your task is to return ONLY a pure JSON object with the following structure (no markdown tags, no explanations, just the JSON).
+Your task is to return ONLY a pure JSON object with the following structure.
 List EACH boss icon you see in the 'bosses' array with its hour and type ('field' or 'arc'):
 {
   "bosses": [
@@ -93,14 +106,31 @@ List EACH boss icon you see in the 'bosses' array with its hour and type ('field
 }
 If an event appears at a half-hour like 00:30, ignore it, we only want the main hour marks (e.g., 0, 14, 22).
 Make sure to combine findings from all provided images.
-    `;
+`;
+    } else if (scheduleType === "daily") {
+      prompt = `
+You are analyzing screenshots of the Throne and Liberty WEEKLY Arc Boss schedule.
+In this specific schedule, ALL bosses shown are massive server bosses (Arc Bosses).
+I need you to extract the hours (0 to 23) where these Arc Bosses appear.
+Do not worry about Field Bosses, Events, or Whales in this image.
 
-    // Try gemini-flash-latest
+Your task is to return ONLY a pure JSON object.
+List EACH boss you see in the 'bosses' array with its hour and type 'arc':
+{
+  "bosses": [
+    { "hour": 20, "type": "arc" },
+    { "hour": 23, "type": "arc" }
+  ]
+}
+If a boss appears at a half-hour like 20:30, ignore it, we only want the main hour marks.
+Make sure to combine findings from all provided images.
+`;
+    }
+
     const model = genAI.getGenerativeModel({ model: "gemini-flash-latest" });
     const result = await model.generateContent([prompt, ...imageParts]);
     const responseText = result.response.text();
     
-    // Clean up the text if it contains markdown JSON blocks
     let cleanedJson = responseText.trim();
     if (cleanedJson.startsWith("\`\`\`json")) {
       cleanedJson = cleanedJson.replace(/\`\`\`json/g, "").replace(/\`\`\`/g, "").trim();
@@ -109,6 +139,7 @@ Make sure to combine findings from all provided images.
     }
 
     const scheduleData = JSON.parse(cleanedJson);
+    const existingSchedule = await getTlSchedule(dayOfWeek) || {};
     
     let fHours = [];
     let aHours = [];
@@ -118,31 +149,43 @@ Make sure to combine findings from all provided images.
         if (b.type === 'field') fHours.push(b.hour);
         if (b.type === 'arc') aHours.push(b.hour);
       });
-    } else {
-      fHours = scheduleData.field_boss_hours || [];
-      aHours = scheduleData.arc_boss_hours || [];
     }
 
-    const fieldBossHours = [...new Set(fHours)].join(",");
-    const arcBossHours = [...new Set(aHours)].join(",");
-    
-    const eventHours = Array.isArray(scheduleData.event_hours) ? scheduleData.event_hours.join(",") : "";
-    const whaleHours = Array.isArray(scheduleData.whale_hours) ? scheduleData.whale_hours.join(",") : "";
+    let fieldBossHours = existingSchedule.field_boss_hours || "";
+    let arcBossHours = existingSchedule.arc_boss_hours || "";
+    let eventHours = existingSchedule.event_hours || "";
+    let whaleHours = existingSchedule.whale_hours || "";
+
+    if (scheduleType === "hourly") {
+      fieldBossHours = [...new Set(fHours)].join(",");
+      eventHours = Array.isArray(scheduleData.event_hours) ? scheduleData.event_hours.join(",") : "";
+      whaleHours = Array.isArray(scheduleData.whale_hours) ? scheduleData.whale_hours.join(",") : "";
+    } else if (scheduleType === "daily") {
+      arcBossHours = [...new Set(aHours)].join(",");
+    }
 
     await saveTlSchedule(dayOfWeek, fieldBossHours, arcBossHours, eventHours, whaleHours);
 
     const dayNames = ["الأحد", "الإثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
 
     const embed = new EmbedBuilder()
-      .setTitle(`✅ تم حفظ جدول يوم ${dayNames[dayOfWeek]}`)
+      .setTitle(`✅ تم تحديث جدول يوم ${dayNames[dayOfWeek]}`)
       .setColor("#00ff00")
-      .addFields(
+      .setFooter({ text: "تم تحليل الصور عبر الذكاء الاصطناعي (Gemini Vision)" });
+
+    if (scheduleType === "hourly") {
+      embed.setDescription("تم تحديث أوقات (الزعماء العاديين، الفعاليات، الحوت) بنجاح مع الاحتفاظ بأوقات زعماء الآرك السابقة.");
+      embed.addFields(
         { name: "👹 أوقات الزعماء (Field Boss)", value: fieldBossHours || "لا يوجد", inline: false },
-        { name: "👾 أوقات زعماء الآرك (Arc Boss)", value: arcBossHours || "لا يوجد", inline: false },
         { name: "⚔️ أوقات الفعاليات (Events)", value: eventHours || "لا يوجد", inline: false },
         { name: "🐋 أوقات الحوت (Whales)", value: whaleHours || "لا يوجد", inline: false }
-      )
-      .setFooter({ text: "تم تحليل الصور عبر الذكاء الاصطناعي (Gemini Vision)" });
+      );
+    } else if (scheduleType === "daily") {
+      embed.setDescription("تم تحديث أوقات (زعماء الآرك) بنجاح مع الاحتفاظ بأوقات الجدول اليومي السابقة.");
+      embed.addFields(
+        { name: "👾 أوقات زعماء الآرك (Arc Boss)", value: arcBossHours || "لا يوجد", inline: false }
+      );
+    }
 
     await interaction.editReply({ embeds: [embed] });
 
