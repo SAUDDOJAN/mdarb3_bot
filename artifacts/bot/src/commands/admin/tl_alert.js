@@ -53,7 +53,8 @@ export async function execute(interaction) {
   else title = customTitle ? `📢 ${customTitle}` : "📢 إعلان Throne and Liberty";
 
   let channelId = "1526297989734334554";
-  if (type === "guild_raid" || type === "calanthia_raid") channelId = "1526362737884795011";
+  if (type === "guild_raid") channelId = "1526362737884795011";
+  else if (type === "calanthia_raid") channelId = "1294312574162178200";
   
   const roleId = "1292754458492796982";
 
