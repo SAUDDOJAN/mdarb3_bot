@@ -11,6 +11,7 @@ export const data = new SlashCommandBuilder()
       .setRequired(true)
       .addChoices(
         { name: "Guild Raid (بوس القيلد)", value: "guild_raid" },
+        { name: "Calanthia Raid (ريد كلنثيا)", value: "calanthia_raid" },
         { name: "Remnant of NIX (فارم نيكس)", value: "nix" },
         { name: "مخصص (Custom)", value: "custom" }
       )
@@ -47,11 +48,12 @@ export async function execute(interaction) {
 
   let title = "";
   if (type === "guild_raid") title = "📢 Guild Raid";
+  else if (type === "calanthia_raid") title = "📢 ريد كلنثيا (Calanthia Raid)";
   else if (type === "nix") title = "📢 فارم Remnant of NIX";
   else title = customTitle ? `📢 ${customTitle}` : "📢 إعلان Throne and Liberty";
 
   let channelId = "1526297989734334554";
-  if (type === "guild_raid") channelId = "1526362737884795011";
+  if (type === "guild_raid" || type === "calanthia_raid") channelId = "1526362737884795011";
   
   const roleId = "1292754458492796982";
 
@@ -85,6 +87,8 @@ export async function execute(interaction) {
 
   if (imageAttachment) {
     embed.setImage(imageAttachment.url);
+  } else if (type === "calanthia_raid") {
+    embed.setImage("https://cdn.discordapp.com/attachments/1290449971639881849/1528383932264087662/Calanthia_-_768.png?ex=6a5e19f5&is=6a5cc875&hm=19e7544c9e9f4188271b0b5118d2ee8939c377d1e01a89d133150f34fc387bbe&");
   }
 
   const payload = {
@@ -111,13 +115,32 @@ export async function execute(interaction) {
         .setEmoji("🔒")
     );
     payload.components = [row];
+  } else if (type === "calanthia_raid") {
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId("throne:calanthia_raid_join")
+        .setLabel("أرغب بالانضمام (التسجيل مفتوح)")
+        .setStyle(ButtonStyle.Success)
+        .setEmoji("⚔️"),
+      new ButtonBuilder()
+        .setCustomId("throne:calanthia_raid_view")
+        .setLabel("عرض الأوقات المسجلة")
+        .setStyle(ButtonStyle.Secondary)
+        .setEmoji("📋"),
+      new ButtonBuilder()
+        .setCustomId("throne:calanthia_raid_start")
+        .setLabel("بدء الريد (إغلاق التسجيل)")
+        .setStyle(ButtonStyle.Danger)
+        .setEmoji("🔒")
+    );
+    payload.components = [row];
   }
 
   await channel.send(payload);
 
-  if (type === "guild_raid") {
-    const imgUrl = imageAttachment ? imageAttachment.url : null;
-    await publishOverlayEvent("Guild Raid", "الجيلد يستعد لريد، التسجيل مفتوح بالديسكورد", imgUrl, null);
+  if (type === "guild_raid" || type === "calanthia_raid") {
+    const imgUrl = imageAttachment ? imageAttachment.url : (type === "calanthia_raid" ? "https://cdn.discordapp.com/attachments/1290449971639881849/1528383932264087662/Calanthia_-_768.png?ex=6a5e19f5&is=6a5cc875&hm=19e7544c9e9f4188271b0b5118d2ee8939c377d1e01a89d133150f34fc387bbe&" : null);
+    await publishOverlayEvent(type === "guild_raid" ? "Guild Raid" : "Calanthia Raid", "الجيلد يستعد لريد، التسجيل مفتوح بالديسكورد", imgUrl, null);
 
     if (sendDm) {
       const role = interaction.guild.roles.cache.find(r => r.name.toLowerCase() === 'tl guild');
@@ -134,7 +157,7 @@ export async function execute(interaction) {
         for (const [id, member] of members) {
           if (member.user.bot) continue;
           try {
-            await member.send({ content: `🔔 **تنبيه إدارة القيلد (Guild Raid)!**\n\n${description}\n\n*الرجاء التوجه لروم الديسكورد للتسجيل!*` });
+            await member.send({ content: `🔔 **تنبيه إدارة القيلد (${type === "guild_raid" ? "Guild Raid" : "Calanthia Raid"})!**\n\n${description}\n\n*الرجاء التوجه لروم الديسكورد للتسجيل!*` });
             successCount++;
             await new Promise(resolve => setTimeout(resolve, 1500)); // 1.5 seconds delay to prevent rate limit
           } catch (e) {

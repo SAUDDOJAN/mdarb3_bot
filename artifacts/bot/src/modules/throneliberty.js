@@ -943,6 +943,193 @@ async function handleRaidReopen(interaction) {
   await interaction.reply({ content: "🔓 تم إعادة فتح التسجيل للريد بنجاح!", ephemeral: true });
 }
 
+// ─── نظام ريد كلنثيا (Calanthia Raid) ──────────────────────────────────────
+async function handleCalanthiaRaidJoin(interaction) {
+  if (isRaidExpired(interaction.message.createdAt)) {
+    await closeCalanthiaRaidMessage(interaction.message);
+    return interaction.reply({ content: "❌ عذراً، تم إغلاق التسجيل لهذا الريد (التسجيل ينتهي كل خميس الساعة 2 ظهراً بتوقيت مكة المكرمة).", ephemeral: true });
+  }
+
+  const raidMessageId = interaction.message.id;
+  const timesMenu = new StringSelectMenuBuilder()
+    .setCustomId(`throne:calanthia_raid_times:${raidMessageId}`)
+    .setPlaceholder("اختر الأوقات المناسبة لك")
+    .setMinValues(1)
+    .setMaxValues(4)
+    .addOptions(
+      { label: "العصر (3PM - 6PM)", value: "العصر", emoji: "🌇" },
+      { label: "المغرب/العشاء (6PM - 9PM)", value: "المغرب-العشاء", emoji: "🌆" },
+      { label: "الليل (9PM - 12AM)", value: "الليل", emoji: "🌃" },
+      { label: "آخر الليل (12AM - 4AM)", value: "آخر الليل", emoji: "🌌" }
+    );
+
+  const row = new ActionRowBuilder().addComponents(timesMenu);
+  
+  await interaction.reply({
+    content: "⏰ الرجاء تحديد الأوقات المناسبة لك للحضور في الريد:",
+    components: [row],
+    ephemeral: true
+  });
+}
+
+async function handleCalanthiaRaidTimes(interaction) {
+  const parts = interaction.customId.split(":");
+  const raidMessageId = parts[2];
+  const selectedTimes = interaction.values.join("، ");
+  const userId = interaction.user.id;
+
+  try {
+    await registerTlRaid(raidMessageId, userId, "ثابت", selectedTimes);
+    
+    // Update original message
+    const originalMessage = await interaction.channel.messages.fetch(raidMessageId).catch(() => null);
+    if (originalMessage && originalMessage.embeds.length > 0) {
+      const regs = await getTlRaidRegistrations(raidMessageId);
+      const embed = EmbedBuilder.from(originalMessage.embeds[0]);
+      
+      const timeGroups = {};
+      for (const r of regs) {
+        const tList = r.times.split("، ");
+        for (const t of tList) {
+          if (!timeGroups[t]) timeGroups[t] = [];
+          timeGroups[t].push(`<@${r.user_id}>`);
+        }
+      }
+
+      const newFields = [];
+      for (const [t, users] of Object.entries(timeGroups)) {
+        newFields.push({ name: `⏰ ${t} (${users.length} مسجلين)`, value: users.join("، ") || "لا يوجد" });
+      }
+
+      embed.setFields(newFields);
+      await originalMessage.edit({ embeds: [embed] }).catch(() => {});
+    }
+
+    await interaction.update({ content: `✅ تم تسجيل وقتك بنجاح للريد!\nأوقاتك: **${selectedTimes}**`, components: [] });
+  } catch (err) {
+    console.error("[ThroneLiberty] Error registering calanthia raid time:", err);
+    await interaction.update({ content: "❌ حدث خطأ أثناء التسجيل. يرجى المحاولة لاحقاً.", components: [] });
+  }
+}
+
+async function handleCalanthiaRaidView(interaction) {
+  const raidMessageId = interaction.message.id;
+  try {
+    const regs = await getTlRaidRegistrations(raidMessageId);
+    if (regs.length === 0) {
+      return interaction.reply({ content: "⚠️ لا يوجد مسجلين حتى الآن.", ephemeral: true });
+    }
+
+    const timeGroups = {};
+    for (const r of regs) {
+      const tList = r.times.split("، ");
+      for (const t of tList) {
+        if (!timeGroups[t]) timeGroups[t] = [];
+        if (!timeGroups[t].includes(`<@${r.user_id}>`)) {
+          timeGroups[t].push(`<@${r.user_id}>`);
+        }
+      }
+    }
+
+    const embed = new EmbedBuilder()
+      .setTitle("📋 ملخص أوقات المسجلين في ريد كلنثيا")
+      .setColor("#3498DB")
+      .setTimestamp();
+
+    let desc = `إجمالي المسجلين: **${regs.length}** لاعب\n\n`;
+    for (const [t, users] of Object.entries(timeGroups)) {
+      desc += `**${t}** (${users.length} لاعب)\n${users.join("، ")}\n\n`;
+    }
+
+    embed.setDescription(desc);
+    await interaction.reply({ embeds: [embed], ephemeral: true });
+  } catch (err) {
+    console.error("[ThroneLiberty] Error viewing calanthia raid registrations:", err);
+    await interaction.reply({ content: "❌ حدث خطأ أثناء جلب البيانات.", ephemeral: true });
+  }
+}
+
+async function closeCalanthiaRaidMessage(message) {
+  if (!message || !message.embeds || message.embeds.length === 0) return;
+  const embed = EmbedBuilder.from(message.embeds[0]);
+  embed.setColor("#7f8c8d");
+  if (!embed.data.title?.includes("(مغلق)")) embed.setTitle((embed.data.title || "") + " (مغلق)");
+  const row = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId("throne:calanthia_raid_reopen")
+      .setLabel("إعادة فتح الريد")
+      .setStyle(ButtonStyle.Primary)
+      .setEmoji("🔓")
+  );
+  await message.edit({ embeds: [embed], components: [row] }).catch(() => {});
+}
+
+async function handleCalanthiaRaidStart(interaction) {
+  if (!interaction.member.permissions.has(PermissionFlagsBits.ManageGuild)) {
+    return interaction.reply({ content: "❌ عذراً، الإدارة فقط يمكنها بدء الريد وإغلاق التسجيل.", ephemeral: true });
+  }
+  if (isRaidExpired(interaction.message.createdAt)) {
+    return interaction.reply({ content: "⚠️ هذا الريد مغلق بالفعل.", ephemeral: true });
+  }
+
+  await interaction.deferReply({ ephemeral: true });
+  const raidMessageId = interaction.message.id;
+  const regs = await getTlRaidRegistrations(raidMessageId);
+
+  await closeCalanthiaRaidMessage(interaction.message);
+
+  const embedTitle = interaction.message.embeds[0]?.title || "Calanthia Raid";
+  const embedImage = interaction.message.embeds[0]?.image?.url || null;
+  await publishOverlayEvent("Calanthia Raid", embedTitle, embedImage, 60);
+
+  let successCount = 0, failCount = 0;
+  for (const r of regs) {
+    try {
+      const user = await interaction.client.users.fetch(r.user_id);
+      if (user) {
+        await user.send(`⚔️ **تنبيه بدء الريد!**\nالريد اللي سجلت فيه لـ (Throne and Liberty) بيبدأ الآن. يرجى التوجه للروم الصوتي وقاعة القيلد للتجهيز!`);
+        successCount++;
+      }
+    } catch (e) {
+      failCount++;
+    }
+  }
+  await interaction.editReply(`🔒 تم بدء الريد وإغلاق التسجيل بنجاح!\n📨 تم إرسال رسائل خاصة لـ **${successCount}** لاعب. (${failCount} مقفلين الخاص)`);
+}
+
+async function handleCalanthiaRaidReopen(interaction) {
+  if (!interaction.member.permissions.has(PermissionFlagsBits.ManageGuild)) {
+    return interaction.reply({ content: "❌ عذراً، الإدارة فقط يمكنها إعادة فتح الريد.", ephemeral: true });
+  }
+  if (isRaidExpired(interaction.message.createdAt)) {
+    return interaction.reply({ content: "⚠️ لا يمكن إعادة فتح هذا الريد لأنه تجاوز موعد الإغلاق النهائي (الخميس 2 ظهراً).", ephemeral: true });
+  }
+
+  const message = interaction.message;
+  const embed = EmbedBuilder.from(message.embeds[0]);
+  embed.setColor("#E74C3C");
+  if (embed.data.title?.includes(" (مغلق)")) embed.setTitle(embed.data.title.replace(" (مغلق)", ""));
+  const row = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId("throne:calanthia_raid_join")
+      .setLabel("أرغب بالانضمام (التسجيل مفتوح)")
+      .setStyle(ButtonStyle.Success)
+      .setEmoji("⚔️"),
+    new ButtonBuilder()
+      .setCustomId("throne:calanthia_raid_view")
+      .setLabel("عرض الأوقات المسجلة")
+      .setStyle(ButtonStyle.Secondary)
+      .setEmoji("📋"),
+    new ButtonBuilder()
+      .setCustomId("throne:calanthia_raid_start")
+      .setLabel("بدء الريد (إغلاق التسجيل)")
+      .setStyle(ButtonStyle.Danger)
+      .setEmoji("🔒")
+  );
+  await message.edit({ embeds: [embed], components: [row] }).catch(() => {});
+  await interaction.reply({ content: "🔓 تم إعادة فتح التسجيل للريد بنجاح!", ephemeral: true });
+}
+
 // ─── الموجه الرئيسي ─────────────────────────────────────────────────────────
 export async function handleInteraction(interaction) {
   const customId = interaction.customId;
@@ -986,6 +1173,16 @@ export async function handleInteraction(interaction) {
       await handleRaidDays(interaction);
     } else if (customId.startsWith("throne:raid_times:")) {
       await handleRaidTimes(interaction);
+    } else if (customId === "throne:calanthia_raid_join") {
+      await handleCalanthiaRaidJoin(interaction);
+    } else if (customId === "throne:calanthia_raid_view") {
+      await handleCalanthiaRaidView(interaction);
+    } else if (customId === "throne:calanthia_raid_start") {
+      await handleCalanthiaRaidStart(interaction);
+    } else if (customId === "throne:calanthia_raid_reopen") {
+      await handleCalanthiaRaidReopen(interaction);
+    } else if (customId.startsWith("throne:calanthia_raid_times:")) {
+      await handleCalanthiaRaidTimes(interaction);
     }
   } catch (err) {
     console.error(`[TL] Error handling interaction "${customId}":`, err);
