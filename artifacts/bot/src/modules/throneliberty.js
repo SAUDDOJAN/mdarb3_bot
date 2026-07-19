@@ -1092,7 +1092,7 @@ async function handleCalanthiaRaidStart(interaction) {
     } catch (e) {
       console.error("[ThroneLiberty] Error deleting old general chat message:", e);
     }
-    await generalChannel.send("يا شباب إحنا بدينا نلعب ريد كلنثيا الآن وحنكرت أعضاء الجيلد اللي حاب يخلص ريد كلنثيا يدخل الروم الصوتي");
+    await generalChannel.send("يا شباب إحنا بدينا نلعب ريد كلنثيا الآن وحنكري أعضاء الجيلد اللي حاب يخلص ريد كلنثيا يدخل الروم الصوتي");
   }
 
   let successCount = 0, failCount = 0;
