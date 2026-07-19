@@ -1082,6 +1082,19 @@ async function handleCalanthiaRaidStart(interaction) {
   const embedImage = interaction.message.embeds[0]?.image?.url || null;
   await publishOverlayEvent("Calanthia Raid", embedTitle, embedImage, 60);
 
+  const generalChannelId = "1294312574162178200";
+  const generalChannel = await interaction.guild.channels.fetch(generalChannelId).catch(() => null);
+  if (generalChannel) {
+    try {
+      const msgs = await generalChannel.messages.fetch({ limit: 50 });
+      const oldMsg = msgs.find(m => m.author.id === interaction.client.user.id && m.content.includes("يا شباب حنسوي ريد كلنثيا"));
+      if (oldMsg) await oldMsg.delete();
+    } catch (e) {
+      console.error("[ThroneLiberty] Error deleting old general chat message:", e);
+    }
+    await generalChannel.send("يا شباب إحنا بدينا نلعب ريد كلنثيا الآن وحنكرت أعضاء الجيلد اللي حاب يخلص ريد كلنثيا يدخل الروم الصوتي");
+  }
+
   let successCount = 0, failCount = 0;
   for (const r of regs) {
     try {

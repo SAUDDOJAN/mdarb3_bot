@@ -146,7 +146,7 @@ export async function execute(interaction) {
       const generalChannelId = "1294312574162178200";
       const generalChannel = interaction.guild.channels.cache.get(generalChannelId) || await interaction.guild.channels.fetch(generalChannelId).catch(() => null);
       if (generalChannel) {
-        await generalChannel.send(`📢 **تنبيه ريد كلنثيا (Calanthia Raid)!**\n\nتم فتح تسجيل ريد كلنثيا! يرجى التوجه إلى روم <#1526362737884795011> للتسجيل وتسجيل أوقاتكم المناسبة للحضور.\n<@&${roleId}>`);
+        await generalChannel.send(`يا شباب حنسوي ريد كلنثيا، إذا بتسويه معنا شيك على روم الإشعارات وسجل اسمك\n<@&${roleId}>`);
       }
     }
 
