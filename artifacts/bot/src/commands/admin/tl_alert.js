@@ -136,7 +136,7 @@ export async function execute(interaction) {
     payload.components = [row];
   }
 
-  await channel.send(payload);
+  const sentMessage = await channel.send(payload);
 
   if (type === "guild_raid" || type === "calanthia_raid") {
     const imgUrl = imageAttachment ? imageAttachment.url : (type === "calanthia_raid" ? "https://cdn.discordapp.com/attachments/1290449971639881849/1528383932264087662/Calanthia_-_768.png?ex=6a5e19f5&is=6a5cc875&hm=19e7544c9e9f4188271b0b5118d2ee8939c377d1e01a89d133150f34fc387bbe&" : null);
@@ -165,7 +165,7 @@ export async function execute(interaction) {
         for (const [id, member] of members) {
           if (member.user.bot) continue;
           try {
-            await member.send({ content: `🔔 **تنبيه إدارة القيلد (${type === "guild_raid" ? "Guild Raid" : "Calanthia Raid"})!**\n\n${description}\n\n*الرجاء التوجه لروم الديسكورد للتسجيل!*` });
+            await member.send({ content: `🔔 **تنبيه إدارة القيلد (${type === "guild_raid" ? "Guild Raid" : "Calanthia Raid"})!**\n\n${description}\n\n🔗 **[اضغط هنا للتوجه إلى الإعلان والتسجيل مباشرة](${sentMessage.url})**` });
             successCount++;
             await new Promise(resolve => setTimeout(resolve, 1500)); // 1.5 seconds delay to prevent rate limit
           } catch (e) {
