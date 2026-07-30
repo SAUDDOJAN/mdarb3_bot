@@ -1,6 +1,6 @@
 import { broadcastPushNotification } from "../services/push.js";
-import { publishOverlayEvent, getAllTlSchedules } from "../database/index.js";
-import { EmbedBuilder } from "discord.js";
+import { publishOverlayEvent, getAllTlSchedules, query } from "../database/index.js";
+import { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } from "discord.js";
 
 const THRESHOLDS = {
   shugo: { time: 240 },
@@ -321,7 +321,6 @@ export function setupGameTimers(client) {
           if (client && key.startsWith('tl_')) {
             try {
               const channelId = "1526297989734334554";
-              const roleId = "1292754458492796982";
               
               let color = 0x2b2d31; // Default
               let thumbUrl = null;
@@ -360,11 +359,34 @@ export function setupGameTimers(client) {
 
                 if (thumbUrl) embed.setThumbnail(thumbUrl);
 
+                // Build Subscription Button
+                const subscribeButton = new ButtonBuilder()
+                  .setCustomId(`alerts:subscribe:${key}`)
+                  .setLabel(`🔔 تفعيل/إلغاء التنبيه`)
+                  .setStyle(ButtonStyle.Secondary);
+                
+                const actionRow = new ActionRowBuilder().addComponents(subscribeButton);
+
+                // Fetch subscribers from DB
+                let mentionsStr = "";
+                try {
+                  const subscribers = await query(
+                    "SELECT user_id FROM alert_subscriptions WHERE guild_id=$1 AND alert_type=$2",
+                    [channel.guild.id, key]
+                  );
+                  if (subscribers.rows.length > 0) {
+                    mentionsStr = subscribers.rows.map(r => `<@${r.user_id}>`).join(" ");
+                  }
+                } catch (e) {
+                  console.error("[Timers] Failed to fetch subscribers for", key, e);
+                }
+
                 await channel.send({
-                  content: `<@&${roleId}>`,
-                  embeds: [embed]
+                  content: mentionsStr || " ",
+                  embeds: [embed],
+                  components: [actionRow]
                 });
-                console.log(`[Timers] Sent Discord embed for ${key} to channel ${channelId}`);
+                console.log(`[Timers] Sent Discord embed for ${key} to channel ${channelId} with ${mentionsStr.split(" ").length} mentions.`);
               }
               // Map eventType for Overlay App
               let overlayEventType = key;

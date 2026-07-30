@@ -32,6 +32,12 @@ export const ALERT_LABELS = {
   siege:       "الحصار (Siege)",
   siege_prep:  "تجهيز الحصار (Siege Prep)",
   siege_alert: "تنبيه مبكر للحصار (Siege Alert)",
+  tl_boss:     "زعماء العالم والآرك (TL Bosses)",
+  tl_event:    "الفعاليات المفتوحة (TL Events)",
+  tl_whale:    "الحوت (Gigantrite)",
+  tl_tax:      "توصيل الضرائب (TL Tax)",
+  tl_siege:    "حصار القلعة (TL Siege)",
+  tl_gate:     "بوابة الذكريات (Gate of Memory)",
 };
 
 export const PANEL_ROLES = ["rift", "shugo", "maint", "daily", "siege"];
@@ -42,4 +48,10 @@ export const PANEL_ROLE_EMOJIS = {
   maint: "🔧",
   daily: "☀️",
   siege: "⚔️",
+  tl_boss: "👹",
+  tl_event: "⚔️",
+  tl_whale: "🐋",
+  tl_tax: "💰",
+  tl_siege: "🏰",
+  tl_gate: "⏳",
 };

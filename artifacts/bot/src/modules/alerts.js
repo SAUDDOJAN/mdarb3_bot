@@ -70,12 +70,12 @@ async function buildPanelRows(guildId) {
 
 export async function handleInteraction(interaction) {
   const [, action, alertType] = interaction.customId.split(":");
-  if (action === "toggle") {
-    await toggleSubscription(interaction, alertType);
+  if (action === "toggle" || action === "subscribe") {
+    await toggleSubscription(interaction, alertType, action);
   }
 }
 
-async function toggleSubscription(interaction, alertType) {
+async function toggleSubscription(interaction, alertType, action) {
   await interaction.deferReply({ flags: 64 });
 
   const userId = interaction.user.id;
@@ -107,11 +107,13 @@ async function toggleSubscription(interaction, alertType) {
     });
   }
 
-  try {
-    const rows = await buildPanelRows(guildId);
-    await interaction.message.edit({ components: rows });
-  } catch (err) {
-    console.error("[Alerts] Could not update panel components:", err);
+  if (action === "toggle") {
+    try {
+      const rows = await buildPanelRows(guildId);
+      await interaction.message.edit({ components: rows });
+    } catch (err) {
+      console.error("[Alerts] Could not update panel components:", err);
+    }
   }
 }
 
