@@ -1,5 +1,6 @@
 import { handleVoiceJoin, handleVoiceLeave } from "../tasks/voiceTracker.js";
 import { query } from "../database/index.js";
+import { handleVoiceJoin as levelingVoiceJoin, handleVoiceLeave as levelingVoiceLeave } from "../modules/leveling.js";
 
 export default {
   name: "voiceStateUpdate",
@@ -46,10 +47,12 @@ export default {
         if (newState.channel) {
           await handleVoiceJoin(member, newState.channel);
           await handleLfgVoiceJoin(member, newState.channel);
+          await levelingVoiceJoin(member);
         }
       } else if (leftOld) {
         if (oldState.channel) await handleVoiceLeave(client, member, oldState.channel);
         if (oldState.channelId) await handleLfgVoiceLeave(client, member, oldState.channelId);
+        await levelingVoiceLeave(member);
         if (oldState.channelId) await checkLfgChannelCleanup(client, oldState.channelId, cleanUpEmptyLfg);
       } else if (movedBetween) {
         if (oldState.channel) await handleVoiceLeave(client, member, oldState.channel);

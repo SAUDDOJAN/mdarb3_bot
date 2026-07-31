@@ -51,19 +51,24 @@ export async function handleXp(message) {
   }
 }
 
-async function notifyLevelUp(message, level) {
+async function notifyLevelUp(context, level, type = 'chat') {
+  const author = type === 'voice' ? context.user : context.author;
+  const channel = type === 'voice' ? context.guild.systemChannel : context.channel;
+
+  if (!channel) return;
+
   const embed = new EmbedBuilder()
     .setColor(0x57f287)
     .setTitle("🎉 ترقية مستوى!")
-    .setDescription(`مبروك ${message.author} وصلت **المستوى ${level}**!\nاستمر، دعمك يهمنا 🚀`)
+    .setDescription(`مبروك ${author} وصلت **المستوى ${level}**!\nاستمر، دعمك يهمنا 🚀`)
     .setTimestamp();
-  await message.channel.send({ embeds: [embed] }).catch(() => {});
+  await channel.send({ embeds: [embed] }).catch(() => {});
 }
 
 export async function getRank(interaction) {
   const target = interaction.options.getUser("user") ?? interaction.user;
   const res = await query(
-    "SELECT xp, level, total_messages FROM users WHERE user_id = $1 AND guild_id = $2",
+    "SELECT xp, level, total_messages, total_voice_minutes FROM users WHERE user_id = $1 AND guild_id = $2",
     [target.id, interaction.guildId]
   );
 
@@ -72,7 +77,7 @@ export async function getRank(interaction) {
     return;
   }
 
-  const { xp, level, total_messages } = res.rows[0];
+  const { xp, level, total_messages, total_voice_minutes } = res.rows[0];
   const needed = xpForLevel(level);
 
   const rankRes = await query(
@@ -80,6 +85,10 @@ export async function getRank(interaction) {
     [interaction.guildId, level, xp]
   );
   const rank = parseInt(rankRes.rows[0].rank) + 1;
+
+  const hours = Math.floor((total_voice_minutes || 0) / 60);
+  const mins = (total_voice_minutes || 0) % 60;
+  const voiceStr = `${hours}h ${mins}m`;
 
   const embed = new EmbedBuilder()
     .setColor(0x5865f2)
@@ -89,7 +98,8 @@ export async function getRank(interaction) {
       { name: "Rank", value: `#${rank}`, inline: true },
       { name: "Level", value: `${level}`, inline: true },
       { name: "XP", value: `${xp} / ${needed}`, inline: true },
-      { name: "Messages", value: `${total_messages}`, inline: true }
+      { name: "Messages", value: `${total_messages}`, inline: true },
+      { name: "Voice Time", value: voiceStr, inline: true }
     )
     .setTimestamp();
 
@@ -116,4 +126,71 @@ export async function getLeaderboard(interaction) {
     .setTimestamp();
 
   await interaction.reply({ embeds: [embed] });
+}
+
+export async function handleVoiceJoin(member) {
+  try {
+    const userId = member.user.id;
+    const guildId = member.guild.id;
+    const now = new Date();
+
+    const res = await query(
+      "UPDATE users SET voice_join_time = $1 WHERE user_id = $2 AND guild_id = $3 RETURNING *",
+      [now, userId, guildId]
+    );
+
+    if (res.rows.length === 0) {
+      await query(
+        "INSERT INTO users (user_id, guild_id, xp, level, total_messages, last_xp_at, voice_join_time) VALUES ($1,$2,0,1,0,$3,$4) ON CONFLICT (user_id, guild_id) DO UPDATE SET voice_join_time = EXCLUDED.voice_join_time",
+        [userId, guildId, now, now]
+      );
+    }
+  } catch (err) {
+    console.error("[Leveling] Voice join error:", err);
+  }
+}
+
+export async function handleVoiceLeave(member) {
+  try {
+    const userId = member.user.id;
+    const guildId = member.guild.id;
+
+    const res = await query(
+      "SELECT xp, level, voice_join_time, total_voice_minutes FROM users WHERE user_id = $1 AND guild_id = $2",
+      [userId, guildId]
+    );
+
+    let user = res.rows[0];
+    if (user && user.voice_join_time) {
+      const now = new Date();
+      const joinTime = new Date(user.voice_join_time);
+      const minutesSpent = Math.floor((now - joinTime) / (1000 * 60));
+      
+      if (minutesSpent <= 0) {
+         await query("UPDATE users SET voice_join_time = NULL WHERE user_id = $1 AND guild_id = $2", [userId, guildId]);
+         return;
+      }
+
+      // Calculation: 20 XP per 60 minutes = 20/60 XP per minute
+      const xpGain = Math.floor(minutesSpent * (20 / 60)); 
+      
+      let newXp = user.xp + xpGain;
+      let newLevel = user.level;
+
+      while (newXp >= xpForLevel(newLevel)) {
+        newXp -= xpForLevel(newLevel);
+        newLevel++;
+        await notifyLevelUp(member, newLevel, 'voice');
+      }
+
+      const totalVoice = (user.total_voice_minutes || 0) + minutesSpent;
+
+      await query(
+        "UPDATE users SET xp = $1, level = $2, total_voice_minutes = $3, voice_join_time = NULL WHERE user_id = $4 AND guild_id = $5",
+        [newXp, newLevel, totalVoice, userId, guildId]
+      );
+    }
+  } catch (err) {
+    console.error("[Leveling] Voice leave error:", err);
+  }
 }

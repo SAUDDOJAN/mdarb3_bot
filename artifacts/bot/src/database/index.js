@@ -257,6 +257,8 @@ export async function initDb() {
       UNIQUE(user_id, guild_id)
     )
   `);
+  await query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS voice_join_time TIMESTAMPTZ`);
+  await query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS total_voice_minutes INTEGER DEFAULT 0`);
 
   await query(`
     CREATE TABLE IF NOT EXISTS notifications (
