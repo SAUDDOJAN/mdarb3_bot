@@ -369,24 +369,31 @@ export function setupGameTimers(client) {
 
                 // Fetch subscribers from DB
                 let mentionsStr = "";
-                try {
-                  const subscribers = await query(
-                    "SELECT user_id FROM alert_subscriptions WHERE guild_id=$1 AND alert_type=$2",
-                    [channel.guild.id, key]
-                  );
-                  if (subscribers.rows.length > 0) {
-                    mentionsStr = subscribers.rows.map(r => `<@${r.user_id}>`).join(" ");
+                let guildId = channel.guild?.id || channel.guildId;
+                if (guildId) {
+                  try {
+                    const subscribers = await query(
+                      "SELECT user_id FROM alert_subscriptions WHERE guild_id=$1 AND alert_type=$2",
+                      [guildId, key]
+                    );
+                    if (subscribers.rows.length > 0) {
+                      mentionsStr = subscribers.rows.map(r => `<@${r.user_id}>`).join(" ");
+                    }
+                  } catch (e) {
+                    console.error("[Timers] Failed to fetch subscribers for", key, e);
                   }
-                } catch (e) {
-                  console.error("[Timers] Failed to fetch subscribers for", key, e);
                 }
 
-                await channel.send({
-                  content: mentionsStr || " ",
+                const msgPayload = {
                   embeds: [embed],
                   components: [actionRow]
-                });
-                console.log(`[Timers] Sent Discord embed for ${key} to channel ${channelId} with ${mentionsStr.split(" ").length} mentions.`);
+                };
+                if (mentionsStr) {
+                  msgPayload.content = mentionsStr;
+                }
+
+                await channel.send(msgPayload);
+                console.log(`[Timers] Sent Discord embed for ${key} to channel ${channelId} with ${mentionsStr ? mentionsStr.split(" ").length : 0} mentions.`);
               }
               // Map eventType for Overlay App
               let overlayEventType = key;
