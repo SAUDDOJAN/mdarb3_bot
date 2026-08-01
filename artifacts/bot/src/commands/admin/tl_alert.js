@@ -23,14 +23,50 @@ export const data = new SlashCommandBuilder()
       .setRequired(true)
   )
   .addStringOption(option =>
-    option.setName("date")
-      .setDescription("تاريخ الريد (مثال: 2024-12-30)")
+    option.setName("day")
+      .setDescription("اليوم")
       .setRequired(true)
+      .addChoices(
+        { name: "اليوم (Today)", value: "today" },
+        { name: "غداً (Tomorrow)", value: "tomorrow" },
+        { name: "الأحد (Sunday)", value: "0" },
+        { name: "الإثنين (Monday)", value: "1" },
+        { name: "الثلاثاء (Tuesday)", value: "2" },
+        { name: "الأربعاء (Wednesday)", value: "3" },
+        { name: "الخميس (Thursday)", value: "4" },
+        { name: "الجمعة (Friday)", value: "5" },
+        { name: "السبت (Saturday)", value: "6" }
+      )
   )
   .addStringOption(option =>
-    option.setName("time")
-      .setDescription("وقت الريد بتوقيت مكة - 24 ساعة (مثال: 20:30)")
+    option.setName("hour")
+      .setDescription("الساعة (بتوقيت مكة)")
       .setRequired(true)
+      .addChoices(
+        { name: "13:00 (01:00 PM)", value: "13" },
+        { name: "14:00 (02:00 PM)", value: "14" },
+        { name: "15:00 (03:00 PM)", value: "15" },
+        { name: "16:00 (04:00 PM)", value: "16" },
+        { name: "17:00 (05:00 PM)", value: "17" },
+        { name: "18:00 (06:00 PM)", value: "18" },
+        { name: "19:00 (07:00 PM)", value: "19" },
+        { name: "20:00 (08:00 PM)", value: "20" },
+        { name: "21:00 (09:00 PM)", value: "21" },
+        { name: "22:00 (10:00 PM)", value: "22" },
+        { name: "23:00 (11:00 PM)", value: "23" },
+        { name: "00:00 (12:00 AM)", value: "0" },
+        { name: "01:00 (01:00 AM)", value: "1" },
+        { name: "02:00 (02:00 AM)", value: "2" }
+      )
+  )
+  .addStringOption(option =>
+    option.setName("minute")
+      .setDescription("الدقيقة")
+      .setRequired(true)
+      .addChoices(
+        { name: "00", value: "0" },
+        { name: "30", value: "30" }
+      )
   )
   .addStringOption(option =>
     option.setName("custom_title")
@@ -53,8 +89,9 @@ export async function execute(interaction) {
 
   const type = interaction.options.getString("type");
   const description = interaction.options.getString("description");
-  const dateStr = interaction.options.getString("date");
-  const timeStr = interaction.options.getString("time");
+  const dayStr = interaction.options.getString("day");
+  const hourStr = interaction.options.getString("hour");
+  const minStr = interaction.options.getString("minute");
   const customTitle = interaction.options.getString("custom_title");
   const imageAttachment = interaction.options.getAttachment("image");
   const sendDm = interaction.options.getBoolean("send_dm") || false;
@@ -77,31 +114,31 @@ export async function execute(interaction) {
     return interaction.editReply({ content: "❌ لم أتمكن من العثور على روم التنبيهات المخصص." });
   }
 
-  let [year, month, day] = [0, 0, 0];
-  const dateParts = dateStr.split(/[-/]/);
-  if (dateParts.length === 3) {
-    if (dateParts[0].length === 4) {
-      year = parseInt(dateParts[0]);
-      month = parseInt(dateParts[1]);
-      day = parseInt(dateParts[2]);
-    } else if (dateParts[2].length === 4) {
-      year = parseInt(dateParts[2]);
-      month = parseInt(dateParts[1]);
-      day = parseInt(dateParts[0]);
-    }
-  }
+  const d = new Date();
+  d.setUTCHours(d.getUTCHours() + 3);
 
-  let [hour, min] = [0, 0];
-  const timeParts = timeStr.split(':');
-  if (timeParts.length >= 2) {
-    hour = parseInt(timeParts[0]);
-    min = parseInt(timeParts[1]);
-  }
-
-  const raidTime = new Date(Date.UTC(year, month - 1, day, hour - 3, min));
+  let targetDate = new Date(d);
   
-  if (isNaN(raidTime.getTime()) || year === 0) {
-    return interaction.editReply({ content: "❌ صيغة التاريخ أو الوقت غير صحيحة. يرجى استخدام الصيغة الصحيحة (مثال: التاريخ 2024-12-30 والوقت 20:30)." });
+  if (dayStr === 'tomorrow') {
+    targetDate.setUTCDate(targetDate.getUTCDate() + 1);
+  } else if (dayStr !== 'today') {
+    let targetDay = parseInt(dayStr);
+    let diff = targetDay - targetDate.getUTCDay();
+    if (diff <= 0) diff += 7; 
+    targetDate.setUTCDate(targetDate.getUTCDate() + diff);
+  }
+
+  const hour = parseInt(hourStr);
+  const min = parseInt(minStr);
+  
+  const year = targetDate.getUTCFullYear();
+  const month = targetDate.getUTCMonth();
+  const date = targetDate.getUTCDate();
+  
+  const raidTime = new Date(Date.UTC(year, month, date, hour - 3, min, 0));
+  
+  if (isNaN(raidTime.getTime())) {
+    return interaction.editReply({ content: "❌ حدث خطأ في حساب الوقت." });
   }
   const unixTime = Math.floor(raidTime.getTime() / 1000);
 
