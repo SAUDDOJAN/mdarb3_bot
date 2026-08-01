@@ -943,16 +943,16 @@ async function handleRaidReopen(interaction) {
   await interaction.reply({ content: "🔓 تم إعادة فتح التسجيل للريد بنجاح!", ephemeral: true });
 }
 
-// ─── نظام ريد كلنثيا (Calanthia Raid) ──────────────────────────────────────
-async function handleCalanthiaRaidJoin(interaction) {
+// ─── نظام ريد كلنثيا وريد الأرش بوس ──────────────────────────────────────
+async function handleCalanthiaRaidJoin(interaction, raidType = "calanthia") {
   if (isRaidExpired(interaction.message.createdAt)) {
-    await closeCalanthiaRaidMessage(interaction.message);
+    await closeCalanthiaRaidMessage(interaction.message, raidType);
     return interaction.reply({ content: "❌ عذراً، تم إغلاق التسجيل لهذا الريد (التسجيل ينتهي كل خميس الساعة 2 ظهراً بتوقيت مكة المكرمة).", ephemeral: true });
   }
 
   const raidMessageId = interaction.message.id;
   const timesMenu = new StringSelectMenuBuilder()
-    .setCustomId(`throne:calanthia_raid_times:${raidMessageId}`)
+    .setCustomId(`throne:${raidType}_raid_times:${raidMessageId}`)
     .setPlaceholder("اختر الأوقات المناسبة لك")
     .setMinValues(1)
     .setMaxValues(4)
@@ -1031,8 +1031,9 @@ async function handleCalanthiaRaidView(interaction) {
       }
     }
 
+    const titleStr = interaction.customId.includes("archboss") ? "📋 ملخص أوقات المسجلين في ريد الأرش بوس" : "📋 ملخص أوقات المسجلين في ريد كلنثيا";
     const embed = new EmbedBuilder()
-      .setTitle("📋 ملخص أوقات المسجلين في ريد كلنثيا")
+      .setTitle(titleStr)
       .setColor("#3498DB")
       .setTimestamp();
 
@@ -1049,14 +1050,14 @@ async function handleCalanthiaRaidView(interaction) {
   }
 }
 
-async function closeCalanthiaRaidMessage(message) {
+async function closeCalanthiaRaidMessage(message, raidType = "calanthia") {
   if (!message || !message.embeds || message.embeds.length === 0) return;
   const embed = EmbedBuilder.from(message.embeds[0]);
   embed.setColor("#7f8c8d");
   if (!embed.data.title?.includes("(مغلق)")) embed.setTitle((embed.data.title || "") + " (مغلق)");
   const row = new ActionRowBuilder().addComponents(
     new ButtonBuilder()
-      .setCustomId("throne:calanthia_raid_reopen")
+      .setCustomId(`throne:${raidType}_raid_reopen`)
       .setLabel("إعادة فتح الريد")
       .setStyle(ButtonStyle.Primary)
       .setEmoji("🔓")
@@ -1064,7 +1065,7 @@ async function closeCalanthiaRaidMessage(message) {
   await message.edit({ embeds: [embed], components: [row] }).catch(() => {});
 }
 
-async function handleCalanthiaRaidStart(interaction) {
+async function handleCalanthiaRaidStart(interaction, raidType = "calanthia") {
   if (!interaction.member.permissions.has(PermissionFlagsBits.ManageGuild)) {
     return interaction.reply({ content: "❌ عذراً، الإدارة فقط يمكنها بدء الريد وإغلاق التسجيل.", ephemeral: true });
   }
@@ -1076,23 +1077,28 @@ async function handleCalanthiaRaidStart(interaction) {
   const raidMessageId = interaction.message.id;
   const regs = await getTlRaidRegistrations(raidMessageId);
 
-  await closeCalanthiaRaidMessage(interaction.message);
+  await closeCalanthiaRaidMessage(interaction.message, raidType);
 
-  const embedTitle = interaction.message.embeds[0]?.title || "Calanthia Raid";
+  const embedTitle = interaction.message.embeds[0]?.title || "Raid";
   const embedImage = interaction.message.embeds[0]?.image?.url || null;
-  await publishOverlayEvent("Calanthia Raid", embedTitle, embedImage, 60);
+  const overlayName = raidType === "archboss" ? "Guild Archboss" : "Calanthia Raid";
+  await publishOverlayEvent(overlayName, embedTitle, embedImage, 60);
 
   const generalChannelId = "1294312574162178200";
   const generalChannel = await interaction.guild.channels.fetch(generalChannelId).catch(() => null);
   if (generalChannel) {
     try {
+      const searchStr = raidType === "archboss" ? "يا شباب حنسوي ريد ارش بوس" : "يا شباب حنسوي ريد كلنثيا";
       const msgs = await generalChannel.messages.fetch({ limit: 50 });
-      const oldMsg = msgs.find(m => m.author.id === interaction.client.user.id && m.content.includes("يا شباب حنسوي ريد كلنثيا"));
+      const oldMsg = msgs.find(m => m.author.id === interaction.client.user.id && m.content.includes(searchStr));
       if (oldMsg) await oldMsg.delete();
     } catch (e) {
       console.error("[ThroneLiberty] Error deleting old general chat message:", e);
     }
-    await generalChannel.send("يا شباب إحنا بدينا نلعب ريد كلنثيا الآن وحنكري أعضاء الجيلد اللي حاب يخلص ريد كلنثيا يدخل الروم الصوتي");
+    const newStr = raidType === "archboss" 
+      ? "يا شباب إحنا بدينا نلعب ريد الأرش بوس (Ramux) الآن وحنكري أعضاء الجيلد اللي حاب يخلص الريد يدخل الروم الصوتي"
+      : "يا شباب إحنا بدينا نلعب ريد كلنثيا الآن وحنكري أعضاء الجيلد اللي حاب يخلص ريد كلنثيا يدخل الروم الصوتي";
+    await generalChannel.send(newStr);
   }
 
   let successCount = 0, failCount = 0;
@@ -1110,7 +1116,7 @@ async function handleCalanthiaRaidStart(interaction) {
   await interaction.editReply(`🔒 تم بدء الريد وإغلاق التسجيل بنجاح!\n📨 تم إرسال رسائل خاصة لـ **${successCount}** لاعب. (${failCount} مقفلين الخاص)`);
 }
 
-async function handleCalanthiaRaidReopen(interaction) {
+async function handleCalanthiaRaidReopen(interaction, raidType = "calanthia") {
   if (!interaction.member.permissions.has(PermissionFlagsBits.ManageGuild)) {
     return interaction.reply({ content: "❌ عذراً، الإدارة فقط يمكنها إعادة فتح الريد.", ephemeral: true });
   }
@@ -1124,17 +1130,17 @@ async function handleCalanthiaRaidReopen(interaction) {
   if (embed.data.title?.includes(" (مغلق)")) embed.setTitle(embed.data.title.replace(" (مغلق)", ""));
   const row = new ActionRowBuilder().addComponents(
     new ButtonBuilder()
-      .setCustomId("throne:calanthia_raid_join")
+      .setCustomId(`throne:${raidType}_raid_join`)
       .setLabel("أرغب بالانضمام (التسجيل مفتوح)")
       .setStyle(ButtonStyle.Success)
       .setEmoji("⚔️"),
     new ButtonBuilder()
-      .setCustomId("throne:calanthia_raid_view")
+      .setCustomId(`throne:${raidType}_raid_view`)
       .setLabel("عرض الأوقات المسجلة")
       .setStyle(ButtonStyle.Secondary)
       .setEmoji("📋"),
     new ButtonBuilder()
-      .setCustomId("throne:calanthia_raid_start")
+      .setCustomId(`throne:${raidType}_raid_start`)
       .setLabel("بدء الريد (إغلاق التسجيل)")
       .setStyle(ButtonStyle.Danger)
       .setEmoji("🔒")
@@ -1186,15 +1192,18 @@ export async function handleInteraction(interaction) {
       await handleRaidDays(interaction);
     } else if (customId.startsWith("throne:raid_times:")) {
       await handleRaidTimes(interaction);
-    } else if (customId === "throne:calanthia_raid_join") {
-      await handleCalanthiaRaidJoin(interaction);
-    } else if (customId === "throne:calanthia_raid_view") {
+    } else if (customId === "throne:calanthia_raid_join" || customId === "throne:archboss_raid_join") {
+      const t = customId.includes("archboss") ? "archboss" : "calanthia";
+      await handleCalanthiaRaidJoin(interaction, t);
+    } else if (customId === "throne:calanthia_raid_view" || customId === "throne:archboss_raid_view") {
       await handleCalanthiaRaidView(interaction);
-    } else if (customId === "throne:calanthia_raid_start") {
-      await handleCalanthiaRaidStart(interaction);
-    } else if (customId === "throne:calanthia_raid_reopen") {
-      await handleCalanthiaRaidReopen(interaction);
-    } else if (customId.startsWith("throne:calanthia_raid_times:")) {
+    } else if (customId === "throne:calanthia_raid_start" || customId === "throne:archboss_raid_start") {
+      const t = customId.includes("archboss") ? "archboss" : "calanthia";
+      await handleCalanthiaRaidStart(interaction, t);
+    } else if (customId === "throne:calanthia_raid_reopen" || customId === "throne:archboss_raid_reopen") {
+      const t = customId.includes("archboss") ? "archboss" : "calanthia";
+      await handleCalanthiaRaidReopen(interaction, t);
+    } else if (customId.startsWith("throne:calanthia_raid_times:") || customId.startsWith("throne:archboss_raid_times:")) {
       await handleCalanthiaRaidTimes(interaction);
     }
   } catch (err) {
