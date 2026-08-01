@@ -74,12 +74,12 @@ export async function execute(interaction) {
   const channel = interaction.guild.channels.cache.get(channelId) || await interaction.guild.channels.fetch(channelId).catch(() => null);
   
   if (!channel) {
-    return interaction.reply({ content: "❌ لم أتمكن من العثور على روم التنبيهات المخصص.", ephemeral: true });
+    return interaction.editReply({ content: "❌ لم أتمكن من العثور على روم التنبيهات المخصص." });
   }
 
   const raidTime = new Date(`${dateStr}T${timeStr}:00+03:00`);
   if (isNaN(raidTime.getTime())) {
-    return interaction.reply({ content: "❌ صيغة التاريخ أو الوقت غير صحيحة. يرجى استخدام الصيغة الصحيحة (مثال: التاريخ 2024-12-30 والوقت 20:30).", ephemeral: true });
+    return interaction.editReply({ content: "❌ صيغة التاريخ أو الوقت غير صحيحة. يرجى استخدام الصيغة الصحيحة (مثال: التاريخ 2024-12-30 والوقت 20:30)." });
   }
   const unixTime = Math.floor(raidTime.getTime() / 1000);
 
