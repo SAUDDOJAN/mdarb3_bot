@@ -943,6 +943,80 @@ async function handleRaidReopen(interaction) {
   await interaction.reply({ content: "🔓 تم إعادة فتح التسجيل للريد بنجاح!", ephemeral: true });
 }
 
+// ─── Unified Raid System ──────────────────────────────────────────────────
+async function handleUnifiedRaidStatus(interaction) {
+  const parts = interaction.customId.split(":");
+  const statusType = parts[2]; // yes, maybe, no
+  const raidMessageId = interaction.message.id;
+  const userId = interaction.user.id;
+
+  let statusLabel = "";
+  if (statusType === "yes") statusLabel = "بحضر";
+  else if (statusType === "maybe") statusLabel = "يمكن أحضر";
+  else if (statusType === "no") statusLabel = "ماراح أقدر أحضر";
+
+  try {
+    const { query } = await import("../database/index.js");
+    // We reuse tl_raid_registrations, saving status in the 'times' column
+    await query(
+      `INSERT INTO tl_raid_registrations (message_id, user_id, days, times) 
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (message_id, user_id) 
+       DO UPDATE SET times = $4, created_at = NOW()`,
+      [raidMessageId, userId, "unified", statusLabel]
+    );
+
+    // Update original message to display inline counts if desired? 
+    // The user didn't ask for inline counts, they have the view button for it.
+    await interaction.reply({ content: `✅ تم تسجيل إجابتك: **${statusLabel}**`, ephemeral: true });
+  } catch (err) {
+    console.error("[ThroneLiberty] Error registering unified raid status:", err);
+    await interaction.reply({ content: "❌ حدث خطأ أثناء التسجيل.", ephemeral: true });
+  }
+}
+
+async function handleUnifiedRaidView(interaction) {
+  const raidMessageId = interaction.message.id;
+  try {
+    const { getTlRaidRegistrations } = await import("../database/index.js");
+    const regs = await getTlRaidRegistrations(raidMessageId);
+    
+    if (regs.length === 0) {
+      return interaction.reply({ content: "⚠️ لا يوجد مسجلين حتى الآن.", ephemeral: true });
+    }
+
+    const groups = {
+      "بحضر": [],
+      "يمكن أحضر": [],
+      "ماراح أقدر أحضر": []
+    };
+
+    for (const r of regs) {
+      if (groups[r.times]) {
+        groups[r.times].push(`<@${r.user_id}>`);
+      }
+    }
+
+    const embed = new EmbedBuilder()
+      .setTitle("📋 ملخص الحضور للريد")
+      .setColor("#3498DB")
+      .setTimestamp();
+
+    let desc = `إجمالي المسجلين: **${regs.length}** لاعب\n\n`;
+    for (const [status, users] of Object.entries(groups)) {
+      if (users.length > 0) {
+        desc += `**${status}** (${users.length})\n${users.join("، ")}\n\n`;
+      }
+    }
+
+    embed.setDescription(desc);
+    await interaction.reply({ embeds: [embed], ephemeral: true });
+  } catch (err) {
+    console.error("[ThroneLiberty] Error viewing unified registrations:", err);
+    await interaction.reply({ content: "❌ حدث خطأ أثناء جلب البيانات.", ephemeral: true });
+  }
+}
+
 // ─── نظام ريد كلنثيا وريد الأرش بوس ──────────────────────────────────────
 async function handleCalanthiaRaidJoin(interaction, raidType = "calanthia") {
   if (isRaidExpired(interaction.message.createdAt)) {
@@ -1192,6 +1266,10 @@ export async function handleInteraction(interaction) {
       await handleRaidDays(interaction);
     } else if (customId.startsWith("throne:raid_times:")) {
       await handleRaidTimes(interaction);
+    } else if (customId.startsWith("throne:ur_status:")) {
+      await handleUnifiedRaidStatus(interaction);
+    } else if (customId === "throne:ur_view") {
+      await handleUnifiedRaidView(interaction);
     } else if (customId === "throne:calanthia_raid_join" || customId === "throne:archboss_raid_join") {
       const t = customId.includes("archboss") ? "archboss" : "calanthia";
       await handleCalanthiaRaidJoin(interaction, t);

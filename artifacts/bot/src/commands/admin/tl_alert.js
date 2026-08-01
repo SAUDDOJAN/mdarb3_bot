@@ -23,6 +23,16 @@ export const data = new SlashCommandBuilder()
       .setRequired(true)
   )
   .addStringOption(option =>
+    option.setName("date")
+      .setDescription("تاريخ الريد (مثال: 2024-12-30)")
+      .setRequired(true)
+  )
+  .addStringOption(option =>
+    option.setName("time")
+      .setDescription("وقت الريد بتوقيت مكة - 24 ساعة (مثال: 20:30)")
+      .setRequired(true)
+  )
+  .addStringOption(option =>
     option.setName("custom_title")
       .setDescription("عنوان مخصص (فقط إذا اخترت نوع مخصص)")
       .setRequired(false)
@@ -43,6 +53,8 @@ export async function execute(interaction) {
 
   const type = interaction.options.getString("type");
   const description = interaction.options.getString("description");
+  const dateStr = interaction.options.getString("date");
+  const timeStr = interaction.options.getString("time");
   const customTitle = interaction.options.getString("custom_title");
   const imageAttachment = interaction.options.getAttachment("image");
   const sendDm = interaction.options.getBoolean("send_dm") || false;
@@ -65,20 +77,13 @@ export async function execute(interaction) {
     return interaction.reply({ content: "❌ لم أتمكن من العثور على روم التنبيهات المخصص.", ephemeral: true });
   }
 
-  let finalDescription = description;
-  if (type === "guild_raid") {
-    const d = new Date();
-    let daysUntilThursday = 4 - d.getUTCDay();
-    if (daysUntilThursday < 0 || (daysUntilThursday === 0 && d.getUTCHours() >= 11)) {
-      daysUntilThursday += 7;
-    }
-    const deadline = new Date(d);
-    deadline.setUTCDate(deadline.getUTCDate() + daysUntilThursday);
-    deadline.setUTCHours(11, 0, 0, 0);
-    const unixTime = Math.floor(deadline.getTime() / 1000);
-    
-    finalDescription += `\n\n⏳ **يغلق التسجيل:** <t:${unixTime}:R> (<t:${unixTime}:f>)`;
+  const raidTime = new Date(`${dateStr}T${timeStr}:00+03:00`);
+  if (isNaN(raidTime.getTime())) {
+    return interaction.reply({ content: "❌ صيغة التاريخ أو الوقت غير صحيحة. يرجى استخدام الصيغة الصحيحة (مثال: التاريخ 2024-12-30 والوقت 20:30).", ephemeral: true });
   }
+  const unixTime = Math.floor(raidTime.getTime() / 1000);
+
+  let finalDescription = description + `\n\n⏰ **موعد الحدث:** <t:${unixTime}:F>\n⏳ **يبدأ بعد:** <t:${unixTime}:R>`;
 
   const embed = new EmbedBuilder()
     .setTitle(title)
@@ -100,43 +105,28 @@ export async function execute(interaction) {
     embeds: [embed]
   };
 
-  if (type === "guild_raid") {
+  if (type === "guild_raid" || type === "calanthia_raid" || type === "archboss_raid") {
     const row = new ActionRowBuilder().addComponents(
       new ButtonBuilder()
-        .setCustomId("throne:raid_join")
-        .setLabel("أرغب بالانضمام معكم (مطلوب تسجيل الوقت)")
+        .setCustomId(`throne:ur_status:yes`)
+        .setLabel("بحضر")
         .setStyle(ButtonStyle.Success)
-        .setEmoji("⚔️"),
+        .setEmoji("✅"),
       new ButtonBuilder()
-        .setCustomId("throne:raid_view")
-        .setLabel("عرض الأوقات المسجلة")
-        .setStyle(ButtonStyle.Secondary)
-        .setEmoji("📋"),
+        .setCustomId(`throne:ur_status:maybe`)
+        .setLabel("يمكن أحضر")
+        .setStyle(ButtonStyle.Primary)
+        .setEmoji("🔄"),
       new ButtonBuilder()
-        .setCustomId("throne:raid_start")
-        .setLabel("بدء الريد (إغلاق التسجيل)")
+        .setCustomId(`throne:ur_status:no`)
+        .setLabel("ماراح أقدر أحضر")
         .setStyle(ButtonStyle.Danger)
-        .setEmoji("🔒")
-    );
-    payload.components = [row];
-  } else if (type === "calanthia_raid" || type === "archboss_raid") {
-    const prefix = type === "archboss_raid" ? "archboss" : "calanthia";
-    const row = new ActionRowBuilder().addComponents(
+        .setEmoji("❌"),
       new ButtonBuilder()
-        .setCustomId(`throne:${prefix}_raid_join`)
-        .setLabel("أرغب بالانضمام (التسجيل مفتوح)")
-        .setStyle(ButtonStyle.Success)
-        .setEmoji("⚔️"),
-      new ButtonBuilder()
-        .setCustomId(`throne:${prefix}_raid_view`)
-        .setLabel("عرض الأوقات المسجلة")
+        .setCustomId(`throne:ur_view`)
+        .setLabel("عرض المسجلين")
         .setStyle(ButtonStyle.Secondary)
-        .setEmoji("📋"),
-      new ButtonBuilder()
-        .setCustomId(`throne:${prefix}_raid_start`)
-        .setLabel("بدء الريد (إغلاق التسجيل)")
-        .setStyle(ButtonStyle.Danger)
-        .setEmoji("🔒")
+        .setEmoji("📋")
     );
     payload.components = [row];
   }
@@ -152,16 +142,12 @@ export async function execute(interaction) {
 
     await publishOverlayEvent(overlayName, "الجيلد يستعد لريد، التسجيل مفتوح بالديسكورد", imgUrl, null);
 
-    if (type === "calanthia_raid" || type === "archboss_raid") {
-      const generalChannelId = "1294312574162178200";
-      const generalChannel = interaction.guild.channels.cache.get(generalChannelId) || await interaction.guild.channels.fetch(generalChannelId).catch(() => null);
-      if (generalChannel) {
-        const genMsg = type === "archboss_raid" 
-          ? `يا شباب حنسوي ريد ارش بوس، إذا بتسويه معنا شيك على روم الإشعارات وسجل اسمك\n<@&${roleId}>`
-          : `يا شباب حنسوي ريد كلنثيا، إذا بتسويه معنا شيك على روم الإشعارات وسجل اسمك\n<@&${roleId}>`;
-        await generalChannel.send(genMsg);
-      }
-    }
+    const { query } = await import("../../database/index.js");
+    await query(
+      `INSERT INTO tl_raids_events (message_id, channel_id, raid_type, title, image_url, raid_time)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [sentMessage.id, channelId, type, title, imgUrl, raidTime.toISOString()]
+    ).catch(err => console.error("[tl_alert] Error saving raid event:", err));
 
     if (sendDm) {
       const role = interaction.guild.roles.cache.find(r => r.name.toLowerCase() === 'tl guild');

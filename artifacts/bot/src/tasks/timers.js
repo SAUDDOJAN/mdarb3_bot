@@ -428,3 +428,92 @@ export function setupGameTimers(client) {
     }
   }, 10000); // Check every 10 seconds
 }
+
+export function startUnifiedRaidsCron(client) {
+  setInterval(async () => {
+    try {
+      const res = await query(`
+        SELECT * FROM tl_raids_events 
+        WHERE alert_now_sent = false
+      `);
+
+      for (const event of res.rows) {
+        const raidTime = new Date(event.raid_time);
+        const now = new Date();
+        const diffMs = raidTime.getTime() - now.getTime();
+        const diffHours = diffMs / (1000 * 60 * 60);
+
+        const channel = await client.channels.fetch(event.channel_id).catch(() => null);
+        if (!channel) continue;
+        const guild = channel.guild;
+        const role = guild.roles.cache.find(r => r.name.toLowerCase() === 'tl guild');
+        
+        let dmMessage = null;
+
+        // Alert 1: 3 days before (72 hours)
+        if (diffHours <= 72 && diffHours > 24 && !event.alert_3d_sent) {
+          dmMessage = `🔔 **تنبيه مسبق (باقي 3 أيام)!**\nريد **${event.title}** سيكون بتاريخ: <t:${Math.floor(raidTime.getTime()/1000)}:F>\n\nسجل حضورك الآن في روم التنبيهات!`;
+          await query(`UPDATE tl_raids_events SET alert_3d_sent = true WHERE id = $1`, [event.id]);
+        }
+        
+        // Alert 2: 24 hours before (Start of the last 24h as user requested)
+        if (diffHours <= 24 && diffHours > 0 && !event.alert_24h_sent) {
+          dmMessage = `🔔 **تنبيه (باقي 24 ساعة)!**\nريد **${event.title}** سيكون غداً: <t:${Math.floor(raidTime.getTime()/1000)}:F>\n\nلا تنسى تسجيل حضورك!`;
+          await query(`UPDATE tl_raids_events SET alert_24h_sent = true WHERE id = $1`, [event.id]);
+        }
+
+        // Send the DM to all role members if there's a DM queued
+        if (dmMessage && role) {
+          await guild.members.fetch();
+          for (const [id, member] of role.members) {
+            if (!member.user.bot) {
+              await member.send({ content: dmMessage }).catch(() => {});
+            }
+          }
+        }
+
+        // Alert 3: 5 minutes before (General chat)
+        if (diffMs <= 5 * 60 * 1000 && diffMs > 0 && !event.alert_5m_sent) {
+          await query(`UPDATE tl_raids_events SET alert_5m_sent = true WHERE id = $1`, [event.id]);
+          const generalChannelId = "1294312574162178200";
+          const generalChannel = await client.channels.fetch(generalChannelId).catch(() => null);
+          if (generalChannel) {
+            const roleId = "1292754458492796982";
+            const msg = await generalChannel.send(`يا شباب إحنا بدينا نلعب ريد **${event.title}** الآن وحنكري أعضاء الجيلد اللي حاب يخلص الريد يدخل الروم الصوتي\n<@&${roleId}>`);
+            // Delete after 5 minutes
+            setTimeout(() => {
+              msg.delete().catch(() => {});
+            }, 5 * 60 * 1000);
+          }
+        }
+
+        // Alert 4: At exact time (Close registration & final DM)
+        if (diffMs <= 0 && !event.alert_now_sent) {
+          await query(`UPDATE tl_raids_events SET alert_now_sent = true WHERE id = $1`, [event.id]);
+          
+          if (role) {
+            await guild.members.fetch();
+            for (const [id, member] of role.members) {
+              if (!member.user.bot) {
+                await member.send({ content: `⚔️ **بدأ الريد الآن!**\nريد **${event.title}** بدأ الآن. توجه للروم الصوتي فوراً!` }).catch(() => {});
+              }
+            }
+          }
+
+          // Close the message
+          const msg = await channel.messages.fetch(event.message_id).catch(() => null);
+          if (msg && msg.embeds.length > 0) {
+            const { EmbedBuilder } = await import("discord.js");
+            const embed = EmbedBuilder.from(msg.embeds[0]);
+            embed.setColor("#7f8c8d");
+            if (!embed.data.title?.includes("(مغلق)")) embed.setTitle((embed.data.title || "") + " (مغلق)");
+            // Remove buttons
+            await msg.edit({ embeds: [embed], components: [] }).catch(() => {});
+          }
+        }
+      }
+    } catch (e) {
+      console.error("[Timers] Error in unified raids cron:", e);
+    }
+  }, 60000); // Check every minute
+}

@@ -191,8 +191,9 @@ async function main() {
     initDb();
     initPush();
     
-    const { setupGameTimers } = await import("./tasks/timers.js").catch(() => ({ setupGameTimers: () => {} }));
+    const { setupGameTimers, startUnifiedRaidsCron } = await import("./tasks/timers.js").catch(() => ({ setupGameTimers: () => {}, startUnifiedRaidsCron: () => {} }));
     setupGameTimers(client);
+    startUnifiedRaidsCron(client);
 
     // Start scheduled reminders checker
     setInterval(async () => {

@@ -234,6 +234,23 @@ export async function initDb() {
   `);
 
   await query(`
+    CREATE TABLE IF NOT EXISTS tl_raids_events (
+      id SERIAL PRIMARY KEY,
+      message_id TEXT NOT NULL UNIQUE,
+      channel_id TEXT NOT NULL,
+      raid_type TEXT NOT NULL,
+      title TEXT,
+      image_url TEXT,
+      raid_time TIMESTAMPTZ NOT NULL,
+      alert_3d_sent BOOLEAN DEFAULT false,
+      alert_24h_sent BOOLEAN DEFAULT false,
+      alert_5m_sent BOOLEAN DEFAULT false,
+      alert_now_sent BOOLEAN DEFAULT false,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+
+  await query(`
     CREATE TABLE IF NOT EXISTS tl_announcement_reads (
       id SERIAL PRIMARY KEY,
       message_id TEXT NOT NULL,
