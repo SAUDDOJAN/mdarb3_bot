@@ -77,8 +77,30 @@ export async function execute(interaction) {
     return interaction.editReply({ content: "❌ لم أتمكن من العثور على روم التنبيهات المخصص." });
   }
 
-  const raidTime = new Date(`${dateStr}T${timeStr}:00+03:00`);
-  if (isNaN(raidTime.getTime())) {
+  let [year, month, day] = [0, 0, 0];
+  const dateParts = dateStr.split(/[-/]/);
+  if (dateParts.length === 3) {
+    if (dateParts[0].length === 4) {
+      year = parseInt(dateParts[0]);
+      month = parseInt(dateParts[1]);
+      day = parseInt(dateParts[2]);
+    } else if (dateParts[2].length === 4) {
+      year = parseInt(dateParts[2]);
+      month = parseInt(dateParts[1]);
+      day = parseInt(dateParts[0]);
+    }
+  }
+
+  let [hour, min] = [0, 0];
+  const timeParts = timeStr.split(':');
+  if (timeParts.length >= 2) {
+    hour = parseInt(timeParts[0]);
+    min = parseInt(timeParts[1]);
+  }
+
+  const raidTime = new Date(Date.UTC(year, month - 1, day, hour - 3, min));
+  
+  if (isNaN(raidTime.getTime()) || year === 0) {
     return interaction.editReply({ content: "❌ صيغة التاريخ أو الوقت غير صحيحة. يرجى استخدام الصيغة الصحيحة (مثال: التاريخ 2024-12-30 والوقت 20:30)." });
   }
   const unixTime = Math.floor(raidTime.getTime() / 1000);
