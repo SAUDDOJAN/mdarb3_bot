@@ -70,7 +70,7 @@ async function buildPanelRows(guildId) {
 
 export async function handleInteraction(interaction) {
   const [, action, alertType] = interaction.customId.split(":");
-  if (action === "toggle" || action === "subscribe") {
+  if (action === "toggle" || action === "alert_toggle" || action === "subscribe") {
     await toggleSubscription(interaction, alertType, action);
   }
 }
@@ -187,10 +187,19 @@ export async function fireAlert(client, guildId, alertType) {
       content = "<@&1401376073077231702>\n" + (content ?? "");
     }
 
+    const toggleButton = new ButtonBuilder()
+      .setCustomId(`alerts:alert_toggle:${baseType}`)
+      .setLabel(`تفعيل / تعطيل التنبيه`)
+      .setEmoji("🔔")
+      .setStyle(ButtonStyle.Secondary);
+
+    const actionRow = new ActionRowBuilder().addComponents(toggleButton);
+
     const sentMsg = await channel.send({
       content: content,
       embeds: [embed],
       files: files,
+      components: [actionRow]
     });
 
     await query(
