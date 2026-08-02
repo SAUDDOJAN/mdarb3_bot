@@ -223,7 +223,7 @@ async function calculateTimers() {
   // 10. TL Tax Delivery (Bi-weekly on Sunday at 20:30)
   let nextTlTax = getNextWeeklyKsaEvent(0, 20, 30);
   if (nextTlTax) {
-    const knownTaxDate = new Date(Date.UTC(2026, 6, 19, 17, 30, 0)); // July 19, 2026 20:30 KSA
+    const knownTaxDate = new Date(Date.UTC(2026, 7, 9, 17, 30, 0)); // August 9, 2026 20:30 KSA
     const diffWeeks = Math.round((nextTlTax.getTime() - knownTaxDate.getTime()) / (7 * 24 * 3600 * 1000));
     if (diffWeeks % 2 !== 0) {
       nextTlTax.setDate(nextTlTax.getDate() + 7);
