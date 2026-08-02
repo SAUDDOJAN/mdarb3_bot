@@ -235,7 +235,7 @@ async function calculateTimers() {
   // 11. TL Gate of Memory
   // Mathematical Rule: every 3h 16m 46s, duration 4 mins.
   // Updated Anchor based on metaforge (after server maintenance shift)
-  const anchorTimeTlGate = new Date('2026-07-27T15:05:08Z').getTime();
+  const anchorTimeTlGate = new Date('2026-08-02T20:16:07Z').getTime();
   const cycleTlGateMs = (3 * 3600 + 16 * 60 + 46) * 1000;
   const nextTlGate = new Date(anchorTimeTlGate + (Math.floor((now.getTime() - anchorTimeTlGate) / cycleTlGateMs) + 1) * cycleTlGateMs);
 
