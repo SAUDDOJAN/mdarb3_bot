@@ -458,7 +458,10 @@ export function startUnifiedRaidsCron(client) {
         
         // Alert 2: 24 hours before (Start of the last 24h as user requested)
         if (diffHours <= 24 && diffHours > 0 && !event.alert_24h_sent) {
-          dmMessage = `🔔 **تنبيه (باقي 24 ساعة)!**\nريد **${event.title}** سيكون غداً: <t:${Math.floor(raidTime.getTime()/1000)}:F>\n\nلا تنسى تسجيل حضورك!`;
+          const isToday = raidTime.getDate() === now.getDate() && raidTime.getMonth() === now.getMonth() && raidTime.getFullYear() === now.getFullYear();
+          const dayWord = isToday ? "اليوم" : "غداً";
+          const alertTitle = diffHours <= 12 ? "تذكير (الريد اقترب)!" : "تنبيه (بدأ العد التنازلي)!";
+          dmMessage = `🔔 **${alertTitle}**\nريد **${event.title}** سيكون ${dayWord}: <t:${Math.floor(raidTime.getTime()/1000)}:F> (<t:${Math.floor(raidTime.getTime()/1000)}:R>)\n\nلا تنسى تسجيل حضورك!`;
           await query(`UPDATE tl_raids_events SET alert_24h_sent = true WHERE id = $1`, [event.id]);
         }
 
