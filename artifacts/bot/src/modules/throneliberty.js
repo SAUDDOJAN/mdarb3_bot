@@ -1228,7 +1228,7 @@ export async function handleInteraction(interaction) {
   const customId = interaction.customId;
 
   try {
-    if (customId === "throne:join") {
+    if (customId === "throne:join" || customId === "tl:join") {
       await handleJoinButton(interaction);
     } else if (["throne:class_new", "throne:class_cur1", "throne:class_cur2"].includes(customId)) {
       await handleClassSelect(interaction);
