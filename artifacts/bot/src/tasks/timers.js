@@ -452,8 +452,16 @@ export function startUnifiedRaidsCron(client) {
 
         // Alert 1: 3 days before (72 hours)
         if (diffHours <= 72 && diffHours > 24 && !event.alert_3d_sent) {
-          const daysLeft = Math.ceil(diffHours / 24);
-          const timeText = daysLeft === 2 ? "باقي يومين" : `باقي ${daysLeft} أيام`;
+          const days = Math.floor(diffHours / 24);
+          const hours = Math.floor(diffHours % 24);
+          const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+          
+          let parts = [];
+          if (days > 0) parts.push(days === 1 ? "يوم" : days === 2 ? "يومين" : `${days} أيام`);
+          if (hours > 0) parts.push(hours === 1 ? "ساعة" : hours === 2 ? "ساعتين" : hours > 10 ? `${hours} ساعة` : `${hours} ساعات`);
+          if (minutes > 0) parts.push(minutes === 1 ? "دقيقة" : minutes === 2 ? "دقيقتين" : minutes > 10 ? `${minutes} دقيقة` : `${minutes} دقائق`);
+          
+          const timeText = `باقي ${parts.join(" و ")}`;
           
           dmMessage = `🔔 **تنبيه مسبق (${timeText})!**\nريد **${event.title}** سيكون بتاريخ: <t:${Math.floor(raidTime.getTime()/1000)}:F>\n\nسجل حضورك الآن في روم التنبيهات!`;
           await query(`UPDATE tl_raids_events SET alert_3d_sent = true WHERE id = $1`, [event.id]);
