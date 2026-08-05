@@ -966,8 +966,23 @@ async function handleUnifiedRaidStatus(interaction) {
       [raidMessageId, userId, "unified", statusLabel]
     );
 
-    // Update original message to display inline counts if desired? 
-    // The user didn't ask for inline counts, they have the view button for it.
+    // Update the message's embed with the new counts
+    const countsRes = await query("SELECT times, COUNT(*) as count FROM tl_raid_registrations WHERE message_id = $1 GROUP BY times", [raidMessageId]);
+    let yes = 0, maybe = 0, no = 0;
+    for (const row of countsRes.rows) {
+      if (row.times === "بحضر") yes = parseInt(row.count, 10);
+      if (row.times === "يمكن أحضر") maybe = parseInt(row.count, 10);
+      if (row.times === "ماراح أقدر أحضر") no = parseInt(row.count, 10);
+    }
+
+    const { EmbedBuilder } = await import("discord.js");
+    const embed = EmbedBuilder.from(interaction.message.embeds[0]);
+    embed.setFields([
+      { name: '📊 إحصائيات التسجيل', value: `✅ بحضر: **${yes}**\n🔄 يمكن أحضر: **${maybe}**\n❌ ماراح أحضر: **${no}**`, inline: false }
+    ]);
+
+    await interaction.message.edit({ embeds: [embed] }).catch(err => console.error("[ThroneLiberty] Failed to update embed:", err));
+
     await interaction.reply({ content: `✅ تم تسجيل إجابتك: **${statusLabel}**`, ephemeral: true });
   } catch (err) {
     console.error("[ThroneLiberty] Error registering unified raid status:", err);
