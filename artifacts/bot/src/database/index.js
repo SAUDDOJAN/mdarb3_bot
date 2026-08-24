@@ -206,7 +206,8 @@ export async function getAnnouncementReads(message_id) {
 }
 
 export async function initDb() {
-  await query(`
+  try {
+    await query(`
     CREATE TABLE IF NOT EXISTS guild_config (
       guild_id TEXT PRIMARY KEY,
       log_channel_id TEXT,
@@ -841,6 +842,9 @@ export async function initDb() {
   await query(`ALTER TABLE live_countdowns ADD COLUMN IF NOT EXISTS image_url TEXT`);
 
   console.log("[DB] All tables initialized.");
+  } catch (err) {
+    console.error("[DB] Non-fatal error during initDb:", err.message);
+  }
 }
 
 export async function publishOverlayEvent(eventType, eventName, imageUrl, timerMinutes) {
