@@ -8,7 +8,7 @@ const YT_HANDLE = '@mdarb3';
 const YOUTUBE_CHANNEL_URL = `https://www.youtube.com/${YT_HANDLE}`;
 const NOTIFY_CHANNEL_ID = '1405207264868175952';
 const NOTIFY_ROLE_ID = '1405203186389745885';
-const LOGO_URL = 'https://yt3.googleusercontent.com/ytc/AIdro_k6yB-G4pW9Z-f0000000000000000000000000000=s900-c-k-c0x00ffffff-no-rj';
+const LOGO_URL = 'https://yt3.googleusercontent.com/B7d8Q9FNxZmvYyFcdJphoXMrTMKVBlcCYdDMXl-18Kmdi9QV4YCyNIjPASielOovkdDJn3Mn-Q=s900-c-k-c0x00ffffff-no-rj';
 
 let socialData = {
   lastYouTubeVideoId: null,
