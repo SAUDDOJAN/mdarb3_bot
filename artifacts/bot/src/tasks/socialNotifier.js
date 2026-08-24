@@ -152,12 +152,23 @@ export async function startSocialNotifier(client) {
   
   await loadData();
 
-  // We no longer check YouTube every 3 minutes.
-  // Instead, we subscribe to PubSubHubbub for instant push notifications.
-  if (client.isReady()) {
+  const initYouTube = () => {
+    // 1. Initial Webhook Subscription
     subscribeToYouTubeHub();
+    
+    // 2. Renew Webhook Subscription every 3 days to prevent lease expiration
+    setInterval(subscribeToYouTubeHub, 3 * 24 * 60 * 60 * 1000);
+
+    // 3. Fallback Polling every 15 minutes just in case webhook fails or drops
+    setInterval(() => checkYouTube(client), 15 * 60 * 1000);
+    // Also do an initial check right now
+    checkYouTube(client);
+  };
+
+  if (client.isReady()) {
+    initYouTube();
   } else {
-    client.once('ready', subscribeToYouTubeHub);
+    client.once('ready', initYouTube);
   }
 }
 
