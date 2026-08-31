@@ -706,7 +706,8 @@ export async function initDb() {
 
   // Dungeon LFG Table
   await query(`
-    CREATE TABLE IF NOT EXISTS dungeon_lfg_groups (
+    ALTER TABLE dungeon_lfg_groups ADD COLUMN IF NOT EXISTS slot_dps3 JSONB DEFAULT \'null\').catch(() => {});\n    await query(\
+      CREATE TABLE IF NOT EXISTS dungeon_lfg_groups (
       id SERIAL PRIMARY KEY,
       guild_id TEXT NOT NULL,
       dungeon_name TEXT NOT NULL,
@@ -720,7 +721,8 @@ export async function initDb() {
       slot_tank JSONB DEFAULT 'null',
       slot_healer JSONB DEFAULT 'null',
       slot_dps1 JSONB DEFAULT 'null',
-      slot_dps2 JSONB DEFAULT 'null',
+      slot_dps2 JSONB DEFAULT \'null\',
+      slot_dps3 JSONB DEFAULT \'null\',
       created_at TIMESTAMPTZ DEFAULT NOW(),
       status TEXT DEFAULT 'open'
     )

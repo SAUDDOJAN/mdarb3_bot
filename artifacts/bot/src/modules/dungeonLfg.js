@@ -30,70 +30,70 @@ export const DUNGEON_DATA = {
     stars: "⭐",
     level: 45,
     minCp: 1000,
-    players: "1-4",
+    players: "1-5",
     icon: "https://i.imgur.com/8QhO9pL.png" // Placeholder URL
   },
   "Draupnir": {
     stars: "⭐",
     level: 45,
     minCp: 1000,
-    players: "1-4",
+    players: "1-5",
     icon: "https://i.imgur.com/8QhO9pL.png" // Placeholder URL
   },
   "Urugugu Canyon": {
     stars: "⭐⭐",
     level: 45,
     minCp: 1600,
-    players: "2-4",
+    players: "2-5",
     icon: "https://i.imgur.com/8QhO9pL.png" // Placeholder URL
   },
   "Vakron Sky Island": {
     stars: "⭐⭐",
     level: 45,
     minCp: 1600,
-    players: "2-4",
+    players: "2-5",
     icon: "https://i.imgur.com/8QhO9pL.png" // Placeholder URL
   },
   "Fire Temple": {
     stars: "⭐⭐⭐",
     level: 45,
     minCp: 2200,
-    players: "1-4",
+    players: "1-5",
     icon: "https://i.imgur.com/8QhO9pL.png" // Placeholder URL
   },
   "Ferocious Horn Den": {
     stars: "⭐⭐⭐",
     level: 45,
     minCp: 2200,
-    players: "1-4",
+    players: "1-5",
     icon: "https://i.imgur.com/8QhO9pL.png" // Placeholder URL
   },
   "Dying Dramata’s Nest": {
     stars: "⭐⭐⭐⭐",
     level: 45,
     minCp: 2200,
-    players: "2-4",
+    players: "2-5",
     icon: "https://i.imgur.com/8QhO9pL.png" // Placeholder URL
   },
   "Cradle of Nihility": {
     stars: "⭐⭐⭐⭐",
     level: 45,
     minCp: 2800,
-    players: "2-4",
+    players: "2-5",
     icon: "https://i.imgur.com/8QhO9pL.png" // Placeholder URL
   },
   "Hall of Illusion": {
     stars: "⭐⭐⭐⭐⭐",
     level: 45,
     minCp: 3000,
-    players: "2-4",
+    players: "2-5",
     icon: "https://i.imgur.com/8QhO9pL.png" // Placeholder URL
   },
   "Azure Breath Island": {
     stars: "⭐⭐⭐⭐⭐",
     level: 45,
     minCp: 3000,
-    players: "2-4",
+    players: "2-5",
     icon: "https://i.imgur.com/8QhO9pL.png" // Placeholder URL
   }
 };
@@ -268,7 +268,7 @@ async function handleCreateGroup(interaction, dungeonName, difficulty) {
       name: `🔊 LFG ${dungeonName} [${difficulty.toUpperCase()}]`,
       type: ChannelType.GuildVoice,
       parent: LFG_VOICE_CATEGORY,
-      userLimit: 4
+      userLimit: 5
     });
     console.log(`[LFG:Debug] Voice channel created: ${vc.id}`);
   } catch (vcErr) {
@@ -304,6 +304,8 @@ async function handleCreateGroup(interaction, dungeonName, difficulty) {
   let slot_tank = null;
   let slot_healer = null;
   let slot_dps1 = null;
+  let slot_dps2 = null;
+  let slot_dps3 = null;
 
   if (profile.className === "Templar" || profile.className === "Gladiator") {
     slot_tank = leaderData;
@@ -326,7 +328,7 @@ async function handleCreateGroup(interaction, dungeonName, difficulty) {
   }
 
   const localImg = getDungeonImageAttachment(dungeonName);
-  const lfgEmbed = buildGroupEmbed(dungeonName, difficulty, dungeon, slot_tank, slot_healer, slot_dps1, null, inviteUrl, localImg);
+  const lfgEmbed = buildGroupEmbed(dungeonName, difficulty, dungeon, slot_tank, slot_healer, slot_dps1, null, null, inviteUrl, localImg);
   const rows = buildGroupButtons(null); // Will fill in later with group ID
 
   const guildRoleId = config.guild_role_id || (isMainGuild ? "1401376073077231702" : null);
@@ -350,8 +352,8 @@ async function handleCreateGroup(interaction, dungeonName, difficulty) {
   console.log(`[LFG:Debug] Saving to DB`);
   const dbRes = await query(
     `INSERT INTO dungeon_lfg_groups 
-       (guild_id, dungeon_name, difficulty, leader_id, message_id, channel_id, voice_channel_id, voice_invite_url, slot_tank, slot_healer, slot_dps1, slot_dps2, status)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'open')
+       (guild_id, dungeon_name, difficulty, leader_id, message_id, channel_id, voice_channel_id, voice_invite_url, slot_tank, slot_healer, slot_dps1, slot_dps2, slot_dps3, status)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,'open')
      RETURNING id`,
     [
       interaction.guildId, dungeonName, difficulty, interaction.user.id,
@@ -359,6 +361,7 @@ async function handleCreateGroup(interaction, dungeonName, difficulty) {
       slot_tank ? JSON.stringify(slot_tank) : null,
       slot_healer ? JSON.stringify(slot_healer) : null,
       slot_dps1 ? JSON.stringify(slot_dps1) : null,
+      null,
       null,
     ]
   );
@@ -469,6 +472,7 @@ async function handleJoinGroup(interaction, groupId) {
   const slot_healer = group.slot_healer ? (typeof group.slot_healer === "string" ? JSON.parse(group.slot_healer) : group.slot_healer) : null;
   const slot_dps1 = group.slot_dps1 ? (typeof group.slot_dps1 === "string" ? JSON.parse(group.slot_dps1) : group.slot_dps1) : null;
   const slot_dps2 = group.slot_dps2 ? (typeof group.slot_dps2 === "string" ? JSON.parse(group.slot_dps2) : group.slot_dps2) : null;
+  const slot_dps3 = group.slot_dps3 ? (typeof group.slot_dps3 === "string" ? JSON.parse(group.slot_dps3) : group.slot_dps3) : null;
 
   // Duplicate Check
   const userId = interaction.user.id;
@@ -476,7 +480,8 @@ async function handleJoinGroup(interaction, groupId) {
     (slot_tank && slot_tank.user_id === userId) ||
     (slot_healer && slot_healer.user_id === userId) ||
     (slot_dps1 && slot_dps1.user_id === userId) ||
-    (slot_dps2 && slot_dps2.user_id === userId)
+    (slot_dps2 && slot_dps2.user_id === userId) ||
+    (slot_dps3 && slot_dps3.user_id === userId)
   ) {
     await interaction.editReply({ content: "❌ أنت مسجل في هذه المجموعة بالفعل!" });
     return;
@@ -487,6 +492,7 @@ async function handleJoinGroup(interaction, groupId) {
   let updated_healer = slot_healer;
   let updated_dps1 = slot_dps1;
   let updated_dps2 = slot_dps2;
+  let updated_dps3 = slot_dps3;
   let success = false;
   let msg = "";
 
@@ -516,6 +522,10 @@ async function handleJoinGroup(interaction, groupId) {
       updated_dps2 = playerData;
       success = true;
       msg = "تم تسجيلك كـ DPS 2 بنجاح! ⚔️";
+    } else if (!updated_dps3) {
+      updated_dps3 = playerData;
+      success = true;
+      msg = "تم تسجيلك كـ DPS 3 بنجاح! ⚔️";
     } else {
       msg = "❌ عذراً، لا توجد أماكن شاغرة لكلاس Gladiator في المجموعة حالياً.";
     }
@@ -534,6 +544,11 @@ async function handleJoinGroup(interaction, groupId) {
         msg = "تم تسجيلك كتانك رئيسي للمجموعة، ونقل الـ Gladiator تلقائياً إلى خانة الـ DPS الشاغرة! 🔄🛡️";
       } else if (!updated_dps2) {
         updated_dps2 = { ...updated_tank, className: "Gladiator" };
+        updated_tank = playerData;
+        success = true;
+        msg = "تم تسجيلك كتانك رئيسي للمجموعة، ونقل الـ Gladiator تلقائياً إلى خانة الـ DPS الشاغرة! 🔄🛡️";
+      } else if (!updated_dps3) {
+        updated_dps3 = { ...updated_tank, className: "Gladiator" };
         updated_tank = playerData;
         success = true;
         msg = "تم تسجيلك كتانك رئيسي للمجموعة، ونقل الـ Gladiator تلقائياً إلى خانة الـ DPS الشاغرة! 🔄🛡️";
@@ -562,6 +577,10 @@ async function handleJoinGroup(interaction, groupId) {
       updated_dps2 = playerData;
       success = true;
       msg = "تم تسجيلك كـ DPS 2 بنجاح! ⚔️";
+    } else if (!updated_dps3) {
+      updated_dps3 = playerData;
+      success = true;
+      msg = "تم تسجيلك كـ DPS 3 بنجاح! ⚔️";
     } else {
       msg = "❌ عذراً، خانات الـ DPS ممتلئة بالكامل في هذه المجموعة.";
     }
@@ -580,20 +599,22 @@ async function handleJoinGroup(interaction, groupId) {
   if (updated_healer) count++;
   if (updated_dps1) count++;
   if (updated_dps2) count++;
+  if (updated_dps3) count++;
 
-  const isFull = count === 4;
+  const isFull = count === 5;
   const newStatus = isFull ? "full" : "open";
 
   // Update DB
   await query(
     `UPDATE dungeon_lfg_groups 
-     SET slot_tank=$1, slot_healer=$2, slot_dps1=$3, slot_dps2=$4, status=$5 
+     SET slot_tank=$1, slot_healer=$2, slot_dps1=$3, slot_dps2=$4, slot_dps3=$5, status=$6 
      WHERE id=$6`,
     [
       updated_tank ? JSON.stringify(updated_tank) : null,
       updated_healer ? JSON.stringify(updated_healer) : null,
       updated_dps1 ? JSON.stringify(updated_dps1) : null,
       updated_dps2 ? JSON.stringify(updated_dps2) : null,
+      updated_dps3 ? JSON.stringify(updated_dps3) : null,
       newStatus,
       groupId
     ]
@@ -603,7 +624,7 @@ async function handleJoinGroup(interaction, groupId) {
   const groupsChannel = await interaction.guild.channels.fetch(group.channel_id).catch(() => null);
   if (groupsChannel) {
     const localImg = getDungeonImageAttachment(group.dungeon_name);
-    const updatedEmbed = buildGroupEmbed(group.dungeon_name, group.difficulty, dungeon, updated_tank, updated_healer, updated_dps1, updated_dps2, group.voice_invite_url, localImg);
+    const updatedEmbed = buildGroupEmbed(group.dungeon_name, group.difficulty, dungeon, updated_tank, updated_healer, updated_dps1, updated_dps2, updated_dps3, group.voice_invite_url, localImg);
     const updatedButtons = buildGroupButtons(groupId, group.voice_invite_url, isFull);
 
     const mainMsg = await groupsChannel.messages.fetch(group.message_id).catch(() => null);
@@ -616,7 +637,7 @@ async function handleJoinGroup(interaction, groupId) {
 
     // Ping all 4 players if group is full (4/4)
     if (isFull) {
-      const allSlots = [updated_tank, updated_healer, updated_dps1, updated_dps2].filter(Boolean);
+      const allSlots = [updated_tank, updated_healer, updated_dps1, updated_dps2, updated_dps3].filter(Boolean);
       const pings = allSlots.map(s => `<@${s.user_id}>`).join(" ");
 
       await groupsChannel.send({
@@ -694,6 +715,7 @@ async function handleLeaveGroup(interaction, groupId) {
   let slot_healer = group.slot_healer ? (typeof group.slot_healer === "string" ? JSON.parse(group.slot_healer) : group.slot_healer) : null;
   let slot_dps1 = group.slot_dps1 ? (typeof group.slot_dps1 === "string" ? JSON.parse(group.slot_dps1) : group.slot_dps1) : null;
   let slot_dps2 = group.slot_dps2 ? (typeof group.slot_dps2 === "string" ? JSON.parse(group.slot_dps2) : group.slot_dps2) : null;
+  let slot_dps3 = group.slot_dps3 ? (typeof group.slot_dps3 === "string" ? JSON.parse(group.slot_dps3) : group.slot_dps3) : null;
 
   const userId = interaction.user.id;
   let found = false;
@@ -706,8 +728,10 @@ async function handleLeaveGroup(interaction, groupId) {
     found = true;
   } else if (slot_dps1 && slot_dps1.user_id === userId) {
     slot_dps1 = null;
+  let slot_dps2 = null;
+  let slot_dps3 = null;
     found = true;
-  } else if (slot_dps2 && slot_dps2.user_id === userId) {
+  } else if ((slot_dps2 && slot_dps2.user_id === userId) || (slot_dps3 && slot_dps3.user_id === userId)) {
     slot_dps2 = null;
     found = true;
   }
@@ -720,13 +744,14 @@ async function handleLeaveGroup(interaction, groupId) {
   // Update DB (status returns back to 'open' since someone left)
   await query(
     `UPDATE dungeon_lfg_groups 
-     SET slot_tank=$1, slot_healer=$2, slot_dps1=$3, slot_dps2=$4, status='open' 
+     SET slot_tank=$1, slot_healer=$2, slot_dps1=$3, slot_dps2=$4, slot_dps3=$5, status='open' 
      WHERE id=$5`,
     [
       slot_tank ? JSON.stringify(slot_tank) : null,
       slot_healer ? JSON.stringify(slot_healer) : null,
       slot_dps1 ? JSON.stringify(slot_dps1) : null,
       slot_dps2 ? JSON.stringify(slot_dps2) : null,
+      slot_dps3 ? JSON.stringify(slot_dps3) : null,
       groupId
     ]
   );
@@ -737,7 +762,7 @@ async function handleLeaveGroup(interaction, groupId) {
 
   if (groupsChannel) {
     const localImg = getDungeonImageAttachment(group.dungeon_name);
-    const updatedEmbed = buildGroupEmbed(group.dungeon_name, group.difficulty, dungeon, slot_tank, slot_healer, slot_dps1, slot_dps2, group.voice_invite_url, localImg);
+    const updatedEmbed = buildGroupEmbed(group.dungeon_name, group.difficulty, dungeon, slot_tank, slot_healer, slot_dps1, slot_dps2, slot_dps3, group.voice_invite_url, localImg);
     const updatedButtons = buildGroupButtons(groupId, group.voice_invite_url, false);
 
     const mainMsg = await groupsChannel.messages.fetch(group.message_id).catch(() => null);
@@ -1005,13 +1030,14 @@ export async function cleanUpEmptyLfg(client, groupId) {
 }
 
 // ─── Embed & Button Builders ──────────────────────────────────────────────────
-function buildGroupEmbed(dungeonName, difficulty, dungeon, slot_tank, slot_healer, slot_dps1, slot_dps2, inviteUrl, localImg) {
+function buildGroupEmbed(dungeonName, difficulty, dungeon, slot_tank, slot_healer, slot_dps1, slot_dps2, slot_dps3, inviteUrl, localImg) {
   const color = difficulty === "hard" ? 0x990000 : 0x2ecc71; // Red for Hard, Green for Normal
   
   const tankText = slot_tank ? `✅ **${slot_tank.name}** [${slot_tank.className}]` : "❌ *فارغ*";
   const healerText = slot_healer ? `✅ **${slot_healer.name}** [${slot_healer.className}]` : "❌ *فارغ*";
   const dps1Text = slot_dps1 ? `✅ **${slot_dps1.name}** [${slot_dps1.className}]` : "❌ *فارغ*";
   const dps2Text = slot_dps2 ? `✅ **${slot_dps2.name}** [${slot_dps2.className}]` : "❌ *فارغ*";
+  const dps3Text = slot_dps3 ? `✅ **${slot_dps3.name}** [${slot_dps3.className}]` : "❌ *فارغ*";
 
   const embed = new EmbedBuilder()
     .setColor(color)
@@ -1025,7 +1051,8 @@ function buildGroupEmbed(dungeonName, difficulty, dungeon, slot_tank, slot_heale
       { name: "🛡️ خانة التانك (Tank)", value: tankText, inline: false },
       { name: "🏥 خانة المعالج/الداعم (Healer)", value: healerText, inline: false },
       { name: "⚔️ خانة الهجوم (DPS 1)", value: dps1Text, inline: true },
-      { name: "⚔️ خانة الهجوم (DPS 2)", value: dps2Text, inline: true }
+      { name: "⚔️ خانة الهجوم (DPS 2)", value: dps2Text, inline: true },
+      { name: "⚔️ خانة الهجوم (DPS 3)", value: dps3Text, inline: true }
     )
     .setTimestamp();
 
@@ -1088,7 +1115,8 @@ async function handleVoiceAccess(interaction, groupId) {
     parseSlot(group.slot_tank),
     parseSlot(group.slot_healer),
     parseSlot(group.slot_dps1),
-    parseSlot(group.slot_dps2)
+    parseSlot(group.slot_dps2),
+    parseSlot(group.slot_dps3)
   ].filter(Boolean);
 
   const isMember = slots.some(s => s.user_id === interaction.user.id);
