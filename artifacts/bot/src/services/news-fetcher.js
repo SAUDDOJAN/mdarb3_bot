@@ -133,7 +133,7 @@ ${textContent}`;
  * Main function to fetch, translate, and post news.
  */
 export async function fetchAndPostNews(client) {
-  const channelId = process.env.NEWS_CHANNEL_ID;
+  const channelId = "1290056577856045127"; // Override process.env.NEWS_CHANNEL_ID
   if (!channelId) {
     console.warn("[NewsFetcher] NEWS_CHANNEL_ID is not set in .env. Skipping news fetch.");
     return;
@@ -231,7 +231,7 @@ export async function fetchAndPostNews(client) {
     }
 
     // 6. Post to Discord
-    await channel.send({ embeds: [embed] });
+    await channel.send({ content: "# 📰 **AION 2 NEWS**", embeds: [embed] });
 
     // 7. Mark as posted in DB
     await query("INSERT INTO posted_news (slug) VALUES ($1) ON CONFLICT (slug) DO NOTHING", [news.slug]);
