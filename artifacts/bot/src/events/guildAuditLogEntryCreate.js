@@ -1,9 +1,9 @@
-import { EmbedBuilder, AuditLogEvent, Events } from "discord.js";
+import { EmbedBuilder, AuditLogEvent, Events, PermissionFlagsBits } from "discord.js";
 
 const TARGET_GUILD_ID = "861355983975874601";
 const TARGET_ROLE_ID = "1509497629564866680";
-const ROLLER_ROLE_ID = "1519358202398118099";
-const SANC_ROLE_ID = "1519357411121561710";
+const S_ADMIN_ROLE_ID = "1554242295384252427";
+const SHOT_CALLER_ROLE_ID = "1498423320704585768";
 const LOG_CHANNEL_ID = "1290468734045261885";
 
 // خريطة لترجمة الأرقام إلى نصوص واضحة
@@ -48,17 +48,19 @@ export default {
     if (action === AuditLogEvent.MemberMove) return;
 
     try {
-      // التحقق من امتلاك المشرف للرتبة المطلوبة أو رتبة Roller
+      // التحقق من امتلاك المشرف للرتبة المطلوبة أو رتبة S-Admin
       const member = await guild.members.fetch(executorId).catch(() => null);
       if (!member) return;
 
       const isSupervisor = member.roles.cache.has(TARGET_ROLE_ID);
-      const isRoller = member.roles.cache.has(ROLLER_ROLE_ID);
+      const isSAdmin = member.roles.cache.has(S_ADMIN_ROLE_ID);
+      const isFullAdmin = member.permissions.has(PermissionFlagsBits.Administrator);
 
-      if (!isSupervisor && !isRoller) return;
+      if (!isSupervisor && !isSAdmin) return;
 
       let actionLabel = actionNames[action] || `إجراء غير مسجل (${action})`;
       let details = "";
+      let embedColor = "#00d0ff";
 
       // معالجة بعض التغييرات الخاصة لتوضيحها أكثر (مثل الميوت والتايم أوت)
       if (action === AuditLogEvent.MemberUpdate && changes) {
@@ -79,6 +81,10 @@ export default {
          if (channelChange && channelChange.new) {
             details += `**إلى روم:** <#${channelChange.new}>\n`;
          }
+      } else if (action === AuditLogEvent.RoleCreate && isSAdmin && !isFullAdmin && targetId) {
+        await guild.roles.delete(targetId, "ممنوع: رتبة S-Admin مسموح لها بإعطاء Shot Caller فقط").catch(() => {});
+        actionLabel = "🚫 محاولة إنشاء رتبة غير مصرح بها (تم الحذف)";
+        embedColor = "#ef4444";
       }
 
       // إضافة التارجت (الضحية أو الشيء اللي تم التعديل عليه)
@@ -100,35 +106,41 @@ export default {
           if (changes) {
             const addedRoles = changes.find(c => c.key === '$add')?.new || [];
             const removedRoles = changes.find(c => c.key === '$remove')?.new || [];
-            const targetMember = await guild.members.fetch(targetId).catch(() => null);
-            let rollerTriggered = false;
-
-            if (isRoller) {
+            
+            if (isSAdmin && !isFullAdmin) {
+              const targetMember = await guild.members.fetch(targetId).catch(() => null);
               for (const role of addedRoles) {
-                if (role.id === SANC_ROLE_ID) {
-                  details += `🟢 **أعطى الرول المسموح:** <@&${role.id}>\n`;
+                if (role.id === SHOT_CALLER_ROLE_ID) {
+                  details += `✅ **إعطاء رول مصرح به:** <@&${role.id}>\n`;
                 } else {
-                  details += `🔴 **حاول إعطاء رول ممنوع:** <@&${role.id}> (وتم سحبه تلقائياً)\n`;
-                  if (targetMember) await targetMember.roles.remove(role.id).catch(() => null);
-                  rollerTriggered = true;
+                  embedColor = "#ef4444";
+                  actionLabel = "🚫 محاولة إعطاء رول غير مصرح به (تم السحب تلقائياً)";
+                  if (targetMember) {
+                    await targetMember.roles.remove(role.id, "ممنوع: رتبة S-Admin مسموح لها بإعطاء Shot Caller فقط").catch((e) => {
+                      console.error("[S-Admin Guard] Failed to remove unauthorized role:", e.message);
+                    });
+                  }
+                  details += `🚫 **مرفوض (تم السحب تلقائياً):** حاول إعطاء <@&${role.id}> — المسموح فقط: <@&${SHOT_CALLER_ROLE_ID}>\n`;
                 }
               }
               for (const role of removedRoles) {
-                if (role.id === SANC_ROLE_ID) {
-                  details += `➖ **سحب الرول المسموح:** <@&${role.id}>\n`;
+                if (role.id === SHOT_CALLER_ROLE_ID) {
+                  details += `❌ **سحب رول مصرح به:** <@&${role.id}>\n`;
                 } else {
-                  details += `🔴 **حاول سحب رول ممنوع:** <@&${role.id}> (وتم إرجاعه تلقائياً)\n`;
-                  if (targetMember) await targetMember.roles.add(role.id).catch(() => null);
-                  rollerTriggered = true;
+                  embedColor = "#ef4444";
+                  actionLabel = "🚫 محاولة سحب رول غير مصرح به (تمت الاستعادة تلقائياً)";
+                  if (targetMember) {
+                    await targetMember.roles.add(role.id, "ممنوع: رتبة S-Admin مسموح لها بإدارة Shot Caller فقط").catch((e) => {
+                      console.error("[S-Admin Guard] Failed to restore unauthorized removed role:", e.message);
+                    });
+                  }
+                  details += `🚫 **مرفوض (تمت الاستعادة تلقائياً):** حاول سحب <@&${role.id}> — المسموح فقط: <@&${SHOT_CALLER_ROLE_ID}>\n`;
                 }
-              }
-              if (rollerTriggered) {
-                actionLabel = "⚠️ تدخّل أمني: محاولة التلاعب بالرتب";
               }
             } else {
               // Normal supervisor logic
-              for (const role of addedRoles) details += `🟢 **أعطى رول:** <@&${role.id}>\n`;
-              for (const role of removedRoles) details += `🔴 **سحب رول:** <@&${role.id}>\n`;
+              for (const role of addedRoles) details += `✅ **إعطاء رول:** <@&${role.id}>\n`;
+              for (const role of removedRoles) details += `❌ **سحب رول:** <@&${role.id}>\n`;
             }
           }
         } else if (action === AuditLogEvent.ChannelCreate || action === AuditLogEvent.ChannelUpdate || action === AuditLogEvent.ChannelDelete) {
@@ -137,7 +149,7 @@ export default {
       }
 
       const embed = new EmbedBuilder()
-        .setColor("#00d0ff")
+        .setColor(embedColor)
         .setAuthor({ name: "تتبع نشاط المشرفين", iconURL: executor.displayAvatarURL() })
         .setTitle(actionLabel)
         .setDescription(`**المشرف:** <@${executorId}>\n${details}`)
