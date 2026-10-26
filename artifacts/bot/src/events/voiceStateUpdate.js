@@ -64,6 +64,11 @@ export default {
         }
         
         if (oldState.channelId) await checkLfgChannelCleanup(client, oldState.channelId, cleanUpEmptyLfg);
+      }
+      
+      // AION2 Routing
+      const { handleAion2VoiceStateUpdate } = await import("../modules/aion2Lfg/handlers/voiceState.js");
+      await handleAion2VoiceStateUpdate(oldState, newState);
 
         // ─── Mod Tracker Logic for Voice Move ────────────────
         if (newState.guild.id === "861355983975874601") {
@@ -113,7 +118,6 @@ export default {
            }
         }
         // ──────────────────────────────────────────────────
-      }
     } catch (err) {
       console.error("[VoiceStateUpdate] Error:", err);
     }

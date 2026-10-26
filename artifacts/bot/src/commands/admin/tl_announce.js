@@ -1,5 +1,6 @@
 import { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } from "discord.js";
 
+
 export const data = new SlashCommandBuilder()
   .setName("tl_announce")
   .setDescription("إرسال إعلان عام لـ Throne and Liberty")
@@ -41,6 +42,7 @@ export const data = new SlashCommandBuilder()
   );
 
 export async function execute(interaction) {
+
   const type = interaction.options.getString("type");
   const description = interaction.options.getString("description");
   const requireInteraction = interaction.options.getBoolean("require_interaction") || false;

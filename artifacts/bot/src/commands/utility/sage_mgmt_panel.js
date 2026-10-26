@@ -1,4 +1,5 @@
 import {
+
   SlashCommandBuilder,
   EmbedBuilder,
   ActionRowBuilder,
@@ -14,6 +15,7 @@ export default {
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
   async execute(interaction) {
+
     const embed = new EmbedBuilder()
       .setColor(0x2b2d31)
       .setTitle("⚙️ لوحة إدارة تحالف Siege Alliance")

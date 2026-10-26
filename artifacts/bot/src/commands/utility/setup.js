@@ -1,6 +1,7 @@
 import { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder } from "discord.js";
 import { query } from "../../database/index.js";
 
+
 export default {
   data: new SlashCommandBuilder()
     .setName("setup")
@@ -73,6 +74,7 @@ export default {
         .addRoleOption((o) => o.setName("role").setDescription("The Guild role").setRequired(true))
     ),
   async execute(interaction) {
+
     const sub = interaction.options.getSubcommand();
     const guildId = interaction.guildId;
 

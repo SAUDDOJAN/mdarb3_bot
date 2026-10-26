@@ -1,6 +1,7 @@
 import { SlashCommandBuilder, PermissionFlagsBits, ActionRowBuilder, StringSelectMenuBuilder, StringSelectMenuOptionBuilder, EmbedBuilder, ButtonBuilder, ButtonStyle } from "discord.js";
 import { query } from "../../database/index.js";
 
+
 export default {
   data: new SlashCommandBuilder()
     .setName("alliance-manage")
@@ -8,6 +9,7 @@ export default {
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild),
 
   async execute(interaction) {
+
     await interaction.deferReply({ flags: 64 });
 
     const appRes = await query("SELECT id, character_name, combat_power FROM alliance_members WHERE guild_id=$1 AND status='accepted' ORDER BY combat_power DESC LIMIT 25", [interaction.guildId]);

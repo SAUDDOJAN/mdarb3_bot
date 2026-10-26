@@ -1,6 +1,7 @@
 import { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder } from "discord.js";
 import { addPoints } from "../../modules/management.js";
 
+
 export default {
   data: new SlashCommandBuilder()
     .setName("give_points")
@@ -10,6 +11,7 @@ export default {
     .addIntegerOption(o => o.setName("amount").setDescription("عدد النقاط").setRequired(true)),
 
   async execute(interaction) {
+
     const target = interaction.options.getUser("user");
     const amount = interaction.options.getInteger("amount");
 

@@ -1,5 +1,6 @@
 import { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } from "discord.js";
 
+
 export default {
   data: new SlashCommandBuilder()
     .setName("setup-verification")
@@ -7,6 +8,7 @@ export default {
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
   async execute(interaction, client) {
+
     const rulesText = `أهلاً بك في مجتمع M3RGEEN! 🦍✨
 يسعدنا انضمامك إلينا. لضمان بيئة ممتعة ومريحة للجميع، يرجى الالتزام بالقواعد التالية:
 

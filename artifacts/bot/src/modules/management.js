@@ -16,7 +16,7 @@ export async function removeMemberAllData(client, guild, userId) {
     "DELETE FROM alert_subscriptions WHERE guild_id=$1 AND user_id=$2",
     "DELETE FROM warns WHERE guild_id=$1 AND user_id=$2",
     "DELETE FROM users WHERE guild_id=$1 AND user_id=$2",
-    "UPDATE recruits SET status='left' WHERE guild_id=$1 AND user_id=$2",
+    "UPDATE recruits SET status='left' WHERE guild_id=$1 AND user_id=$2"
   ];
 
   for (const sql of tables) {

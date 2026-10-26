@@ -2,6 +2,7 @@ import { SlashCommandBuilder, PermissionFlagsBits } from "discord.js";
 import { sendAlertPanel } from "../../modules/alerts.js";
 import { query } from "../../database/index.js";
 
+
 export default {
   data: new SlashCommandBuilder()
     .setName("alerts")
@@ -47,6 +48,7 @@ export default {
     ),
 
   async execute(interaction, client) {
+
     const sub = interaction.options.getSubcommand();
 
     if (sub === "panel") {

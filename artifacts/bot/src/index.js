@@ -9,9 +9,18 @@ import { initSocket, emitDiscordMessage } from "./socket.js";
 import { handleDungeonsApi } from "./api.js";
 import { initPush, handleChatPush } from "./services/push.js";
 import { handleYouTubeWebhook } from "./tasks/socialNotifier.js";
+import { handleMcpRequest } from "./mcp/index.js";
+
+import { createAuthHandler } from "./auth.js";
+const handleAuth = createAuthHandler({ client });
 
 const PORT = process.env.PORT || 3000;
 const server = http.createServer((req, res) => {
+  if (req.url?.startsWith('/api/auth/')) {
+    const authUrl = new URL(req.url, 'http://localhost');
+    handleAuth(req,res,authUrl).catch(() => { if(!res.headersSent){res.writeHead(500);res.end();} });
+    return;
+  }
   // CORS Headers
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
@@ -25,6 +34,11 @@ const server = http.createServer((req, res) => {
 
   // Parse path
   const parsedUrl = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+  
+  if (parsedUrl.pathname.startsWith("/mcp")) {
+    handleMcpRequest(req, res);
+    return;
+  }
   
   if (parsedUrl.pathname === "/api/youtube-webhook") {
     handleYouTubeWebhook(req, res, client);
@@ -186,14 +200,47 @@ async function main() {
   const { startCountdownTimer } = await import("./tasks/countdownTimer.js");
   startCountdownTimer(client);
 
+  const { initAnnouncerDB, startPeriodicAnnouncer } = await import("./tasks/aion2Announcer.js");
+  await initAnnouncerDB();
+
+  const { initConfirmationDB } = await import("./modules/aion2Confirmation.js");
+  await initConfirmationDB();
+
   client.once("ready", async () => {
     console.log(`[Bot] Logged in as ${client.user.tag}`);
     initDb();
+    console.log(`[Bot] Serving ${client.guilds.cache.size} guild(s)`);
     initPush();
+    
+    // DB CHECK FOR AYOUB01_
+    try {
+      const { query } = await import("./database/index.js");
+      const apps = await query("SELECT * FROM aion2_global_applications");
+      for (const app of apps.rows) {
+        try {
+          const user = await client.users.fetch(app.discord_id);
+          if (user.username.includes("ayoub01")) {
+            console.log(`[AyoubCheck] Found user: ${user.username} (ID: ${app.discord_id})`);
+            console.log(`[AyoubCheck] Application Data:`, app);
+          }
+        } catch(e) {
+          // Ignore if user fetch fails
+        }
+      }
+      console.log(`[AyoubCheck] Finished checking all ${apps.rowCount} applications.`);
+    } catch(e) {
+      console.error("[AyoubCheck] Failed:", e);
+    }
+    
+    startPeriodicAnnouncer(client);
     
     const { setupGameTimers, startUnifiedRaidsCron } = await import("./tasks/timers.js").catch(() => ({ setupGameTimers: () => {}, startUnifiedRaidsCron: () => {} }));
     setupGameTimers(client);
     startUnifiedRaidsCron(client);
+
+    // Startup sync for AION 2 Guild Stats panels (if configured)
+    const { syncAion2GuildStatsOnStartup } = await import("./modules/aion2GuildStats.js").catch(() => ({ syncAion2GuildStatsOnStartup: () => {} }));
+    syncAion2GuildStatsOnStartup(client).catch(err => console.warn("[Aion2GuildStats] Startup sync failed:", err.message));
 
     // Start scheduled reminders checker
     setInterval(async () => {

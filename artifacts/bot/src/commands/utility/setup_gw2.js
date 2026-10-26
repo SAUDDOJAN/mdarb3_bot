@@ -1,6 +1,7 @@
 import { SlashCommandBuilder, PermissionFlagsBits } from "discord.js";
 import { setupGw2JoinEmbed } from "../../modules/guildwars2.js";
 
+
 export default {
   data: new SlashCommandBuilder()
     .setName("setup_gw2")
@@ -8,6 +9,7 @@ export default {
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
   async execute(interaction) {
+
     await setupGw2JoinEmbed(interaction);
   },
 };

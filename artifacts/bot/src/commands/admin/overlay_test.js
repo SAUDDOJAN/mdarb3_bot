@@ -1,12 +1,14 @@
 import { SlashCommandBuilder, PermissionFlagsBits } from "discord.js";
 import { publishOverlayEvent } from "../../database/index.js";
 
+
 export const data = new SlashCommandBuilder()
   .setName("overlay_test")
   .setDescription("إرسال جميع أنواع الأحداث لتجربة تطبيق الـ Overlay (مسؤول)")
   .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild);
 
 export async function execute(interaction) {
+
   await interaction.reply({ content: "⏳ جاري إرسال جميع الأحداث بالترتيب... راقب شاشة الـ Overlay! 🚀", ephemeral: true });
 
   const events = [

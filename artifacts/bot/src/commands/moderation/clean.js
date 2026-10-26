@@ -1,5 +1,6 @@
 import { SlashCommandBuilder, PermissionFlagsBits } from "discord.js";
 
+
 export default {
   data: new SlashCommandBuilder()
     .setName("clean")
@@ -19,6 +20,7 @@ export default {
     ),
 
   async execute(interaction) {
+
     const amount = interaction.options.getInteger("amount");
     const all = interaction.options.getBoolean("all");
 

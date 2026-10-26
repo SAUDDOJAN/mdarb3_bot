@@ -1,4 +1,5 @@
 import pg from "pg";
+import { initLfgSchema } from "../modules/aion2Lfg/db/schema.js";
 
 const { Pool } = pg;
 
@@ -31,6 +32,44 @@ export async function query(text, params) {
 
 export async function setupDatabase() {
   try {
+    await query(`
+      CREATE TABLE IF NOT EXISTS aion2_global_applications (
+        id BIGSERIAL PRIMARY KEY,
+        discord_id VARCHAR(255),
+        status VARCHAR(50) DEFAULT 'PENDING',
+        selected_class VARCHAR(50),
+        age INTEGER,
+        playstyle VARCHAR(50),
+        team_answer TEXT,
+        notes TEXT,
+        rejection_reason TEXT,
+        reviewed_by VARCHAR(255),
+        reviewed_at TIMESTAMP,
+        processing_started_at TIMESTAMP,
+        processing_action VARCHAR(50),
+        processing_by VARCHAR(255),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+      
+      CREATE UNIQUE INDEX IF NOT EXISTS aion2_global_active_app_idx 
+      ON aion2_global_applications (discord_id) 
+      WHERE status IN ('PENDING', 'ACCEPTED', 'PROCESSING');
+
+      ALTER TABLE aion2_global_applications 
+      ADD COLUMN IF NOT EXISTS character_name TEXT,
+      ADD COLUMN IF NOT EXISTS character_level INTEGER DEFAULT 0,
+      ADD COLUMN IF NOT EXISTS combat_power INTEGER DEFAULT 0,
+      ADD COLUMN IF NOT EXISTS profile_image TEXT,
+      ADD COLUMN IF NOT EXISTS shugo_url TEXT,
+      ADD COLUMN IF NOT EXISTS race_name TEXT,
+      ADD COLUMN IF NOT EXISTS server_name TEXT,
+      ADD COLUMN IF NOT EXISTS character_data JSONB,
+      ADD COLUMN IF NOT EXISTS assigned_guild VARCHAR(32) DEFAULT NULL,
+      ADD COLUMN IF NOT EXISTS guild_app_status VARCHAR(20) DEFAULT NULL,
+      ADD COLUMN IF NOT EXISTS guild_app_target VARCHAR(32) DEFAULT NULL;
+    `);
+
     await query(`
       CREATE TABLE IF NOT EXISTS tl_schedule (
         day_of_week INTEGER PRIMARY KEY,
@@ -844,9 +883,102 @@ export async function initDb() {
   await query(`ALTER TABLE live_countdowns ADD COLUMN IF NOT EXISTS short_name TEXT DEFAULT 'Game'`);
   await query(`ALTER TABLE live_countdowns ADD COLUMN IF NOT EXISTS image_url TEXT`);
 
+  // App Broadcast Alerts (Desktop App & Discord sync)
+  await query(`
+    CREATE TABLE IF NOT EXISTS app_broadcasts (
+      id SERIAL PRIMARY KEY,
+      type VARCHAR(50) NOT NULL DEFAULT 'alert',
+      title TEXT NOT NULL,
+      message TEXT NOT NULL,
+      link TEXT,
+      channel_id TEXT,
+      channel_name TEXT,
+      message_id TEXT,
+      author_id TEXT,
+      author_name TEXT,
+      duration_minutes INTEGER DEFAULT 60,
+      active_until TIMESTAMPTZ NOT NULL,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+  await query(`CREATE INDEX IF NOT EXISTS idx_app_broadcasts_active ON app_broadcasts(active_until DESC)`);
+
+  await initLfgSchema();
   console.log("[DB] All tables initialized.");
   } catch (err) {
     console.error("[DB] Non-fatal error during initDb:", err.message);
+  }
+}
+
+let broadcastTableReady = false;
+export async function ensureBroadcastsTable() {
+  if (broadcastTableReady) return;
+  try {
+    await query(`
+      CREATE TABLE IF NOT EXISTS app_broadcasts (
+        id SERIAL PRIMARY KEY,
+        type VARCHAR(50) NOT NULL DEFAULT 'alert',
+        title TEXT NOT NULL,
+        message TEXT NOT NULL,
+        link TEXT,
+        channel_id TEXT,
+        channel_name TEXT,
+        message_id TEXT,
+        author_id TEXT,
+        author_name TEXT,
+        duration_minutes INTEGER DEFAULT 60,
+        active_until TIMESTAMPTZ NOT NULL,
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_app_broadcasts_active ON app_broadcasts(active_until DESC);
+    `);
+    broadcastTableReady = true;
+  } catch (err) {
+    console.error("[DB] Could not ensure app_broadcasts table:", err.message);
+  }
+}
+
+export async function createBroadcastAlert({
+  type = 'alert',
+  title,
+  message,
+  link,
+  channelId,
+  channelName,
+  messageId,
+  authorId,
+  authorName,
+  durationMinutes = 60
+}) {
+  try {
+    await ensureBroadcastsTable();
+    const activeUntil = new Date(Date.now() + durationMinutes * 60 * 1000);
+    const res = await query(`
+      INSERT INTO app_broadcasts (
+        type, title, message, link, channel_id, channel_name, message_id, author_id, author_name, duration_minutes, active_until
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+      RETURNING *
+    `, [type, title, message, link, channelId, channelName, messageId, authorId, authorName, durationMinutes, activeUntil]);
+    return res.rows[0];
+  } catch (err) {
+    console.error("[DB] Error creating broadcast alert:", err);
+    throw err;
+  }
+}
+
+export async function getActiveBroadcastAlerts(limit = 10) {
+  try {
+    await ensureBroadcastsTable();
+    const res = await query(`
+      SELECT * FROM app_broadcasts
+      WHERE active_until > NOW()
+      ORDER BY created_at DESC
+      LIMIT $1
+    `, [limit]);
+    return res.rows;
+  } catch (err) {
+    console.error("[DB] Error getting active broadcast alerts:", err);
+    return [];
   }
 }
 
@@ -868,3 +1000,58 @@ export async function publishOverlayEvent(eventType, eventName, imageUrl, timerM
     console.error("[Overlay] Error publishing event:", err);
   }
 }
+
+// ─── Persistent Desktop App Sessions ────────────────────────────────────────
+
+export async function ensureSessionsTable() {
+  await query(`
+    CREATE TABLE IF NOT EXISTS app_sessions (
+      token_hash TEXT PRIMARY KEY,
+      discord_id TEXT NOT NULL,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      expires_at TIMESTAMPTZ NOT NULL,
+      last_check TIMESTAMPTZ DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS idx_app_sessions_expires ON app_sessions(expires_at);
+  `);
+}
+
+export async function saveAppSession(tokenHash, discordId, expiresAt) {
+  try {
+    await ensureSessionsTable();
+    await query(`
+      INSERT INTO app_sessions (token_hash, discord_id, expires_at, last_check)
+      VALUES ($1, $2, $3, NOW())
+      ON CONFLICT (token_hash) DO UPDATE
+      SET expires_at = EXCLUDED.expires_at, last_check = NOW()
+    `, [tokenHash, discordId, expiresAt]);
+  } catch (err) {
+    console.error("[DB] Error saving app session:", err);
+  }
+}
+
+export async function getAppSession(tokenHash) {
+  try {
+    await ensureSessionsTable();
+    const res = await query(`
+      SELECT discord_id, expires_at
+      FROM app_sessions
+      WHERE token_hash = $1 AND expires_at > NOW()
+      LIMIT 1
+    `, [tokenHash]);
+    return res.rows[0] || null;
+  } catch (err) {
+    console.error("[DB] Error getting app session:", err);
+    return null;
+  }
+}
+
+export async function deleteAppSession(tokenHash) {
+  try {
+    await ensureSessionsTable();
+    await query(`DELETE FROM app_sessions WHERE token_hash = $1`, [tokenHash]);
+  } catch (err) {
+    console.error("[DB] Error deleting app session:", err);
+  }
+}
+

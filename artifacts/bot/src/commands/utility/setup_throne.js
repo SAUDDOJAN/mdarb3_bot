@@ -1,6 +1,7 @@
 import { SlashCommandBuilder, PermissionFlagsBits } from "discord.js";
 import { setupThroneJoinEmbed } from "../../modules/throneliberty.js";
 
+
 export default {
   data: new SlashCommandBuilder()
     .setName("setup_throne")
@@ -8,6 +9,7 @@ export default {
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
   async execute(interaction) {
+
     await setupThroneJoinEmbed(interaction);
   },
 };

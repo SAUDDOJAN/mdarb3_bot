@@ -38,19 +38,19 @@ export async function handleGatekeeperButton(interaction) {
         embeds: [
           new EmbedBuilder()
             .setColor(0xed4245)
-            .setTitle("❌ تم رفض الانضمام")
-            .setDescription("تم رفض الانضمام لعدم الموافقة على بروتوكولات الحلف.")
+            .setTitle("❌ Join Rejected")
+            .setDescription("Join rejected due to declining alliance protocols.")
         ]
       }).catch(() => {});
 
       // Kick member
-      await member.kick("رفض الموافقة على القوانين").catch(err => {
+      await member.kick("Declined to agree to rules").catch(err => {
         console.error("[Gatekeeper] Failed to kick member:", err.message);
       });
     }
 
     // Acknowledge interaction without keeping the user thinking (since they are kicked)
-    await interaction.reply({ content: "تم تنفيذ الإجراء.", flags: 64 }).catch(() => {});
+    await interaction.reply({ content: "Action executed.", flags: 64 }).catch(() => {});
   }
 }
 

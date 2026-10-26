@@ -1,6 +1,7 @@
 import { SlashCommandBuilder, PermissionFlagsBits } from "discord.js";
 import { sendDungeonPanel } from "../../modules/dungeonLfg.js";
 
+
 export default {
   data: new SlashCommandBuilder()
     .setName("setup_lfg")
@@ -8,6 +9,7 @@ export default {
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild),
 
   async execute(interaction, client) {
+
     await sendDungeonPanel(interaction);
   },
 };

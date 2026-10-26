@@ -17,7 +17,25 @@
  * Slot name → display name mapping from shugo.gg PB() function (exact).
  */
 
+import * as cheerio from "cheerio";
+
 // ─── HTTP Headers ─────────────────────────────────────────────────────────────
+// For HTML page requests (browser document navigation)
+const PAGE_HEADERS = {
+  "User-Agent":
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
+    "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+  Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+  "Accept-Language": "en-US,en;q=0.9,ar;q=0.8",
+  Referer: "https://shugo.gg/",
+  "Sec-Ch-Ua": '"Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24"',
+  "Sec-Ch-Ua-Mobile": "?0",
+  "Sec-Ch-Ua-Platform": '"Windows"',
+  "Sec-Fetch-Dest": "document",
+  "Sec-Fetch-Mode": "navigate",
+  "Sec-Fetch-Site": "same-origin",
+};
+
 // Mimic a real Chrome 131 browser session to avoid 403/rate-limit blocks.
 const PROXY_HEADERS = {
   "User-Agent":
@@ -39,8 +57,23 @@ const PROXY_HEADERS = {
   "Sec-Fetch-Site":     "same-origin",
 };
 
+const REGION_SUBREGION_MAP = {
+  1: "nae",
+  2: "naw",
+  3: "eu",
+  4: "la",
+  5: "as",
+};
+
 // ─── Region config ────────────────────────────────────────────────────────────
 const REGION_CONFIG = {
+  GLOBAL: {
+    apiBase:  "https://aion2.plaync.com",
+    lang:     "en-US",
+    searchPath: "",
+    searchBase: "https://api-search.plaync.com/aion2global/search/v2/character",
+    profileImageBase: "https://profileimg.plaync.com",
+  },
   TW: {
     apiBase:  "https://tw.ncsoft.com/aion2",
     lang:     "en",
@@ -115,7 +148,7 @@ const SLOT_DISPLAY = {
   Waist:    "Belt",        Belt: "Belt",
   Neck:     "Necklace",    Necklace: "Necklace",
   Bracelet: "Bracelet",    Bracelet1: "Bracelet",   Bracelet2: "Bracelet",
-  Brooch:   "Brooch",      Orb: "Orb",
+  Brooch:   "Brooch",      Orb: "Orb",             Amulet: "Amulet",
   // Other
   Wing:     "Wings",       Wings: "Wings",
   Spellbook: "Spellbook",  WeaponSkin: "Weapon Skin",
@@ -135,7 +168,7 @@ const ACCESSORY_SLOTS = new Set([
   "EarringR", "EarringL", "Earring", "Earring1", "Earring2",
   "RingR", "RingL", "Ring", "Ring1", "Ring2",
   "Waist", "Belt", "Neck", "Necklace",
-  "Bracelet", "Bracelet1", "Bracelet2", "Brooch", "Orb",
+  "Bracelet", "Bracelet1", "Bracelet2", "Brooch", "Orb", "Amulet",
 ]);
 const ARCANA_SLOTS    = new Set(["Arcana"]);
 const RUNE_SLOTS      = new Set(["Rune"]);
@@ -197,60 +230,232 @@ function asArray(val) {
   return [];
 }
 
-// ─── URL parser ───────────────────────────────────────────────────────────────
-function parseShugUrl(inputUrl) {
-  const trimmed = inputUrl.trim();
+// ─── URL parser & resolver ──────────────────────────────────────────────────
+const resolvedShugoUrlCache = new Map();
+
+function sanitizeUrlString(raw) {
+  if (!raw || typeof raw !== "string") return "";
+  // 1. Remove all zero-width, bidi, and non-breaking space control characters
+  let clean = raw.replace(/[\u200B-\u200D\uFEFF\u200E\u200F\u202A-\u202E\u00A0]/g, "").trim();
+  // 2. Extract URL pattern if wrapped in text, brackets, or markdown
+  const urlMatch = clean.match(/https?:\/\/[^\s<>"'`]+/i) || clean.match(/(?:www\.)?(?:shugo\.gg|tw\.ncsoft\.com|aion2\.plaync\.com)[^\s<>"'`]+/i);
+  if (urlMatch) {
+    clean = urlMatch[0];
+  }
+  // 3. Strip trailing punctuation, brackets, and quotes
+  clean = clean.replace(/[>)'"`\].,;]+$/, "");
+  // 4. Ensure scheme
+  if (!clean.startsWith("http://") && !clean.startsWith("https://")) {
+    clean = `https://${clean}`;
+  }
+  return clean;
+}
+
+async function parseShugUrl(inputUrl) {
+  if (!inputUrl || typeof inputUrl !== "string") return null;
+  const sanitized = sanitizeUrlString(inputUrl);
+  console.log(`[Scraper] parseShugUrl raw: "${inputUrl}" | sanitized: "${sanitized}"`);
+
   let url;
   try {
-    url = new URL(trimmed.startsWith("http") ? trimmed : `https://${trimmed}`);
-  } catch {
+    url = new URL(sanitized);
+  } catch (err) {
+    console.warn(`[Scraper] URL parse failed for "${sanitized}":`, err.message);
     return null;
   }
-  
-  // 1. Shugo.gg Format
-  if (url.hostname.includes("shugo.gg")) {
+
+  const cacheKey = url.href.toLowerCase();
+  if (resolvedShugoUrlCache.has(cacheKey)) {
+    return resolvedShugoUrlCache.get(cacheKey);
+  }
+
+  const hostname = url.hostname.toLowerCase();
+  const pathname = url.pathname;
+
+  // 1. New Shugo.gg Format: /character/:region/:serverSlug/:characterName
+  if (hostname.includes("shugo.gg") && pathname.toLowerCase().includes("/character/")) {
+    const segments = pathname.split("/").filter(Boolean);
+    const charIdx = segments.findIndex((s) => s.toLowerCase() === "character");
+    if (charIdx !== -1 && segments.length >= charIdx + 4) {
+      const regionSegment = segments[charIdx + 1];
+      const serverSlug = segments[charIdx + 2];
+      const rawCharName = decodeURIComponent(segments.slice(charIdx + 3).join("/"));
+
+const KNOWN_SERVER_SLUGS = {
+  "eu-ludra": { id: "2311", name: "Ludra" },
+  "eu-zikel": { id: "2302", name: "Zikel" },
+  "eu-triniel": { id: "2303", name: "Triniel" },
+  "eu-vaizel": { id: "2304", name: "Vaizel" },
+  "eu-kaisenel": { id: "2305", name: "Kaisenel" },
+  "eu-nezekan": { id: "2301", name: "Nezekan" },
+  "ludra": { id: "2311", name: "Ludra" },
+  "zikel": { id: "2302", name: "Zikel" },
+  "triniel": { id: "2303", name: "Triniel" },
+  "vaizel": { id: "2304", name: "Vaizel" },
+  "kaisenel": { id: "2305", name: "Kaisenel" },
+  "nezekan": { id: "2301", name: "Nezekan" },
+};
+
+      try {
+        const fetchUrl = `https://shugo.gg/character/${encodeURIComponent(regionSegment)}/${encodeURIComponent(serverSlug)}/${encodeURIComponent(rawCharName)}`;
+        console.log(`[Scraper] Resolving Shugo page HTML: ${fetchUrl}`);
+        const res = await fetch(fetchUrl, {
+          headers: PAGE_HEADERS,
+          signal: AbortSignal.timeout(12_000),
+        });
+
+        console.log(`[Scraper] Shugo page status: ${res.status} for ${rawCharName}`);
+
+        if (res.status === 404) {
+          return {
+            error: `لم يتم العثور على شخصية باسم "${rawCharName}" على سيرفر "${serverSlug}" في موقع Shugo.gg. يرجى التأكد من كتابة الاسم والسيرفر بدقة.`,
+          };
+        }
+
+        if (!res.ok) {
+          return {
+            error: `تعذر الاتصال بصفحة الشخصية على Shugo.gg (رمز الخطأ: ${res.status}). يرجى المحاولة لاحقاً.`,
+          };
+        }
+
+        const html = await res.text();
+        const $ = cheerio.load(html);
+
+        // Strategy A: Official <meta name="shugo-character" content="..."> (via Cheerio DOM)
+        const metaContent =
+          $('meta[name="shugo-character"]').attr("content") ||
+          $('meta[property="shugo-character"]').attr("content") ||
+          $('meta[name*="shugo"]').attr("content");
+
+        if (metaContent) {
+          try {
+            const metaObj = JSON.parse(metaContent);
+            if (metaObj.id && metaObj.serverId) {
+              const result = {
+                id: String(metaObj.id),
+                server: String(metaObj.serverId),
+                region: String(metaObj.region || regionSegment || "GLOBAL").toUpperCase(),
+                name: stripHtml(metaObj.name || rawCharName),
+              };
+              resolvedShugoUrlCache.set(cacheKey, result);
+              return result;
+            }
+          } catch (jsonErr) {
+            console.warn("[Scraper] Failed to parse meta shugo-character JSON:", jsonErr.message);
+          }
+        }
+
+        // Strategy B: JSON-LD <script type="application/ld+json">
+        let jsonLdId = null;
+        let jsonLdName = null;
+        $('script[type="application/ld+json"]').each((_, el) => {
+          try {
+            const data = JSON.parse($(el).text());
+            if (data.mainEntity?.identifier) {
+              jsonLdId = data.mainEntity.identifier;
+              jsonLdName = data.mainEntity.name;
+            }
+          } catch {}
+        });
+
+        // Strategy C: Fallbacks with KNOWN_SERVER_SLUGS and regexes
+        const idMatch = jsonLdId || html.match(/"identifier"\s*:\s*"([^"]+)"/)?.[1] || html.match(/charKey=([^&"']+)/)?.[1];
+        const serverInfo = KNOWN_SERVER_SLUGS[serverSlug.toLowerCase()];
+        const serverMatch =
+          serverInfo?.id ||
+          html.match(/gameServerKey=(\d+)/)?.[1] ||
+          html.match(/"serverId"\s*:\s*"?(\d+)"?/)?.[1];
+
+        if (idMatch && serverMatch) {
+          const result = {
+            id: decodeURIComponent(idMatch),
+            server: String(serverMatch).trim(),
+            region: (regionSegment || "GLOBAL").toUpperCase(),
+            name: stripHtml(jsonLdName || rawCharName),
+          };
+          resolvedShugoUrlCache.set(cacheKey, result);
+          return result;
+        }
+
+        console.warn(`[Scraper] Could not extract character ID from HTML for ${fetchUrl}`);
+        return {
+          error: `تعذر استخراج بيانات المعرف للشخصية "${rawCharName}" من صفحة Shugo.gg. تأكد أن الرابط يفتح صفحة البروفايل كاملة.`,
+        };
+      } catch (err) {
+        console.warn("[Scraper] Failed to resolve new Shugo URL from page:", err.message);
+        return {
+          error: `حدث خطأ أثناء محاولة جلب صفحة Shugo.gg (${err.message}).`,
+        };
+      }
+    }
+  }
+
+  // 2. Old Shugo.gg Query-Param Format: ?id=...&server=...
+  if (hostname.includes("shugo.gg")) {
     const id     = url.searchParams.get("id");
     const server = url.searchParams.get("server");
     const region = url.searchParams.get("region");
     const name   = url.searchParams.get("name");
-    if (!id || !server) return null;
-    return {
-      id:     decodeURIComponent(id),
-      server: server.trim(),
-      region: (region ?? "TW").trim().toUpperCase(),
-      name:   stripHtml(name ?? ""),
-    };
+    if (id && server) {
+      let decodedId = id;
+      try {
+        while (decodedId.includes('%')) {
+          const next = decodeURIComponent(decodedId);
+          if (next === decodedId) break;
+          decodedId = next;
+        }
+      } catch (_) {}
+
+      const result = {
+        id:     decodedId,
+        server: server.trim(),
+        region: (region ?? "TW").trim().toUpperCase(),
+        name:   stripHtml(name ?? ""),
+      };
+      resolvedShugoUrlCache.set(cacheKey, result);
+      return result;
+    }
   }
 
-  // 2. Official NCSoft Format: /characters/{serverId}/{characterId}
+  // 3. Official NCSoft Format: /characters/{serverId}/{characterId}
   const ncMatch = url.pathname.match(/\/characters\/(\d+)\/([^/]+)/);
   if (ncMatch) {
     let region = "TW";
-    if (url.hostname.includes("plaync.com")) {
+    if (hostname.includes("plaync.com")) {
       region = "KR";
     }
-    return {
+    const result = {
       id:     decodeURIComponent(ncMatch[2]),
       server: ncMatch[1].trim(),
       region: region,
       name:   "", // Name will be fetched from API
     };
+    resolvedShugoUrlCache.set(cacheKey, result);
+    return result;
   }
 
   return null;
 }
 
 // ─── Proxy URL builder ────────────────────────────────────────────────────────
-function buildProxyUrl(cfg, path, params) {
+function buildProxyUrl(cfg, path, params, region) {
   const encodedId  = encodeURIComponent(params.characterId);
-  const innerUrl   = `${cfg.apiBase}${path}?lang=${cfg.lang}&characterId=${encodedId}&serverId=${params.serverId}`;
+  let extraRegion = "";
+  if (String(region).toUpperCase() === "GLOBAL" && params.serverId) {
+    const srvStr = String(params.serverId);
+    if (/^[12]\d{3}$/.test(srvStr)) {
+      const sub = REGION_SUBREGION_MAP[srvStr[1]];
+      if (sub) extraRegion = `&region=${sub}`;
+    }
+  }
+  const innerUrl   = `${cfg.apiBase}${path}?lang=${cfg.lang}&characterId=${encodedId}&serverId=${params.serverId}${extraRegion}`;
   return `https://shugo.gg/api/proxy?url=${encodeURIComponent(innerUrl)}`;
 }
 
 // ─── API Call 1: character/info ───────────────────────────────────────────────
 async function fetchCharacterInfo(characterId, serverId, region) {
   const cfg    = REGION_CONFIG[region] ?? REGION_CONFIG.TW;
-  const proxyUrl = buildProxyUrl(cfg, "/api/character/info", { characterId, serverId });
+  const proxyUrl = buildProxyUrl(cfg, "/api/character/info", { characterId, serverId }, region);
   console.log(`[Scraper] character/info → ${proxyUrl}`);
 
   const res  = await fetch(proxyUrl, { headers: PROXY_HEADERS, signal: AbortSignal.timeout(15_000) });
@@ -269,7 +474,7 @@ async function fetchCharacterInfo(characterId, serverId, region) {
 // ─── API Call 2: character/equipment ─────────────────────────────────────────
 async function fetchCharacterEquipment(characterId, serverId, region) {
   const cfg      = REGION_CONFIG[region] ?? REGION_CONFIG.TW;
-  const proxyUrl = buildProxyUrl(cfg, "/api/character/equipment", { characterId, serverId });
+  const proxyUrl = buildProxyUrl(cfg, "/api/character/equipment", { characterId, serverId }, region);
   console.log(`[Scraper] character/equipment → ${proxyUrl}`);
 
   const res  = await fetch(proxyUrl, { headers: PROXY_HEADERS, signal: AbortSignal.timeout(15_000) });
@@ -497,14 +702,22 @@ async function fetchViaSearch(characterId, serverId, region, characterName) {
 
 // ─── Main export ─────────────────────────────────────────────────────────────
 export async function scrapeProfile(inputUrl) {
-  const parsed = parseShugUrl(inputUrl);
+  const parsed = await parseShugUrl(inputUrl);
   if (!parsed) {
     return {
       success: false,
       error:
-        "Invalid URL. Please provide a valid character link:\n" +
-        "- https://shugo.gg/character?id=...\n" +
-        "- OR https://tw.ncsoft.com/aion2/characters/...",
+        "رابط غير صالح. يرجى تزويد رابط صحيح للشخصية:\n" +
+        "- https://shugo.gg/character/global/eu-ludra/CharacterName\n" +
+        "- https://shugo.gg/character/global/eu-zikel/CharacterName\n" +
+        "- OR https://shugo.gg/character?id=...&server=...",
+    };
+  }
+
+  if (parsed.error) {
+    return {
+      success: false,
+      error: parsed.error,
     };
   }
 

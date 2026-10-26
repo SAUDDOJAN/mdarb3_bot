@@ -1,6 +1,7 @@
 import { SlashCommandBuilder, PermissionFlagsBits } from "discord.js";
 import { sendApplyPanel } from "../../modules/recruitment.js";
 
+
 export default {
   data: new SlashCommandBuilder()
     .setName("apply_setup")
@@ -8,6 +9,7 @@ export default {
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild),
 
   async execute(interaction, client) {
+
     await sendApplyPanel(interaction);
   },
 };

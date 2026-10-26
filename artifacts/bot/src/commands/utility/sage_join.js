@@ -1,6 +1,7 @@
 import { SlashCommandBuilder } from "discord.js";
 import { handleSageJoinCommand } from "../../modules/sageController.js";
 
+
 const SAGE_GUILD_ID = "1507696012410749030";
 
 export const data = new SlashCommandBuilder()
@@ -8,6 +9,7 @@ export const data = new SlashCommandBuilder()
   .setDescription("انضم إلى تحالف الحصار (Siege) | Join the Siege Alliance");
 
 export async function execute(interaction) {
+
   // ← Strict guild isolation — Sage server only
   if (interaction.guildId !== SAGE_GUILD_ID) {
     await interaction.reply({

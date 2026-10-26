@@ -2,6 +2,7 @@ import { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder } from "discord.
 import { saveTlSchedule, getTlSchedule } from "../../database/index.js";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
+
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 export const data = new SlashCommandBuilder()
@@ -28,6 +29,7 @@ export const data = new SlashCommandBuilder()
   .addAttachmentOption(option => option.setName("image4").setDescription("الصورة الرابعة (اختياري)").setRequired(false));
 
 export async function execute(interaction) {
+
   await interaction.deferReply({ ephemeral: true });
 
   const dayOfWeek = parseInt(interaction.options.getString("day"), 10);

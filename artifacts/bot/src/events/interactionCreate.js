@@ -1,10 +1,26 @@
 import { route } from "../handlers/interactionRouter.js";
+import { PermissionFlagsBits } from "discord.js";
 
 export default {
   name: "interactionCreate",
   once: false,
   async execute(interaction, client) {
     if (interaction.isChatInputCommand()) {
+      // === CENTRALIZED MDARB3 MANAGER COMMAND AUTHORIZATION GATE ===
+      const isAdministrator = interaction.member?.permissions?.has(PermissionFlagsBits.Administrator) === true;
+      const isSAdminShotCallerCmd =
+        (interaction.commandName === "shotcaller" || interaction.commandName === "aion2_alert") &&
+        interaction.member?.roles?.cache?.has("1554242295384252427") === true;
+      
+      if (isAdministrator || isSAdminShotCallerCmd) {
+          // ALLOW: Administrators can execute all commands; S-Admin can execute /shotcaller
+      } else {
+          // DENY: Everyone else
+          await interaction.reply({ content: "❌ لا تملك الصلاحية لاستخدام أوامر الإدارة الخاصة بالبوت.", ephemeral: true });
+          return;
+      }
+      // =============================================================
+
       // Main guild ID for 'المعرقين' — hardcoded as a reliable fallback
       const MAIN_GUILD_ID = process.env.MAIN_GUILD_ID || "861355983975874601";
       // Sage Alliance server ID — strictly isolated

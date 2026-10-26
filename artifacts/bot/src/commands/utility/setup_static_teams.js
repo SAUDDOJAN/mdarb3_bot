@@ -1,5 +1,6 @@
 import { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, PermissionFlagsBits } from "discord.js";
 
+
 export default {
   data: new SlashCommandBuilder()
     .setName("setup_static_teams")
@@ -7,6 +8,7 @@ export default {
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
   async execute(interaction) {
+
     const isMainGuild = interaction.guildId === (process.env.MAIN_GUILD_ID || "861355983975874601");
     let targetChannel = null;
     if (isMainGuild) {

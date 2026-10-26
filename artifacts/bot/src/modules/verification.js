@@ -105,17 +105,6 @@ export async function handleInteraction(interaction) {
               `إذا احتجت أي شي أو حبيت تسولف على خفيف، الكل هنا إخوانك وفي خدمتك. نوّرتنا! 🤍`;
 
             await channel.send({ content: welcomeText, files: [attachment] });
-
-            // Send short text to general chat
-            try {
-              const generalChannelId = "1294312574162178200";
-              const generalChannel = guild.channels.cache.get(generalChannelId) || await guild.channels.fetch(generalChannelId);
-              if (generalChannel) {
-                await generalChannel.send(`يا هلا ومرحباً بك يا <@${member.user.id}> في جيش المعرقين! نورتنا يا وحش، خذ راحتك والميدان ميدانك! ⚔️🔥`);
-              }
-            } catch (err) {
-              console.error("[Welcome] Error sending short text to general chat:", err);
-            }
           }
         }
       } catch (err) {

@@ -181,7 +181,7 @@ async function handleMemberSelect(interaction) {
   );
 
   const row2Components = [];
-  if (rec.shugo_url) {
+  if (rec.shugo_url && rec.shugo_url.startsWith("http")) {
     row2Components.push(
       new ButtonBuilder()
         .setURL(rec.shugo_url)

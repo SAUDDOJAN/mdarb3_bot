@@ -1,6 +1,7 @@
 import { SlashCommandBuilder, PermissionFlagsBits, ActionRowBuilder, UserSelectMenuBuilder, EmbedBuilder, ButtonBuilder, ButtonStyle } from "discord.js";
 import { updateTLMemberCount } from "../../modules/throneliberty.js";
 
+
 export default {
   data: new SlashCommandBuilder()
     .setName("tl_mgmt_panel")
@@ -8,6 +9,7 @@ export default {
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
   async execute(interaction) {
+
     await interaction.deferReply({ ephemeral: true });
 
     // Update count immediately when panel is generated

@@ -509,7 +509,7 @@ export function startUnifiedRaidsCron(client) {
             await guild.members.fetch();
             for (const [id, member] of role.members) {
               if (!member.user.bot) {
-                await member.send({ content: `⚔️ **بدأ الريد الآن!**\nريد **${event.title}** بدأ الآن. توجه للروم الصوتي فوراً!` }).catch(() => {});
+                await member.send({ content: `⚔️ **بدأ الريد الآن!**\nريد **${event.title}** بدأ الآن. ضرورة التوجه لقاعة القيلد الآن، الكل مجتمع هناك!` }).catch(() => {});
               }
             }
           }

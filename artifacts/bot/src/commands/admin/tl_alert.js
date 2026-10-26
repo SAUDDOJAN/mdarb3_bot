@@ -1,6 +1,7 @@
 import { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } from "discord.js";
 import { publishOverlayEvent } from "../../database/index.js";
 
+
 export const data = new SlashCommandBuilder()
   .setName("tl_alert")
   .setDescription("إرسال تنبيه مخصص لروم إشعارات Throne and Liberty")
@@ -85,6 +86,7 @@ export const data = new SlashCommandBuilder()
   );
 
 export async function execute(interaction) {
+
   await interaction.deferReply({ ephemeral: true });
 
   const type = interaction.options.getString("type");

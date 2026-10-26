@@ -1,5 +1,6 @@
 import { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, PermissionFlagsBits } from "discord.js";
 
+
 export default {
   data: new SlashCommandBuilder()
     .setName("setup_event_admin")
@@ -7,6 +8,7 @@ export default {
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
   async execute(interaction) {
+
     const embed = new EmbedBuilder()
       .setColor(0x5865f2)
       .setTitle("🛡️ لوحة تحكم الفعاليات")
