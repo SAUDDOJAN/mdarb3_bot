@@ -1,18 +1,13 @@
 import { 
   SlashCommandBuilder, 
   PermissionFlagsBits, 
-  EmbedBuilder, 
-  AttachmentBuilder 
+  EmbedBuilder 
 } from "discord.js";
-import path from "path";
-import fs from "fs";
-import { fileURLToPath } from "url";
 import { buildSiegeComponents } from "../../modules/aion2SiegeAlert.js";
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const TARGET_CHANNEL_ID = "1548357027758219378";
 const M3RGEEN_ROLE_ID = "1555617080521269368";
+const SIEGE_BANNER_URL = "https://raw.githubusercontent.com/SAUDDOJAN/mdarb3_bot/main/artifacts/bot/assets/aion2_siege_banner.jpg";
 
 function getHourChoices() {
   const choices = [];
@@ -123,11 +118,7 @@ export async function execute(interaction) {
 
     const notes = interaction.options.getString("notes");
 
-    // Resolve banner path
-    const bannerPath = path.join(__dirname, "../../assets/aion2_siege_banner.jpg");
-    const hasImage = fs.existsSync(bannerPath);
-
-    // Build the rich Embed
+    // Build the rich Embed (banner placed cleanly in the embed without standalone attachment)
     const embed = new EmbedBuilder()
       .setColor(0x992D22) // Royal Dark Crimson
       .setTitle("⚔️ إعلان حصار AION 2 | نداء الحرب لكتيبة M3RGEEN ⚔️")
@@ -148,12 +139,9 @@ export async function execute(interaction) {
         "",
         "👥 **عدد الحضور المؤكدين:** `0 لاعب`"
       ].join("\n"))
+      .setImage(SIEGE_BANNER_URL)
       .setFooter({ text: "تحالف M3RGEEN • جيش المعرقين • اضغط علامة الصح لتأكيد حضورك" })
       .setTimestamp();
-
-    if (hasImage) {
-      embed.setImage("attachment://aion2_siege_banner.jpg");
-    }
 
     const row = buildSiegeComponents(0);
 
@@ -163,10 +151,6 @@ export async function execute(interaction) {
       embeds: [embed],
       components: [row]
     };
-
-    if (hasImage) {
-      sendPayload.files = [new AttachmentBuilder(bannerPath, { name: "aion2_siege_banner.jpg" })];
-    }
 
     const sentMessage = await targetChannel.send(sendPayload);
 

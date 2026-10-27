@@ -5,6 +5,7 @@ import { fileURLToPath } from "url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DATA_FILE = path.join(__dirname, "../../aion2_siege_attendees.json");
+const SIEGE_BANNER_URL = "https://raw.githubusercontent.com/SAUDDOJAN/mdarb3_bot/main/artifacts/bot/assets/aion2_siege_banner.jpg";
 
 function loadData() {
   try {
@@ -109,11 +110,23 @@ export async function handleInteraction(interaction) {
         }
         embedBuilder.setDescription(desc);
 
+        // Ensure image points to direct URL instead of old local attachment://
+        if (!embedBuilder.data.image?.url || embedBuilder.data.image.url.startsWith("attachment://")) {
+          embedBuilder.setImage(SIEGE_BANNER_URL);
+        }
+
         const newRow = buildSiegeComponents(attendees.length);
-        await interaction.message.edit({
+        const editPayload = {
           embeds: [embedBuilder],
           components: [newRow]
-        });
+        };
+
+        // If the message has any orphaned file attachments from earlier versions, strip them
+        if (interaction.message.attachments && (interaction.message.attachments.size > 0 || interaction.message.attachments.length > 0)) {
+          editPayload.attachments = [];
+        }
+
+        await interaction.message.edit(editPayload);
       }
     } catch (editErr) {
       console.warn("[aion2SiegeAlert] Failed to update message embed count:", editErr.message);
