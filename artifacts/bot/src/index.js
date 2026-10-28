@@ -258,10 +258,27 @@ async function main() {
         console.log("[Bot] Fetching members on startup to populate cache...");
         await mainGuild.members.fetch();
         console.log("[Bot] Members cached successfully.");
+
+        // Initial sync for Top 10 Active Members
+        const { syncTop10ActiveRole } = await import("./modules/leveling.js");
+        await syncTop10ActiveRole(mainGuild);
       }
     } catch (e) {
       console.error("[Bot] Failed to fetch members on startup:", e);
     }
+
+    // Periodic sync for Top 10 Active Members (every 10 minutes)
+    setInterval(async () => {
+      try {
+        const mainGuild = client.guilds.cache.get("861355983975874601");
+        if (mainGuild) {
+          const { syncTop10ActiveRole } = await import("./modules/leveling.js");
+          await syncTop10ActiveRole(mainGuild);
+        }
+      } catch (err) {
+        console.error("[Bot] Periodic Top 10 sync error:", err);
+      }
+    }, 10 * 60 * 1000);
   });
 
   await client.login(process.env.DISCORD_BOT_TOKEN);

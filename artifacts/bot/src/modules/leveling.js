@@ -55,14 +55,22 @@ async function notifyLevelUp(context, level, type = 'chat') {
   const author = type === 'voice' ? context.user : context.author;
   const channel = type === 'voice' ? context.guild.systemChannel : context.channel;
 
-  if (!channel) return;
+  if (channel) {
+    const embed = new EmbedBuilder()
+      .setColor(0x57f287)
+      .setTitle("🎉 ترقية مستوى!")
+      .setDescription(`مبروك ${author} وصلت **المستوى ${level}**!\nاستمر، دعمك يهمنا 🚀`)
+      .setTimestamp();
+    await channel.send({ embeds: [embed] }).catch(() => {});
+  }
 
-  const embed = new EmbedBuilder()
-    .setColor(0x57f287)
-    .setTitle("🎉 ترقية مستوى!")
-    .setDescription(`مبروك ${author} وصلت **المستوى ${level}**!\nاستمر، دعمك يهمنا 🚀`)
-    .setTimestamp();
-  await channel.send({ embeds: [embed] }).catch(() => {});
+  // Trigger Top 10 Active Role synchronization
+  const guild = context.guild;
+  if (guild) {
+    syncTop10ActiveRole(guild).catch(err => {
+      console.warn("[Leveling] Top 10 sync error after level up:", err.message);
+    });
+  }
 }
 
 export async function getRank(interaction) {
@@ -189,8 +197,64 @@ export async function handleVoiceLeave(member) {
         "UPDATE users SET xp = $1, level = $2, total_voice_minutes = $3, voice_join_time = NULL WHERE user_id = $4 AND guild_id = $5",
         [newXp, newLevel, totalVoice, userId, guildId]
       );
+
+      if (member.guild && xpGain > 0) {
+        syncTop10ActiveRole(member.guild).catch(() => {});
+      }
     }
   } catch (err) {
     console.error("[Leveling] Voice leave error:", err);
+  }
+}
+
+export const ACTIVE_TOP10_ROLE_ID = "1564911366761087006";
+const M3RGEEN_GUILD_ID = "861355983975874601";
+
+export async function syncTop10ActiveRole(guild) {
+  if (!guild || guild.id !== M3RGEEN_GUILD_ID) return;
+
+  try {
+    const role = guild.roles.cache.get(ACTIVE_TOP10_ROLE_ID) 
+      || await guild.roles.fetch(ACTIVE_TOP10_ROLE_ID).catch(() => null);
+    if (!role) {
+      console.warn(`[Leveling] Top 10 Active role ${ACTIVE_TOP10_ROLE_ID} not found in guild ${guild.id}`);
+      return;
+    }
+
+    // 1. Fetch current top 10 from database
+    const res = await query(
+      "SELECT user_id FROM users WHERE guild_id = $1 ORDER BY level DESC, xp DESC LIMIT 10",
+      [guild.id]
+    );
+
+    const top10UserIds = new Set(res.rows.map(r => r.user_id));
+
+    // 2. Fetch current members who hold the role
+    await guild.members.fetch().catch(() => {});
+
+    // 3. Remove role from members no longer in Top 10
+    if (role.members) {
+      for (const [memberId, member] of role.members) {
+        if (!top10UserIds.has(memberId)) {
+          await member.roles.remove(ACTIVE_TOP10_ROLE_ID).catch(err => {
+            console.warn(`[Leveling] Failed to remove Top 10 role from ${member.user?.tag || memberId}:`, err.message);
+          });
+          console.log(`[Leveling] Removed Top 10 active role from ${member.user?.tag || memberId}`);
+        }
+      }
+    }
+
+    // 4. Add role to members in Top 10 who don't have it
+    for (const userId of top10UserIds) {
+      const member = guild.members.cache.get(userId) || await guild.members.fetch(userId).catch(() => null);
+      if (member && !member.roles.cache.has(ACTIVE_TOP10_ROLE_ID)) {
+        await member.roles.add(ACTIVE_TOP10_ROLE_ID).catch(err => {
+          console.warn(`[Leveling] Failed to add Top 10 role to ${member.user?.tag || userId}:`, err.message);
+        });
+        console.log(`[Leveling] Added Top 10 active role to ${member.user?.tag || userId}`);
+      }
+    }
+  } catch (err) {
+    console.error("[Leveling] Error in syncTop10ActiveRole:", err);
   }
 }
