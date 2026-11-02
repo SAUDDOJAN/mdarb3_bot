@@ -29,6 +29,7 @@ try {
 // ─── Constants & Confirmed Role / Channel IDs ─────────────────────────────────
 export const MAIN_GUILD_ID = process.env.MAIN_GUILD_ID || "861355983975874601";
 export const LUDRA_TEST_CHANNEL_ID = "1290449971639881849";
+export const LUDRA_OFFICIAL_CHANNEL_ID = "1566867947786473583";
 export const LUDRA_CONFIG_KEY = "ludra_raid_system";
 
 // Strictly the two official guild roles (Never confuse with AION 2 Member or 🔥 المعرقين)
@@ -183,12 +184,16 @@ export async function initLudraRaidDB() {
       channel_id VARCHAR(64) NOT NULL,
       hard_message_id VARCHAR(64),
       normal_message_id VARCHAR(64),
+      announcement_message_id VARCHAR(64),
       is_test_channel BOOLEAN DEFAULT TRUE,
       previous_channel_id VARCHAR(64),
       previous_hard_message_id VARCHAR(64),
       previous_normal_message_id VARCHAR(64),
       updated_at TIMESTAMPTZ DEFAULT NOW()
     );
+
+    ALTER TABLE ludra_raid_config
+      ADD COLUMN IF NOT EXISTS announcement_message_id VARCHAR(64);
 
     CREATE TABLE IF NOT EXISTS ludra_external_profiles (
       discord_id VARCHAR(64) PRIMARY KEY,
@@ -1378,7 +1383,8 @@ export async function saveLudraPanelConfig({
   channelId,
   hardMessageId,
   normalMessageId,
-  isTestChannel = true,
+  announcementMessageId = null,
+  isTestChannel = false,
   previousChannelId = null,
   previousHardMessageId = null,
   previousNormalMessageId = null,
@@ -1386,14 +1392,15 @@ export async function saveLudraPanelConfig({
   await initLudraRaidDB();
   await query(
     `INSERT INTO ludra_raid_config (
-       config_key, guild_id, channel_id, hard_message_id, normal_message_id,
+       config_key, guild_id, channel_id, hard_message_id, normal_message_id, announcement_message_id,
        is_test_channel, previous_channel_id, previous_hard_message_id, previous_normal_message_id, updated_at
-     ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())
+     ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW())
      ON CONFLICT (config_key) DO UPDATE SET
        guild_id = EXCLUDED.guild_id,
        channel_id = EXCLUDED.channel_id,
        hard_message_id = EXCLUDED.hard_message_id,
        normal_message_id = EXCLUDED.normal_message_id,
+       announcement_message_id = COALESCE(EXCLUDED.announcement_message_id, ludra_raid_config.announcement_message_id),
        is_test_channel = EXCLUDED.is_test_channel,
        previous_channel_id = COALESCE(EXCLUDED.previous_channel_id, ludra_raid_config.previous_channel_id),
        previous_hard_message_id = COALESCE(EXCLUDED.previous_hard_message_id, ludra_raid_config.previous_hard_message_id),
@@ -1405,6 +1412,7 @@ export async function saveLudraPanelConfig({
       channelId,
       hardMessageId,
       normalMessageId,
+      announcementMessageId,
       isTestChannel,
       previousChannelId,
       previousHardMessageId,
@@ -1559,7 +1567,7 @@ export async function refreshLudraEmbedsNow(client = activeDiscordClient) {
  *   2. Disables the old buttons in the test channel.
  *   3. Deletes ONLY the 2 test embed messages after successful migration.
  */
-export async function deployOrMigrateLudraPanels(client, targetChannelId = LUDRA_TEST_CHANNEL_ID, options = {}) {
+export async function deployOrMigrateLudraPanels(client, targetChannelId = LUDRA_OFFICIAL_CHANNEL_ID, options = {}) {
   await initLudraRaidDB();
   setLudraDiscordClient(client);
 
@@ -1586,7 +1594,7 @@ export async function deployOrMigrateLudraPanels(client, targetChannelId = LUDRA
     buildLudraNormalEmbedAndComponents(false),
   ]);
 
-  // Same channel: edit existing messages if present, otherwise send once
+  // Same channel: edit existing messages if present, otherwise send once (never re-send mention!)
   if (existingConfig && String(existingConfig.channel_id) === String(targetChannelId)) {
     let hardMsg = existingConfig.hard_message_id
       ? await channel.messages.fetch(existingConfig.hard_message_id).catch(() => null)
@@ -1612,6 +1620,7 @@ export async function deployOrMigrateLudraPanels(client, targetChannelId = LUDRA
       channelId: targetChannelId,
       hardMessageId: hardMsg.id,
       normalMessageId: normalMsg.id,
+      announcementMessageId: existingConfig.announcement_message_id || null,
       isTestChannel: isTest,
     });
 
@@ -1620,12 +1629,36 @@ export async function deployOrMigrateLudraPanels(client, targetChannelId = LUDRA
       channelId: targetChannelId,
       hardMessageId: hardMsg.id,
       normalMessageId: normalMsg.id,
+      announcementMessageId: existingConfig.announcement_message_id || null,
     };
   }
 
-  // Migrating to a new official channel (or initial deployment)
+  // Migrating to the official channel (or initial deployment)
+  let announcementMessageId = existingConfig?.announcement_message_id || null;
+  if (options.sendOpeningMention && !announcementMessageId) {
+    const announcementContent =
+      `<@&${M3RGEEN_GUILD_ROLE_ID}>\n` +
+      `<@&${EMPEROR_GUILD_ROLE_ID}>\n` +
+      `📢 **تم فتح التسجيل والفرز الرسمي لـ Ludra Raid (Hard 3000+ & Normal 2800+)!**\n` +
+      `يرجى اختيار الفئة المناسبة أدناه للتسجيل أو تحديث بيانات شخصيتك مباشرة عبر Shugo.gg.`;
+
+    const announcementMsg = await channel.send({
+      content: announcementContent,
+      allowedMentions: {
+        parse: [],
+        roles: [M3RGEEN_GUILD_ROLE_ID, EMPEROR_GUILD_ROLE_ID],
+      },
+    });
+    announcementMessageId = announcementMsg.id;
+  }
+
   const newHardMsg = await channel.send({ embeds: [hardPayload.embed], components: hardPayload.components });
   const newNormalMsg = await channel.send({ embeds: [normalPayload.embed], components: normalPayload.components });
+
+  // Safety check: verify both messages and their interactive buttons were published before touching old channel
+  if (!newHardMsg?.id || !newNormalMsg?.id) {
+    throw new Error("فشل التحقق من نشر رسالتي الإمبد في الروم الجديد؛ لن يتم المساس بلوحات الاختبار.");
+  }
 
   const oldChannelId = existingConfig?.channel_id || null;
   const oldHardMsgId = existingConfig?.hard_message_id || null;
@@ -1636,6 +1669,7 @@ export async function deployOrMigrateLudraPanels(client, targetChannelId = LUDRA
     channelId: targetChannelId,
     hardMessageId: newHardMsg.id,
     normalMessageId: newNormalMsg.id,
+    announcementMessageId,
     isTestChannel: isTest,
     previousChannelId: oldChannelId,
     previousHardMessageId: oldHardMsgId,
@@ -1643,6 +1677,7 @@ export async function deployOrMigrateLudraPanels(client, targetChannelId = LUDRA
   });
 
   // If there was a previous channel (e.g. test channel migration), disable its buttons then delete ONLY those 2 messages
+  let oldMessagesCleaned = 0;
   if (oldChannelId && String(oldChannelId) !== String(targetChannelId)) {
     const oldChannel =
       client.channels?.cache?.get(oldChannelId) ||
@@ -1660,9 +1695,10 @@ export async function deployOrMigrateLudraPanels(client, targetChannelId = LUDRA
       ]) {
         if (!msgId) continue;
         const oldMsg = await oldChannel.messages.fetch(msgId).catch(() => null);
-        if (oldMsg && oldMsg.author?.id === client.user?.id) {
+        if (oldMsg && (!client.user?.id || oldMsg.author?.id === client.user?.id)) {
           await oldMsg.edit({ embeds: [payload.embed], components: payload.components }).catch(() => {});
           await oldMsg.delete().catch(() => {});
+          oldMessagesCleaned++;
         }
       }
     }
@@ -1673,7 +1709,9 @@ export async function deployOrMigrateLudraPanels(client, targetChannelId = LUDRA
     channelId: targetChannelId,
     hardMessageId: newHardMsg.id,
     normalMessageId: newNormalMsg.id,
+    announcementMessageId,
     previousChannelId: oldChannelId,
+    oldMessagesCleaned,
   };
 }
 
@@ -1993,6 +2031,18 @@ export async function handleLudraInteraction(interaction) {
   if (interaction.guildId !== MAIN_GUILD_ID) {
     return interaction.reply({
       content: "❌ هذا النظام مخصص لأعضاء سيرفر ديسكورد M3RGEEN فقط.",
+      ephemeral: true,
+    });
+  }
+
+  const activeConfig = await getLudraPanelConfig();
+  if (
+    activeConfig?.channel_id &&
+    interaction.channelId &&
+    String(interaction.channelId) !== String(activeConfig.channel_id)
+  ) {
+    return interaction.reply({
+      content: `ℹ️ تم نقل لوحة تسجيل Ludra Raid رسمياً إلى <#${activeConfig.channel_id}>.`,
       ephemeral: true,
     });
   }
