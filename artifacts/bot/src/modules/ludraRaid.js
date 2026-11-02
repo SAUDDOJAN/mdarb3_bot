@@ -1120,19 +1120,37 @@ export async function getLudraHardStats() {
   );
 
   const byClass = {};
-  for (const c of ALL_CLASSES) byClass[c] = [];
+  const classCounts = {};
+  for (const c of ALL_CLASSES) {
+    byClass[c] = [];
+    classCounts[c] = 0;
+  }
 
   for (const row of res.rows) {
     const normClass = normalizeClassName(row.class_name);
     if (!byClass[normClass]) byClass[normClass] = [];
     byClass[normClass].push(row);
+    classCounts[normClass] = (classCounts[normClass] || 0) + 1;
   }
 
   return {
     total: res.rows.length,
     players: res.rows,
     byClass,
+    classCounts,
   };
+}
+
+export async function removeLudraParticipant(discordId) {
+  await initLudraRaidDB();
+  const delRes = await query(
+    `DELETE FROM ludra_raid_registrations WHERE discord_id = $1 RETURNING discord_id, raid_tier, class_name`,
+    [String(discordId)]
+  );
+  if (delRes.rowCount > 0) {
+    scheduleLudraEmbedsUpdate();
+  }
+  return { removed: delRes.rowCount > 0, row: delRes.rows[0] || null };
 }
 
 export async function getLudraNormalStats() {
@@ -1174,6 +1192,14 @@ export async function getLudraNormalStats() {
 export async function buildLudraHardEmbedAndComponents(disabled = false) {
   const stats = await getLudraHardStats();
 
+  // 1. Class distribution summary block (identical style to 2800 embed)
+  const classDistributionLines = ALL_CLASSES.map((cls) => {
+    const emoji = CLASS_EMOJIS[cls] || "🔹";
+    const cnt = stats.classCounts[cls] || 0;
+    return `${emoji} **${cls}:** \`${cnt}\``;
+  });
+
+  // 2. Detailed Character Name + CP roster grouped by class
   const classSections = [];
   let totalCharLength = 0;
   let truncated = false;
@@ -1186,45 +1212,74 @@ export async function buildLudraHardEmbedAndComponents(disabled = false) {
     const lines = list.map((p) => `- **${p.character_name}** — CP \`${numFmt(p.combat_power)}\``);
     const block = `${header}\n${lines.join("\n")}`;
 
-    if (stats.total > QUEUE_CONFIG.HARD_EMBED_MAX_INLINE_NAMES || totalCharLength + block.length > 3200) {
+    if (stats.total > QUEUE_CONFIG.HARD_EMBED_MAX_INLINE_NAMES || totalCharLength + block.length > 2900) {
       truncated = true;
       break;
     }
-    classSections.push(block);
+    classSections.push({ cls, emoji, count: list.length, lines, block });
     totalCharLength += block.length + 2;
   }
 
-  let rosterDisplay = "";
-  if (stats.total === 0) {
-    rosterDisplay = "*لا يوجد مسجلون مؤهلون حالياً.*";
-  } else if (!truncated) {
-    rosterDisplay = classSections.join("\n\n");
-  } else {
-    // Summary by class + button for paginated full roster
-    const summaryLines = ALL_CLASSES.map((cls) => {
-      const cnt = stats.byClass[cls]?.length || 0;
-      const emoji = CLASS_EMOJIS[cls] || "🔹";
-      return `${emoji} **${cls}:** \`${cnt}\``;
-    });
-    rosterDisplay =
-      `${classSections.join("\n\n")}\n\n` +
-      `*(القائمة كبيرة — لعرض جميع الأسماء بالتفصيل استخدم زر القائمة التفصيلية أدناه)*\n\n` +
-      `**توزيع الكلاسات الكامل:**\n${summaryLines.join(" • ")}`;
-  }
+  const baseHeaderDescription =
+    `إحصاء وفرز اللاعبين المؤهلين لريد **Ludra Hard**.\n` +
+    `🎯 **شرط القبول:** \`Item Level >= 3000\` (تحديث وفحص حي من Shugo.gg)\n\n` +
+    `━━━━━━━━━━━━━━━━━━\n\n` +
+    `👥 **إجمالي المسجلين:** \`${stats.total}\`\n\n` +
+    `📊 **توزيع الكلاسات:**\n` +
+    `${classDistributionLines.join("\n")}\n\n` +
+    `━━━━━━━━━━━━━━━━━━\n` +
+    `⚔️ **قائمة المسجلين (الاسم + CP):**\n`;
 
   const embed = new EmbedBuilder()
     .setColor(0xe74c3c)
     .setTitle("🔥 LUDRA HARD — 3000+")
-    .setDescription(
-      `إحصاء وفرز اللاعبين المؤهلين لريد **Ludra Hard**.\n` +
-      `🎯 **شرط القبول:** \`Item Level >= 3000\` (تحديث وفحص حي من Shugo.gg)\n\n` +
-      `━━━━━━━━━━━━━━━━━━\n\n` +
-      `${rosterDisplay}\n\n` +
-      `━━━━━━━━━━━━━━━━━━\n` +
-      `📊 **الإجمالي:** \`${stats.total}\` ${stats.total === 1 ? "لاعب" : "لاعبين"}`
-    )
     .setFooter({ text: "تحالف M3RGEEN • نظام فرز وإحصاء Ludra Raid" })
     .setTimestamp();
+
+  if (stats.total === 0) {
+    embed.setDescription(
+      `${baseHeaderDescription}` +
+      `*لا يوجد مسجلون مؤهلون حالياً.*\n\n` +
+      `━━━━━━━━━━━━━━━━━━\n` +
+      `📊 **الإجمالي:** \`0\` لاعبين`
+    );
+  } else {
+    const inlineRosterText = classSections.map((s) => s.block).join("\n\n");
+    const fullDescriptionCandidate =
+      `${baseHeaderDescription}\n` +
+      `${inlineRosterText}` +
+      (truncated
+        ? `\n\n*(القائمة كبيرة — لعرض جميع الأسماء بالتفصيل استخدم زر القائمة التفصيلية أدناه)*`
+        : "") +
+      `\n\n━━━━━━━━━━━━━━━━━━\n` +
+      `📊 **الإجمالي:** \`${stats.total}\` ${stats.total === 1 ? "لاعب" : "لاعبين"}`;
+
+    if (fullDescriptionCandidate.length <= 3900) {
+      embed.setDescription(fullDescriptionCandidate);
+    } else {
+      // Fallback to structured Embed Fields when description approaches Discord's 4096-char limit
+      embed.setDescription(
+        `${baseHeaderDescription}` +
+        `*(تظهر القائمة مرتبة حسب الكلاس في الحقول أدناه)*`
+      );
+      for (const sec of classSections.slice(0, 24)) {
+        let fieldVal = sec.lines.join("\n");
+        if (fieldVal.length > 1020) {
+          fieldVal = fieldVal.slice(0, 980) + "\n*... (استخدم زر القائمة الكاملة)*";
+        }
+        embed.addFields({
+          name: `${sec.emoji} ${sec.cls} (${sec.count})`,
+          value: fieldVal || "-",
+          inline: false,
+        });
+      }
+      embed.addFields({
+        name: "📊 الإجمالي",
+        value: `\`${stats.total}\` ${stats.total === 1 ? "لاعب" : "لاعبين"}`,
+        inline: false,
+      });
+    }
+  }
 
   const row = new ActionRowBuilder().addComponents(
     new ButtonBuilder()
