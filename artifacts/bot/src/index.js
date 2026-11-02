@@ -206,6 +206,9 @@ async function main() {
   const { initConfirmationDB } = await import("./modules/aion2Confirmation.js");
   await initConfirmationDB();
 
+  const { initLudraRaidDB, resumeLudraRaidSystemOnStartup } = await import("./modules/ludraRaid.js");
+  await initLudraRaidDB();
+
   client.once("ready", async () => {
     console.log(`[Bot] Logged in as ${client.user.tag}`);
     initDb();
@@ -241,6 +244,9 @@ async function main() {
     // Startup sync for AION 2 Guild Stats panels (if configured)
     const { syncAion2GuildStatsOnStartup } = await import("./modules/aion2GuildStats.js").catch(() => ({ syncAion2GuildStatsOnStartup: () => {} }));
     syncAion2GuildStatsOnStartup(client).catch(err => console.warn("[Aion2GuildStats] Startup sync failed:", err.message));
+
+    // Startup resume for Ludra Raid queue & fixed embeds
+    resumeLudraRaidSystemOnStartup(client).catch(err => console.warn("[LudraRaid] Startup sync failed:", err.message));
 
     // Start scheduled reminders checker
     setInterval(async () => {

@@ -18,6 +18,7 @@ import * as throneliberty from "../modules/throneliberty.js";
 import * as aion2GlobalTemp from "../modules/aion2GlobalTemp.js";
 import * as aion2Confirmation from "../modules/aion2Confirmation.js";
 import * as aion2ShugoRegistration from "../modules/aion2ShugoRegistration.js";
+import * as ludraRaid from "../modules/ludraRaid.js";
 import { lfgRouter, lfgModalRouter } from "../modules/aion2Lfg/router.js";
 import { handleAion2Pagination } from "../modules/aion2Lfg/admin/pagination.js";
 import { handleDungeonPointsPagination } from "../commands/utility/dungeon_points.js";
@@ -122,6 +123,21 @@ export async function route(interaction) {
     } catch (err) {
       console.error(`[Router] Error handling Shugo registration interaction "${customId}":`, err);
       const reply = { content: "❌ حدث خطأ أثناء معالجة تسجيل Shugo، حاول مجدداً.", flags: 64 };
+      if (interaction.replied || interaction.deferred) {
+        await interaction.followUp(reply).catch(() => {});
+      } else {
+        await interaction.reply(reply).catch(() => {});
+      }
+    }
+    return;
+  }
+
+  if (customId.startsWith("ludra_raid:") || customId.startsWith("ludra_raid_")) {
+    try {
+      await ludraRaid.handleLudraInteraction(interaction);
+    } catch (err) {
+      console.error(`[Router] Error handling Ludra Raid interaction "${customId}":`, err);
+      const reply = { content: "❌ حدث خطأ أثناء معالجة تسجيل Ludra Raid، حاول مجدداً.", flags: 64 };
       if (interaction.replied || interaction.deferred) {
         await interaction.followUp(reply).catch(() => {});
       } else {
