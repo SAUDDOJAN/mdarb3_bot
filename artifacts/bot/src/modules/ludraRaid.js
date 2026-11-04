@@ -553,9 +553,10 @@ export async function forceRefreshAndFetchShugoProfile(inputUrl) {
     if ((!characterId || !serverId) && serverInfo?.id) {
       serverId = serverInfo.id;
       region = String(regionSegment || "GLOBAL").toUpperCase();
+      const subRegion = REGION_SUBREGION_MAP[String(serverId)[1]] || "eu";
       for (const raceId of [1, 2]) {
         try {
-          const searchInner = `https://api-search.plaync.com/aion2global/search/v2/character?keyword=${encodeURIComponent(rawCharName)}&page=1&size=20&race=${raceId}&serverId=${serverId}`;
+          const searchInner = `https://api-search.plaync.com/aion2global/search/v2/character?keyword=${encodeURIComponent(rawCharName)}&page=1&size=20&race=${raceId}&serverId=${serverId}&region=${subRegion}&localeInfo=en-US`;
           const searchProxy = `https://shugo.gg/api/proxy?url=${encodeURIComponent(searchInner)}`;
           const sRes = await fetch(searchProxy, {
             headers: PROXY_HEADERS,
@@ -980,18 +981,10 @@ export async function applyLudraRegistrationTransaction({
     }
 
     // ── CASE B: Target is NORMAL (2800+ iLvl) ───────────────────────────────
-    // Rule 8: If player is already registered in HARD (and active), do NOT downgrade them automatically!
-    if (existing && existing.raid_tier === "HARD" && existing.eligibility_status === "ACTIVE" && targetAction === "NORMAL") {
-      await client.query("COMMIT");
-      return {
-        accepted: false,
-        code: "ALREADY_IN_HARD",
-        embedsChanged: false,
-        message:
-          `ℹ️ أنت مسجل بالفعل في **Ludra Hard (3000+)** بشخصية \`${existing.character_name}\`.\n` +
-          `لا يتم إنزال المسجلين في Hard إلى Normal تلقائياً. لتحديث أرقامك الحالية في Hard استخدم زر **«🔄 تحديث بياناتي»**.`,
-      };
-    }
+    // If player is registered in HARD and chooses to register in NORMAL, allow moving down to Normal!
+    const wasDowngradeFromHard = Boolean(
+      existing && existing.raid_tier === "HARD" && existing.eligibility_status === "ACTIVE" && targetAction === "NORMAL"
+    );
 
     if (itemLevel < NORMAL_MIN_ILVL) {
       // If they were already registered in NORMAL and their iLvl dropped below 2800 on re-verification:
@@ -1092,14 +1085,24 @@ export async function applyLudraRegistrationTransaction({
 
     await client.query("COMMIT");
 
+    let responseCode = "REGISTERED_NORMAL";
+    let titleMsg = "تم تسجيلك بنجاح";
+    if (wasDowngradeFromHard) {
+      responseCode = "MOVED_HARD_TO_NORMAL";
+      titleMsg = "تم نقلك بنجاح من Ludra Hard إلى Ludra Normal";
+    } else if (wasUpdateInNormal) {
+      responseCode = "UPDATED_IN_NORMAL";
+      titleMsg = "تم تحديث بياناتك وتصنيفك في Ludra Normal";
+    }
+
     return {
       accepted: true,
-      code: wasUpdateInNormal ? "UPDATED_IN_NORMAL" : "REGISTERED_NORMAL",
+      code: responseCode,
       embedsChanged: true,
       tier: "NORMAL",
       classification: carryClassification,
       message:
-        `🛡️ **${wasUpdateInNormal ? "تم تحديث بياناتك وتصنيفك" : "تم تسجيلك بنجاح"} في Ludra Normal (2800+)!**\n` +
+        `🛡️ **${titleMsg} (2800+)!**\n` +
         `• **الشخصية:** \`${characterName}\` (${className})\n` +
         `• **Item Level:** \`${numFmt(itemLevel)}\`\n` +
         `• **Combat Power:** \`${numFmt(combatPower)}\`\n` +
