@@ -226,26 +226,14 @@ export async function buildTeamEmbedAndComponents(teamNumber) {
     embed.setThumbnail("attachment://team_logo.png");
   }
 
-  const row = new ActionRowBuilder().addComponents(
+  const publicRow = new ActionRowBuilder().addComponents(
     new ButtonBuilder()
-      .setCustomId(`ludra_static:mention:${teamNumber}`)
-      .setLabel("📢 منشن الفريق")
-      .setStyle(ButtonStyle.Primary),
-    new ButtonBuilder()
-      .setCustomId(`ludra_static:dm:${teamNumber}`)
-      .setLabel("✉️ إرسال للخاص")
-      .setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder()
-      .setCustomId(`ludra_static:add:${teamNumber}`)
-      .setLabel("➕ إضافة لاعب")
-      .setStyle(ButtonStyle.Success),
-    new ButtonBuilder()
-      .setCustomId(`ludra_static:remove:${teamNumber}`)
-      .setLabel("➖ حذف لاعب")
-      .setStyle(ButtonStyle.Danger)
+      .setCustomId(`ludra_static:panel:${teamNumber}`)
+      .setLabel("🎛️ لوحة إدارة الفريق")
+      .setStyle(ButtonStyle.Primary)
   );
 
-  return { embed, components: [row], attachment, team, members };
+  return { embed, components: [publicRow], attachment, team, members };
 }
 
 /**
@@ -312,8 +300,8 @@ export async function handleLudraStaticInteraction(interaction) {
   const param = parts[2];
   const extra = parts[3];
 
-  // ── 1. Team Action Buttons (From Team Card) ──────────────────────────────────
-  if (action === "mention" || action === "dm" || action === "add" || action === "remove") {
+  // ── 1. Team Action Buttons (From Team Card or Leader Panel) ──────────────────
+  if (action === "panel" || action === "mention" || action === "dm" || action === "add" || action === "remove") {
     const teamNumber = parseInt(param, 10) || 1;
     const teamRes = await query(`SELECT * FROM ludra_static_teams WHERE team_number = $1 LIMIT 1`, [teamNumber]);
     const team = teamRes.rows[0];
@@ -323,7 +311,48 @@ export async function handleLudraStaticInteraction(interaction) {
 
     if (!isAuthorizedForTeam(interaction, team)) {
       return interaction.reply({
-        content: `❌ عذراً، هذه الإجراءات مخصصة لقائد الفريق (<@${team.leader_discord_id}>) وإدارة السيرفر فقط.`,
+        content: `❌ عذراً، لوحة إدارة الفريق مخصصة لقائد الفريق (<@${team.leader_discord_id}>) وإدارة السيرفر فقط.`,
+        ephemeral: true,
+      });
+    }
+
+    // ── Open Leader Private Control Panel ──
+    if (action === "panel") {
+      const panelEmbed = new EmbedBuilder()
+        .setColor(0x3498db)
+        .setTitle(`🎛️ لوحة إدارة ${team.team_name}`)
+        .setDescription(
+          `أهلاً بك يا كابتن <@${interaction.user.id}>!\n` +
+          `من هنا يمكنك التحكم بفريقك الثابت بشكل خاص ومباشر:\n\n` +
+          `• **📢 منشن الفريق:** لتنبيه الأعضاء بالتجمع والاستعداد (يُحذف تلقائياً بعد 5 دقائق).\n` +
+          `• **✉️ إرسال للخاص:** لإرسال رسالة رسمية لخاص جميع أعضاء الفريق مباشرة.\n` +
+          `• **➕ إضافة لاعب:** اختيار كلاس وإضافة لاعب جديد في مقعد شاغر.\n` +
+          `• **➖ حذف لاعب:** اختيار لاعب ورفع طلب استبعاد مسبّب للإدارة للمراجعة.`
+        )
+        .setFooter({ text: "تحالف M3RGEEN • لوحة تحكم القائد الخاصة" });
+
+      const panelRow = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId(`ludra_static:mention:${teamNumber}`)
+          .setLabel("📢 منشن الفريق")
+          .setStyle(ButtonStyle.Primary),
+        new ButtonBuilder()
+          .setCustomId(`ludra_static:dm:${teamNumber}`)
+          .setLabel("✉️ إرسال للخاص")
+          .setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder()
+          .setCustomId(`ludra_static:add:${teamNumber}`)
+          .setLabel("➕ إضافة لاعب")
+          .setStyle(ButtonStyle.Success),
+        new ButtonBuilder()
+          .setCustomId(`ludra_static:remove:${teamNumber}`)
+          .setLabel("➖ حذف لاعب")
+          .setStyle(ButtonStyle.Danger)
+      );
+
+      return interaction.reply({
+        embeds: [panelEmbed],
+        components: [panelRow],
         ephemeral: true,
       });
     }
