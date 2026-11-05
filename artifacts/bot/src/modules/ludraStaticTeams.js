@@ -156,6 +156,37 @@ export async function seedTeam1IfMissing() {
 }
 
 /**
+ * Ensures Team #2 (Yami's Lead Team) is seeded in the database if not present.
+ */
+export async function seedTeam2IfMissing() {
+  await initLudraStaticTeamsDB();
+
+  const check = await query(`SELECT * FROM ludra_static_teams WHERE team_number = 2 LIMIT 1`);
+  if (check.rows.length === 0) {
+    await query(`
+      INSERT INTO ludra_static_teams (team_number, team_name, leader_discord_id, leader_name, channel_id, logo_filename)
+      VALUES (2, 'الفريق الثابت #2', '930531874877607966', 'Yamiメ', $1, 'team_2_logo.jpg')
+    `, [STATIC_TEAMS_CHANNEL_ID]);
+
+    const initialMembers = [
+      { name: "Yamiメ", class: "Chanter", discord_id: "930531874877607966", is_leader: true, slot: 1 },
+      { name: "NoLife", class: "Assassin", discord_id: "439415701745303553", is_leader: false, slot: 2 },
+      { name: "xN7R", class: "Gladiator", discord_id: "348506964138917891", is_leader: false, slot: 3 },
+      { name: "Uta", class: "Ranger", discord_id: "1083076957144621177", is_leader: false, slot: 4 },
+      { name: "CLiQ", class: "Cleric", discord_id: "1242815909194760213", is_leader: false, slot: 5 },
+    ];
+
+    for (const m of initialMembers) {
+      await query(`
+        INSERT INTO ludra_static_team_members (team_number, discord_id, character_name, class_name, is_leader, slot_index, added_by)
+        VALUES (2, $1, $2, $3, $4, $5, 'SYSTEM_INIT')
+        ON CONFLICT (team_number, character_name) DO NOTHING
+      `, [m.discord_id, m.name, m.class, m.is_leader, m.slot]);
+    }
+  }
+}
+
+/**
  * Builds the visual Embed, components and attachment for a static team.
  */
 export async function buildTeamEmbedAndComponents(teamNumber) {
@@ -175,27 +206,27 @@ export async function buildTeamEmbedAndComponents(teamNumber) {
   const count = members.length;
   const isFull = count >= 10;
 
-  // Split into left (1..5) and right (6..10)
-  const col1 = members.slice(0, 5);
-  const col2 = members.slice(5, 10);
+  // Map members by slot for balanced 10-slot rendering (1..5 left, 6..10 right)
+  const memberBySlot = new Map();
+  members.forEach(m => memberBySlot.set(m.slot_index, m));
 
-  const formatList = (list, startIndex = 1) => {
-    if (list.length === 0) return "*[شاغر]*";
-    return list
-      .map((m, idx) => {
-        const num = startIndex + idx;
-        const normClass = normalizeClassName(m.class_name);
-        const emoji = CLASS_EMOJIS[normClass] || "🔹";
-        return `**${num}.** ${emoji} **${m.character_name}**`;
-      })
-      .join("\n");
+  const formatSlot = (slot) => {
+    const m = memberBySlot.get(slot);
+    if (!m) {
+      return `**${slot}.** ▫️ *[شاغر]*`;
+    }
+    const normClass = normalizeClassName(m.class_name);
+    const emoji = CLASS_EMOJIS[normClass] || "🔹";
+    return `**${slot}.** ${emoji} **${m.character_name}**`;
   };
 
-  const col1Text = formatList(col1, 1);
-  const col2Text = formatList(col2, 6);
+  const col1Text = [1, 2, 3, 4, 5].map(formatSlot).join("\n");
+  const col2Text = [6, 7, 8, 9, 10].map(formatSlot).join("\n");
+
+  const embedColor = team.team_number === 2 ? 0xc0392b : 0x3498db;
 
   const embed = new EmbedBuilder()
-    .setColor(0x3498db)
+    .setColor(embedColor)
     .setTitle(`🛡️ ${team.team_name} — Ludra Raid`)
     .setDescription(
       `⚔️ **تحالف M3RGEEN • منظومة الفرق الثابتة**\n\n` +
@@ -220,7 +251,8 @@ export async function buildTeamEmbedAndComponents(teamNumber) {
 
   // Logo Attachment
   let attachment = null;
-  const logoPath = path.resolve(__dirname, "../../assets", team.logo_filename || "team_1_logo.jpg");
+  const logoFilename = team.logo_filename || `team_${teamNumber}_logo.jpg`;
+  const logoPath = path.resolve(__dirname, "../../assets", logoFilename);
   if (fs.existsSync(logoPath)) {
     attachment = new AttachmentBuilder(logoPath, { name: "team_logo.png" });
     embed.setThumbnail("attachment://team_logo.png");
