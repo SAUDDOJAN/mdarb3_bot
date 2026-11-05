@@ -286,6 +286,27 @@ function isAuthorizedForTeam(interaction, team) {
 }
 
 /**
+ * Automatically schedules deletion of an interaction reply after 5 minutes (300,000 ms).
+ */
+function scheduleAutoDelete(interaction, delayMs = 5 * 60 * 1000) {
+  setTimeout(() => {
+    interaction.deleteReply().catch(() => {});
+  }, delayMs);
+}
+
+async function safeReply(interaction, options, delayMs = 5 * 60 * 1000) {
+  scheduleAutoDelete(interaction, delayMs);
+  const payload = typeof options === "string" ? { content: options, ephemeral: true } : { ...options, ephemeral: true };
+  return interaction.reply(payload);
+}
+
+async function safeEditReply(interaction, options, delayMs = 5 * 60 * 1000) {
+  scheduleAutoDelete(interaction, delayMs);
+  const payload = typeof options === "string" ? { content: options } : options;
+  return interaction.editReply(payload);
+}
+
+/**
  * Interaction Handler for Static Teams
  */
 export async function handleLudraStaticInteraction(interaction) {
@@ -303,14 +324,14 @@ export async function handleLudraStaticInteraction(interaction) {
     const teamRes = await query(`SELECT * FROM ludra_static_teams WHERE team_number = $1 LIMIT 1`, [teamNumber]);
     const team = teamRes.rows[0];
     if (!team) {
-      return interaction.reply({ content: "❌ تعذر العثور على بيانات هذا الفريق.", ephemeral: true });
+      return safeReply(interaction, "❌ تعذر العثور على بيانات هذا الفريق.");
     }
 
     if (!isAuthorizedForTeam(interaction, team)) {
-      return interaction.reply({
-        content: `❌ عذراً، لوحة إدارة الفريق مخصصة حصرياً لقائد الفريق (<@${team.leader_discord_id}>) فقط. لا تملك صلاحية استخدام هذا الزر.`,
-        ephemeral: true,
-      });
+      return safeReply(
+        interaction,
+        `❌ عذراً، لوحة إدارة الفريق مخصصة حصرياً لقائد الفريق (<@${team.leader_discord_id}>) فقط. لا تملك صلاحية استخدام هذا الزر.`
+      );
     }
 
     // ── Open Leader Private Control Panel ──
@@ -326,7 +347,7 @@ export async function handleLudraStaticInteraction(interaction) {
           `• **➕ إضافة لاعب:** اختيار كلاس وإضافة لاعب جديد في مقعد شاغر.\n` +
           `• **➖ حذف لاعب:** اختيار لاعب ورفع طلب استبعاد مسبّب للإدارة للمراجعة.`
         )
-        .setFooter({ text: "تحالف M3RGEEN • لوحة تحكم القائد الخاصة" });
+        .setFooter({ text: "تحالف M3RGEEN • لوحة تحكم القائد الخاصة (تختفي تلقائياً بعد 5 دقائق)" });
 
       const panelRow = new ActionRowBuilder().addComponents(
         new ButtonBuilder()
@@ -347,10 +368,9 @@ export async function handleLudraStaticInteraction(interaction) {
           .setStyle(ButtonStyle.Danger)
       );
 
-      return interaction.reply({
+      return safeReply(interaction, {
         embeds: [panelEmbed],
         components: [panelRow],
-        ephemeral: true,
       });
     }
 
@@ -360,7 +380,7 @@ export async function handleLudraStaticInteraction(interaction) {
       const validMentions = membersRes.rows.filter(m => m.discord_id).map(m => `<@${m.discord_id}>`);
 
       if (validMentions.length === 0) {
-        return interaction.reply({ content: "⚠️ لا يوجد أعضاء بمعرفات ديسكورد مسجلة في الفريق لمنشنهم.", ephemeral: true });
+        return safeReply(interaction, "⚠️ لا يوجد أعضاء بمعرفات ديسكورد مسجلة في الفريق لمنشنهم.");
       }
 
       await interaction.deferReply({ ephemeral: true });
@@ -381,7 +401,7 @@ export async function handleLudraStaticInteraction(interaction) {
         sentAlert.delete().catch(() => {});
       }, 5 * 60 * 1000);
 
-      return interaction.editReply({ content: "✅ **تم إرسال المنشن وتنبيه أعضاء الفريق بنجاح!** (سيتم حذفه تلقائياً بعد 5 دقائق لحماية نظافة الروم)." });
+      return safeEditReply(interaction, "✅ **تم إرسال المنشن وتنبيه أعضاء الفريق بنجاح!** (سيتم حذفه تلقائياً بعد 5 دقائق لحماية نظافة الروم).");
     }
 
     // ── Send DM ──
@@ -407,10 +427,10 @@ export async function handleLudraStaticInteraction(interaction) {
     if (action === "add") {
       const countRes = await query(`SELECT COUNT(*)::int AS cnt FROM ludra_static_team_members WHERE team_number = $1`, [teamNumber]);
       if (countRes.rows[0].cnt >= 10) {
-        return interaction.reply({
-          content: "⚠️ **الفريق مكتمل بالفعل (10 / 10 لاعبين).**\nيجب استبعاد أو نقل لاعب أولاً لتوفير مكان شاغر.",
-          ephemeral: true,
-        });
+        return safeReply(
+          interaction,
+          "⚠️ **الفريق مكتمل بالفعل (10 / 10 لاعبين).**\nيجب استبعاد أو نقل لاعب أولاً لتوفير مكان شاغر."
+        );
       }
 
       const select = new StringSelectMenuBuilder()
@@ -427,10 +447,9 @@ export async function handleLudraStaticInteraction(interaction) {
           new StringSelectMenuOptionBuilder().setLabel("Spiritmaster (سبيريت ماستر)").setValue("Spiritmaster").setEmoji("🔮")
         );
 
-      return interaction.reply({
+      return safeReply(interaction, {
         content: "🛡️ **إضافة لاعب — الخطوة 1 من 2:** الرجاء تحديد **كلاس اللاعب** من القائمة أدناه:",
         components: [new ActionRowBuilder().addComponents(select)],
-        ephemeral: true,
       });
     }
 
@@ -443,7 +462,7 @@ export async function handleLudraStaticInteraction(interaction) {
       `, [teamNumber]);
 
       if (membersRes.rows.length === 0) {
-        return interaction.reply({ content: "⚠️ لا يوجد أعضاء في هذا الفريق لحذفهم.", ephemeral: true });
+        return safeReply(interaction, "⚠️ لا يوجد أعضاء في هذا الفريق لحذفهم.");
       }
 
       const select = new StringSelectMenuBuilder()
@@ -462,10 +481,9 @@ export async function handleLudraStaticInteraction(interaction) {
         );
       });
 
-      return interaction.reply({
+      return safeReply(interaction, {
         content: "🔻 **الرجاء تحديد اللاعب المراد استبعاده من القائمة أدناه:**",
         components: [new ActionRowBuilder().addComponents(select)],
-        ephemeral: true,
       });
     }
   }
@@ -541,7 +559,7 @@ export async function handleLudraStaticInteraction(interaction) {
 
     const targetMember = memberRes.rows[0];
     if (!targetMember) {
-      return interaction.editReply({ content: "❌ تعذر العثور على هذا اللاعب في تشكيلة الفريق." });
+      return safeEditReply(interaction, "❌ تعذر العثور على هذا اللاعب في تشكيلة الفريق.");
     }
 
     const teamRes = await query(`SELECT * FROM ludra_static_teams WHERE team_number = $1 LIMIT 1`, [teamNumber]);
@@ -610,12 +628,12 @@ export async function handleLudraStaticInteraction(interaction) {
       await query(`UPDATE ludra_team_removal_requests SET log_message_id = $1 WHERE id = $2`, [logMsgId, reqId]);
     }
 
-    return interaction.editReply({
+    return safeEditReply(interaction, {
       content:
         `⏳ **تم رفع طلب استبعاد اللاعب \`${targetMember.character_name}\` إلى الإدارة للمراجعة.**\n\n` +
         `• سيتم مراجعة السبب من قبل الإدارة في روم المراقبة.\n` +
         `• لن يتم استبعاد اللاعب حتى تصدر الإدارة قرارها لضمان استقرار وتماسك الفرق.\n` +
-        `• سيصلك إشعار بالقرار فور اعتماده.`,
+        `• سيصلك إشعار بالقرار فور اعتماده.\n\n*(تختفي هذه الرسالة تلقائياً بعد 5 دقائق)*`,
     });
   }
 
@@ -645,7 +663,7 @@ export async function handleLudraStaticInteraction(interaction) {
     while (nextSlot <= 10 && usedSlots.has(nextSlot)) nextSlot++;
 
     if (nextSlot > 10) {
-      return interaction.editReply({ content: "⚠️ لا توجد مقاعد شاغرة في هذا الفريق (الحد الأقصى 10)." });
+      return safeEditReply(interaction, "⚠️ لا توجد مقاعد شاغرة في هذا الفريق (الحد الأقصى 10).");
     }
 
     await query(`
@@ -680,9 +698,10 @@ export async function handleLudraStaticInteraction(interaction) {
       await logChannel.send({ embeds: [addLogEmbed] }).catch(() => {});
     }
 
-    return interaction.editReply({
-      content: `✅ **تمت إضافة اللاعب \`${charName}\` (${normClass}) إلى الفريق وتحديث بطاقة الفريق في الروم بنجاح!**`,
-    });
+    return safeEditReply(
+      interaction,
+      `✅ **تمت إضافة اللاعب \`${charName}\` (${normClass}) إلى الفريق وتحديث بطاقة الفريق في الروم بنجاح!**\n\n*(تختفي هذه الرسالة تلقائياً بعد 5 دقائق)*`
+    );
   }
 
   // ── 5. Modal Submit: DM Broadcast to Team Members ──────────────────────────
@@ -727,11 +746,12 @@ export async function handleLudraStaticInteraction(interaction) {
       }
     }
 
-    return interaction.editReply({
+    return safeEditReply(interaction, {
       content:
         `✅ **تم إرسال الرسالة بنجاح إلى الخاص!**\n` +
         `• **تم التوصيل بنجاح:** \`${delivered}\` عضواً\n` +
-        (failed > 0 ? `• **تعذر التوصيل:** \`${failed}\` (بسبب إغلاق الخاص DMs لديهم)` : ""),
+        (failed > 0 ? `• **تعذر التوصيل:** \`${failed}\` (بسبب إغلاق الخاص DMs لديهم)\n` : "") +
+        `\n*(تختفي هذه الرسالة تلقائياً بعد 5 دقائق)*`,
     });
   }
 
@@ -742,16 +762,16 @@ export async function handleLudraStaticInteraction(interaction) {
       !interaction.memberPermissions?.has(PermissionsBitField.Flags.Administrator) &&
       !interaction.memberPermissions?.has(PermissionsBitField.Flags.ManageGuild)
     ) {
-      return interaction.reply({ content: "❌ هذه الإجراءات مخصصة لإدارة السيرفر فقط.", ephemeral: true });
+      return safeReply(interaction, "❌ هذه الإجراءات مخصصة لإدارة السيرفر فقط.");
     }
 
     const reqId = parseInt(param, 10);
     const reqRes = await query(`SELECT * FROM ludra_team_removal_requests WHERE id = $1 LIMIT 1`, [reqId]);
     const req = reqRes.rows[0];
-    if (!req) return interaction.reply({ content: "❌ تعذر العثور على هذا الطلب.", ephemeral: true });
+    if (!req) return safeReply(interaction, "❌ تعذر العثور على هذا الطلب.");
 
     if (req.status !== "PENDING" && action !== "admin_inquire") {
-      return interaction.reply({ content: `ℹ️ تم البت في هذا الطلب مسبقاً (الحالة: ${req.status}).`, ephemeral: true });
+      return safeReply(interaction, `ℹ️ تم البت في هذا الطلب مسبقاً (الحالة: ${req.status}).`);
     }
 
     // ── Admin Approve ──
@@ -795,7 +815,7 @@ export async function handleLudraStaticInteraction(interaction) {
         }
       } catch (_) {}
 
-      return interaction.editReply({ content: `✅ **تمت الموافقة بنجاح واستبعاد اللاعب \`${req.target_character_name}\` وتحديث الإمبد.**` });
+      return safeEditReply(interaction, `✅ **تمت الموافقة بنجاح واستبعاد اللاعب \`${req.target_character_name}\` وتحديث الإمبد.**`);
     }
 
     // ── Admin Reject ──
@@ -829,7 +849,7 @@ export async function handleLudraStaticInteraction(interaction) {
         }
       } catch (_) {}
 
-      return interaction.editReply({ content: `❌ **تم رفض طلب الاستبعاد وإبقاء اللاعب في الفريق.**` });
+      return safeEditReply(interaction, `❌ **تم رفض طلب الاستبعاد وإبقاء اللاعب في الفريق.**`);
     }
 
     // ── Admin Inquire (Choose Leader or Member) ──
@@ -848,10 +868,9 @@ export async function handleLudraStaticInteraction(interaction) {
             .setDescription("إرسال استفسار خاص إلى اللاعب المستهدف في الخاص")
         );
 
-      return interaction.reply({
+      return safeReply(interaction, {
         content: "❓ **من هو الطرف الذي تريد توجيه الاستفسار إليه؟**",
         components: [new ActionRowBuilder().addComponents(select)],
-        ephemeral: true,
       });
     }
   }
@@ -863,7 +882,7 @@ export async function handleLudraStaticInteraction(interaction) {
     const [targetType, targetId] = chosenVal.split(":");
 
     if (targetType === "MEMBER" && (!targetId || targetId === "NONE")) {
-      return interaction.reply({ content: "⚠️ هذا اللاعب ليس لديه معرف ديسكورد مسجل لإرسال رسالة له في الخاص.", ephemeral: true });
+      return safeReply(interaction, "⚠️ هذا اللاعب ليس لديه معرف ديسكورد مسجل لإرسال رسالة له في الخاص.");
     }
 
     const modal = new ModalBuilder()
@@ -894,11 +913,11 @@ export async function handleLudraStaticInteraction(interaction) {
 
     const reqRes = await query(`SELECT * FROM ludra_team_removal_requests WHERE id = $1 LIMIT 1`, [reqId]);
     const req = reqRes.rows[0];
-    if (!req) return interaction.editReply({ content: "❌ تعذر العثور على الطلب." });
+    if (!req) return safeEditReply(interaction, "❌ تعذر العثور على الطلب.");
 
     const targetUser = await interaction.client.users.fetch(targetId).catch(() => null);
     if (!targetUser) {
-      return interaction.editReply({ content: "❌ تعذر الوصول لحساب الديسكورد للطرف المستهدف." });
+      return safeEditReply(interaction, "❌ تعذر الوصول لحساب الديسكورد للطرف المستهدف.");
     }
 
     const dmEmbed = new EmbedBuilder()
@@ -922,7 +941,7 @@ export async function handleLudraStaticInteraction(interaction) {
     try {
       await targetUser.send({ embeds: [dmEmbed], components: [dmRow] });
     } catch (err) {
-      return interaction.editReply({ content: "❌ تعذر إرسال الرسالة إلى خاص المستخدم (الخاص لديه مغلق DMs closed)." });
+      return safeEditReply(interaction, "❌ تعذر إرسال الرسالة إلى خاص المستخدم (الخاص لديه مغلق DMs closed).");
     }
 
     // Record in DB and update Log message
@@ -948,7 +967,7 @@ export async function handleLudraStaticInteraction(interaction) {
       }
     }
 
-    return interaction.editReply({ content: `✅ **تم إرسال الاستفسار بنجاح إلى خاص <@${targetId}>.**` });
+    return safeEditReply(interaction, `✅ **تم إرسال الاستفسار بنجاح إلى خاص <@${targetId}>.**`);
   }
 
   // ── 9. Member Clicks "💬 الرد على الإدارة" in DM ───────────────────────────
@@ -980,7 +999,7 @@ export async function handleLudraStaticInteraction(interaction) {
 
     const reqRes = await query(`SELECT * FROM ludra_team_removal_requests WHERE id = $1 LIMIT 1`, [reqId]);
     const req = reqRes.rows[0];
-    if (!req) return interaction.editReply({ content: "❌ تعذر العثور على بيانات هذا الطلب." });
+    if (!req) return safeEditReply(interaction, "❌ تعذر العثور على بيانات هذا الطلب.");
 
     await query(`UPDATE ludra_team_removal_requests SET inquiry_answer = $1 WHERE id = $2`, [answer, reqId]);
 
@@ -1000,6 +1019,6 @@ export async function handleLudraStaticInteraction(interaction) {
       }
     }
 
-    return interaction.editReply({ content: "✅ **تم استلام ردك وإرساله إلى إدارة السيرفر بنجاح. شكراً لك!**" });
+    return safeEditReply(interaction, "✅ **تم استلام ردك وإرساله إلى إدارة السيرفر بنجاح. شكراً لك!**");
   }
 }
