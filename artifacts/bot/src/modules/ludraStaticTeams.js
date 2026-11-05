@@ -114,6 +114,12 @@ export async function initLudraStaticTeamsDB() {
       created_at TIMESTAMPTZ DEFAULT NOW(),
       reviewed_at TIMESTAMPTZ
     );
+
+    ALTER TABLE ludra_static_teams ADD COLUMN IF NOT EXISTS col1_title TEXT;
+    ALTER TABLE ludra_static_teams ADD COLUMN IF NOT EXISTS col2_title TEXT;
+    ALTER TABLE ludra_static_teams ADD COLUMN IF NOT EXISTS embed_color TEXT;
+    ALTER TABLE ludra_static_team_members ADD COLUMN IF NOT EXISTS role_tag TEXT;
+    ALTER TABLE ludra_static_team_members ADD COLUMN IF NOT EXISTS combat_power INT;
   `);
 
   dbInitialized = true;
@@ -187,6 +193,70 @@ export async function seedTeam2IfMissing() {
 }
 
 /**
+ * Ensures Team #3 (Prometheus's Lead Team - Raid 1 Boss Divisions) is seeded in the database.
+ */
+export async function seedTeam3IfMissing() {
+  await initLudraStaticTeamsDB();
+
+  const check = await query(`SELECT * FROM ludra_static_teams WHERE team_number = 3 LIMIT 1`);
+  if (check.rows.length === 0) {
+    await query(`
+      INSERT INTO ludra_static_teams (
+        team_number, team_name, leader_discord_id, leader_name, channel_id, logo_filename, col1_title, col2_title, embed_color
+      )
+      VALUES (
+        3, 'الريد الأول (فريق #3)', '448221981452795904', 'Prometheus', $1, 'team_3_logo.jpg',
+        '🐉 تشكيلة Rahu — 911,836 CP', '🐍 تشكيلة Ketu — 920,464 CP', '0x2ecc71'
+      )
+    `, [STATIC_TEAMS_CHANNEL_ID]);
+  } else {
+    await query(`
+      UPDATE ludra_static_teams
+      SET team_name = 'الريد الأول (فريق #3)',
+          leader_discord_id = '448221981452795904',
+          leader_name = 'Prometheus',
+          logo_filename = 'team_3_logo.jpg',
+          col1_title = '🐉 تشكيلة Rahu — 911,836 CP',
+          col2_title = '🐍 تشكيلة Ketu — 920,464 CP',
+          embed_color = '0x2ecc71'
+      WHERE team_number = 3
+    `);
+  }
+
+  const initialMembers = [
+    // Rahu Boss (Slots 1-5)
+    { name: "Prometheus", class: "Cleric", discord_id: "448221981452795904", is_leader: true, slot: 1, role: "Healer", cp: 216118 },
+    { name: "loay", class: "Templar", discord_id: "611829466448003082", is_leader: false, slot: 2, role: "Tank", cp: 176745 },
+    { name: "abdo", class: "Chanter", discord_id: "897888023931400234", is_leader: false, slot: 3, role: "Support", cp: 174530 },
+    { name: "Rino", class: "Sorcerer", discord_id: "186441588187201536", is_leader: false, slot: 4, role: "DPS", cp: 177144 },
+    { name: "Zeusツ", class: "Assassin", discord_id: "331084798493720578", is_leader: false, slot: 5, role: "DPS", cp: 167299 },
+
+    // Ketu Boss (Slots 6-10)
+    { name: "Boogie", class: "Cleric", discord_id: "810385452350832700", is_leader: false, slot: 6, role: "Healer", cp: 167271 },
+    { name: "YorBriar", class: "Gladiator", discord_id: "852941611284693002", is_leader: false, slot: 7, role: "Tank", cp: 175972 },
+    { name: "3dne", class: "Cleric", discord_id: "707678580263354388", is_leader: false, slot: 8, role: "Off-heal", cp: 159970 },
+    { name: "AZ", class: "Ranger", discord_id: "697193649020338187", is_leader: false, slot: 9, role: "DPS", cp: 241645 },
+    { name: "z7", class: "Spiritmaster", discord_id: "558419221911044112", is_leader: false, slot: 10, role: "DPS", cp: 175606 },
+  ];
+
+  for (const m of initialMembers) {
+    await query(`
+      INSERT INTO ludra_static_team_members (
+        team_number, discord_id, character_name, class_name, is_leader, slot_index, role_tag, combat_power, added_by
+      )
+      VALUES (3, $1, $2, $3, $4, $5, $6, $7, 'SYSTEM_INIT')
+      ON CONFLICT (team_number, character_name) DO UPDATE SET
+        discord_id = EXCLUDED.discord_id,
+        class_name = EXCLUDED.class_name,
+        is_leader = EXCLUDED.is_leader,
+        slot_index = EXCLUDED.slot_index,
+        role_tag = EXCLUDED.role_tag,
+        combat_power = EXCLUDED.combat_power
+    `, [m.discord_id, m.name, m.class, m.is_leader, m.slot, m.role, m.cp]);
+  }
+}
+
+/**
  * Builds the visual Embed, components and attachment for a static team.
  */
 export async function buildTeamEmbedAndComponents(teamNumber) {
@@ -217,13 +287,36 @@ export async function buildTeamEmbedAndComponents(teamNumber) {
     }
     const normClass = normalizeClassName(m.class_name);
     const emoji = CLASS_EMOJIS[normClass] || "🔹";
-    return `**${slot}.** ${emoji} **${m.character_name}**`;
+    let text = `**${slot}.** ${emoji} **${m.character_name}**`;
+    if (m.combat_power) {
+      text += ` • \`${Number(m.combat_power).toLocaleString()}\``;
+    }
+    if (m.role_tag) {
+      text += ` *(${m.role_tag})*`;
+    }
+    if (m.is_leader) {
+      text += ` 👑`;
+    }
+    return text;
   };
 
   const col1Text = [1, 2, 3, 4, 5].map(formatSlot).join("\n");
   const col2Text = [6, 7, 8, 9, 10].map(formatSlot).join("\n");
 
-  const embedColor = team.team_number === 2 ? 0xc0392b : 0x3498db;
+  let col1Title = team.col1_title || "👥 الفريق الرسمي";
+  let col2Title = team.col2_title || "\u200b";
+
+  let embedColor = 0x3498db;
+  if (team.embed_color) {
+    embedColor = parseInt(team.embed_color, 16) || embedColor;
+  } else if (team.team_number === 2) {
+    embedColor = 0xc0392b;
+  } else if (team.team_number === 3) {
+    embedColor = 0x2ecc71;
+  }
+
+  const totalCp = members.reduce((sum, m) => sum + (Number(m.combat_power) || 0), 0);
+  const cpLine = totalCp > 0 ? `💥 **إجمالي القوة:** \`${totalCp.toLocaleString()} CP\`\n` : "";
 
   const embed = new EmbedBuilder()
     .setColor(embedColor)
@@ -231,17 +324,18 @@ export async function buildTeamEmbedAndComponents(teamNumber) {
     .setDescription(
       `⚔️ **تحالف M3RGEEN • منظومة الفرق الثابتة**\n\n` +
       `👑 **قائد الفريق:** <@${team.leader_discord_id}> (\`${team.leader_name}\`)\n` +
+      cpLine +
       `📊 **حالة الفريق:** ${isFull ? "مكتمل" : "غير مكتمل"} \`${count} / 10\` لاعبين\n` +
       `━━━━━━━━━━━━━━━━━━━━━━━━━`
     )
     .addFields(
       {
-        name: "👥 الفريق الرسمي",
+        name: col1Title,
         value: col1Text,
         inline: true,
       },
       {
-        name: "\u200b",
+        name: col2Title,
         value: col2Text,
         inline: true,
       }
@@ -757,13 +851,14 @@ export async function handleLudraStaticInteraction(interaction) {
     }
 
     await query(`
-      INSERT INTO ludra_static_team_members (team_number, discord_id, character_name, class_name, is_leader, slot_index, added_by)
-      VALUES ($1, $2, $3, $4, FALSE, $5, $6)
+      INSERT INTO ludra_static_team_members (team_number, discord_id, character_name, class_name, is_leader, slot_index, combat_power, added_by)
+      VALUES ($1, $2, $3, $4, FALSE, $5, $6, $7)
       ON CONFLICT (team_number, character_name) DO UPDATE SET
         discord_id = EXCLUDED.discord_id,
         class_name = EXCLUDED.class_name,
-        slot_index = EXCLUDED.slot_index
-    `, [teamNumber, finalDiscordId, verifiedCharName, normClass, nextSlot, interaction.user.id]);
+        slot_index = EXCLUDED.slot_index,
+        combat_power = EXCLUDED.combat_power
+    `, [teamNumber, finalDiscordId, verifiedCharName, normClass, nextSlot, regRecord.combat_power || null, interaction.user.id]);
 
     // Update Live Embed in Static Teams channel
     await deployOrUpdateTeamEmbed(interaction.client, teamNumber).catch(console.error);
