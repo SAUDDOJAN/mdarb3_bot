@@ -279,10 +279,17 @@ export async function deployOrUpdateTeamEmbed(client, teamNumber) {
 }
 
 /**
- * Checks whether user is strictly the Team Leader.
+ * Checks whether user is the Team Leader, Server Owner, or Server Administrator.
  */
 function isAuthorizedForTeam(interaction, team) {
-  return String(interaction.user.id) === String(team.leader_discord_id);
+  // Team Leader
+  if (String(interaction.user.id) === String(team.leader_discord_id)) return true;
+  // Server Owner (Full authority)
+  if (interaction.guild && String(interaction.guild.ownerId) === String(interaction.user.id)) return true;
+  // Administrator / ManageGuild
+  if (interaction.memberPermissions?.has(PermissionsBitField.Flags.Administrator)) return true;
+  if (interaction.memberPermissions?.has(PermissionsBitField.Flags.ManageGuild)) return true;
+  return false;
 }
 
 /**
@@ -330,7 +337,7 @@ export async function handleLudraStaticInteraction(interaction) {
     if (!isAuthorizedForTeam(interaction, team)) {
       return safeReply(
         interaction,
-        `❌ عذراً، لوحة إدارة الفريق مخصصة حصرياً لقائد الفريق (<@${team.leader_discord_id}>) فقط. لا تملك صلاحية استخدام هذا الزر.`
+        `❌ عذراً، لوحة إدارة الفريق مخصصة لقائد الفريق (<@${team.leader_discord_id}>) وإدارة السيرفر فقط. لا تملك صلاحية استخدام هذا الزر.`
       );
     }
 
@@ -448,7 +455,12 @@ export async function handleLudraStaticInteraction(interaction) {
         );
 
       return safeReply(interaction, {
-        content: "🛡️ **إضافة لاعب — الخطوة 1 من 2:** الرجاء تحديد **كلاس اللاعب** من القائمة أدناه:",
+        content:
+          `🛡️ **إضافة لاعب — فريق #${teamNumber} (الخطوة 1 من 2):**\n\n` +
+          `📌 **تنبيه هام:** يشترط أن يكون اللاعب مسجلاً مسبقاً في **نظام تسجيل لودرا** ليتم قبوله في الفريق الثابت.\n` +
+          `إذا لم يكن اللاعب مسجلاً بعد، يرجى الطلب منه التسجيل أولاً عبر الرابط:\n` +
+          `https://discord.com/channels/861355983975874601/1566867947786473583 (<#1566867947786473583>)\n\n` +
+          `الرجاء تحديد **كلاس اللاعب** من القائمة أدناه:`,
         components: [new ActionRowBuilder().addComponents(select)],
       });
     }
@@ -521,18 +533,18 @@ export async function handleLudraStaticInteraction(interaction) {
 
     const nameInput = new TextInputBuilder()
       .setCustomId("char_name")
-      .setLabel("اسم الشخصية في اللعبة")
+      .setLabel("اسم الشخصية (يشترط التسجيل في لودرا)")
       .setStyle(TextInputStyle.Short)
-      .setPlaceholder("مثال: Boo")
+      .setPlaceholder("مثال: xN7R (يشترط أن يكون مسجلاً في لودرا)")
       .setRequired(true)
       .setMinLength(2)
       .setMaxLength(30);
 
     const discordInput = new TextInputBuilder()
       .setCustomId("discord_id_input")
-      .setLabel("معرف ديسكورد اللاعب (Discord ID أو منشن)")
+      .setLabel("معرف ديسكورد اللاعب (اختياري - يجلب تلقائياً)")
       .setStyle(TextInputStyle.Short)
-      .setPlaceholder("مثال: 140247495832764417 أو @Boo (اختياري)")
+      .setPlaceholder("مثال: 140247495832764417 أو @Boo (يجلب تلقائياً إن ترك فارغاً)")
       .setRequired(false)
       .setMaxLength(40);
 
@@ -653,6 +665,52 @@ export async function handleLudraStaticInteraction(interaction) {
     const match = discordRaw.match(/\d{17,20}/);
     if (match) parsedDiscordId = match[0];
 
+    // Verify player is registered in Ludra Raid Registration
+    let regRes = await query(`
+      SELECT * FROM ludra_raid_registrations
+      WHERE LOWER(character_name) = LOWER($1)
+      LIMIT 1
+    `, [charName]);
+
+    // If not found by name and discord id was provided, check by discord_id
+    if (regRes.rows.length === 0 && parsedDiscordId) {
+      regRes = await query(`
+        SELECT * FROM ludra_raid_registrations
+        WHERE discord_id = $1
+        LIMIT 1
+      `, [parsedDiscordId]);
+    }
+
+    if (regRes.rows.length === 0) {
+      return safeEditReply(interaction, {
+        content:
+          `❌ **عذراً، اللاعب \`${charName}\` غير مسجل في نظام تسجيل لودرا!**\n\n` +
+          `⚠️ **شرط أساسي:** يجب أن يكون اللاعب مسجلاً مسبقاً في نظام تسجيل لودرا لتتمكن من إضافته للفرق الثابتة.\n\n` +
+          `🔗 **رابط روم التسجيل:**\n` +
+          `يرجى الطلب من اللاعب الدخول والتسجيل أولاً عبر الرابط التالي:\n` +
+          `https://discord.com/channels/861355983975874601/1566867947786473583 (<#1566867947786473583>)\n\n` +
+          `*(بعد إتمام اللاعب للتسجيل، يمكنك إضافته هنا فوراً وسيتم التحقق وقبوله تلقائياً).*`,
+      });
+    }
+
+    const regRecord = regRes.rows[0];
+    const verifiedCharName = regRecord.character_name || charName;
+    const finalDiscordId = parsedDiscordId || regRecord.discord_id || null;
+
+    // Check if player is already in another static team
+    const alreadyInTeamRes = await query(`
+      SELECT * FROM ludra_static_team_members
+      WHERE LOWER(character_name) = LOWER($1)
+      LIMIT 1
+    `, [verifiedCharName]);
+
+    if (alreadyInTeamRes.rows.length > 0) {
+      const existingTeam = alreadyInTeamRes.rows[0];
+      return safeEditReply(interaction, {
+        content: `⚠️ **اللاعب \`${verifiedCharName}\` مسجل بالفعل في الفريق الثابت #${existingTeam.team_number}!**\nلا يمكن إضافة لاعب لأكثر من فريق ثابت في نفس الوقت.`,
+      });
+    }
+
     const teamRes = await query(`SELECT * FROM ludra_static_teams WHERE team_number = $1 LIMIT 1`, [teamNumber]);
     const team = teamRes.rows[0];
 
@@ -673,7 +731,7 @@ export async function handleLudraStaticInteraction(interaction) {
         discord_id = EXCLUDED.discord_id,
         class_name = EXCLUDED.class_name,
         slot_index = EXCLUDED.slot_index
-    `, [teamNumber, parsedDiscordId, charName, normClass, nextSlot, interaction.user.id]);
+    `, [teamNumber, finalDiscordId, verifiedCharName, normClass, nextSlot, interaction.user.id]);
 
     // Update Live Embed in Static Teams channel
     await deployOrUpdateTeamEmbed(interaction.client, teamNumber).catch(console.error);
@@ -688,9 +746,10 @@ export async function handleLudraStaticInteraction(interaction) {
         .setColor(0x2ecc71)
         .setTitle(`📥 إضافة لاعب جديد — فريق #${teamNumber}`)
         .setDescription(
-          `قام قائد الفريق بإضافة لاعب جديد إلى التشكيلة الثابتة.\n` +
-          `• **اللاعب:** \`${charName}\` (${CLASS_EMOJIS[normClass] || "🔹"} ${normClass})\n` +
-          `• **الديسكورد:** ${parsedDiscordId ? `<@${parsedDiscordId}>` : "*غير محدد*"}\n` +
+          `قام <@${interaction.user.id}> بإضافة لاعب جديد إلى التشكيلة الثابتة بعد التحقق من تسجيله في نظام لودرا.\n` +
+          `• **اللاعب:** \`${verifiedCharName}\` (${CLASS_EMOJIS[normClass] || "🔹"} ${normClass})\n` +
+          `• **الديسكورد:** ${finalDiscordId ? `<@${finalDiscordId}>` : "*غير محدد*"}\n` +
+          `• **القوة (CP):** \`${regRecord.combat_power ? regRecord.combat_power.toLocaleString() : "غير محدد"}\`\n` +
           `• **المقعد:** Slot #${nextSlot}\n` +
           `• **بواسطة:** <@${interaction.user.id}>`
         )
@@ -698,9 +757,14 @@ export async function handleLudraStaticInteraction(interaction) {
       await logChannel.send({ embeds: [addLogEmbed] }).catch(() => {});
     }
 
+    const cpText = regRecord.combat_power ? ` • CP: **${regRecord.combat_power.toLocaleString()}**` : "";
     return safeEditReply(
       interaction,
-      `✅ **تمت إضافة اللاعب \`${charName}\` (${normClass}) إلى الفريق وتحديث بطاقة الفريق في الروم بنجاح!**\n\n*(تختفي هذه الرسالة تلقائياً بعد 5 دقائق)*`
+      `✅ **تم التحقق بنجاح من تسجيل اللاعب في نظام لودرا!**\n` +
+      `• **اللاعب:** \`${verifiedCharName}\` (${CLASS_EMOJIS[normClass] || "🔹"} ${normClass})${cpText}\n` +
+      `• **الديسكورد:** ${finalDiscordId ? `<@${finalDiscordId}>` : "*غير محدد*"}\n` +
+      `• **المقعد:** Slot #${nextSlot}\n\n` +
+      `🎉 تمت إضافة اللاعب إلى التشكيلة وتحديث بطاقة الفريق في الروم بنجاح!\n*(تختفي هذه الرسالة تلقائياً بعد 5 دقائق)*`
     );
   }
 
