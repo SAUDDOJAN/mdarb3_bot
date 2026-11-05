@@ -62,68 +62,108 @@ export function normalizeClassName(raw) {
 }
 
 let dbInitialized = false;
+let dbInitPromise = null;
+const teamCache = new Map();
+
+export async function getCachedTeam(teamNumber) {
+  const num = parseInt(teamNumber, 10) || 1;
+  if (teamCache.has(num)) {
+    return teamCache.get(num);
+  }
+  const res = await query(`SELECT * FROM ludra_static_teams WHERE team_number = $1 LIMIT 1`, [num]);
+  const team = res.rows[0] || null;
+  if (team) {
+    teamCache.set(num, team);
+  }
+  return team;
+}
+
+export function invalidateTeamCache(teamNumber) {
+  if (teamNumber) {
+    teamCache.delete(parseInt(teamNumber, 10));
+  } else {
+    teamCache.clear();
+  }
+}
 
 export async function initLudraStaticTeamsDB() {
   if (dbInitialized) return;
+  if (dbInitPromise) return dbInitPromise;
 
-  await query(`
-    CREATE TABLE IF NOT EXISTS ludra_static_teams (
-      id SERIAL PRIMARY KEY,
-      team_number INT UNIQUE NOT NULL,
-      team_name TEXT NOT NULL,
-      leader_discord_id TEXT NOT NULL,
-      leader_name TEXT NOT NULL,
-      channel_id TEXT NOT NULL,
-      message_id TEXT,
-      logo_filename TEXT,
-      status TEXT DEFAULT 'ACTIVE',
-      created_at TIMESTAMPTZ DEFAULT NOW(),
-      updated_at TIMESTAMPTZ DEFAULT NOW()
-    );
+  dbInitPromise = (async () => {
+    try {
+      await query(`
+        CREATE TABLE IF NOT EXISTS ludra_static_teams (
+          id SERIAL PRIMARY KEY,
+          team_number INT UNIQUE NOT NULL,
+          team_name TEXT NOT NULL,
+          leader_discord_id TEXT NOT NULL,
+          leader_name TEXT NOT NULL,
+          channel_id TEXT NOT NULL,
+          message_id TEXT,
+          logo_filename TEXT,
+          status TEXT DEFAULT 'ACTIVE',
+          created_at TIMESTAMPTZ DEFAULT NOW(),
+          updated_at TIMESTAMPTZ DEFAULT NOW()
+        );
 
-    CREATE TABLE IF NOT EXISTS ludra_static_team_members (
-      id SERIAL PRIMARY KEY,
-      team_number INT NOT NULL,
-      discord_id TEXT,
-      character_name TEXT NOT NULL,
-      class_name TEXT NOT NULL,
-      is_leader BOOLEAN DEFAULT FALSE,
-      slot_index INT NOT NULL,
-      added_at TIMESTAMPTZ DEFAULT NOW(),
-      added_by TEXT
-    );
-    CREATE UNIQUE INDEX IF NOT EXISTS idx_ludra_team_member ON ludra_static_team_members (team_number, character_name);
+        CREATE TABLE IF NOT EXISTS ludra_static_team_members (
+          id SERIAL PRIMARY KEY,
+          team_number INT NOT NULL,
+          discord_id TEXT,
+          character_name TEXT NOT NULL,
+          class_name TEXT NOT NULL,
+          is_leader BOOLEAN DEFAULT FALSE,
+          slot_index INT NOT NULL,
+          added_at TIMESTAMPTZ DEFAULT NOW(),
+          added_by TEXT
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_ludra_team_member ON ludra_static_team_members (team_number, character_name);
 
-    CREATE TABLE IF NOT EXISTS ludra_team_removal_requests (
-      id SERIAL PRIMARY KEY,
-      team_number INT NOT NULL,
-      requested_by_discord_id TEXT NOT NULL,
-      requested_by_name TEXT,
-      target_discord_id TEXT,
-      target_character_name TEXT NOT NULL,
-      target_class_name TEXT,
-      reason TEXT NOT NULL,
-      status TEXT DEFAULT 'PENDING',
-      log_channel_id TEXT,
-      log_message_id TEXT,
-      inquiry_question TEXT,
-      inquiry_target_id TEXT,
-      inquiry_target_type TEXT,
-      inquiry_answer TEXT,
-      reviewed_by_discord_id TEXT,
-      created_at TIMESTAMPTZ DEFAULT NOW(),
-      reviewed_at TIMESTAMPTZ
-    );
+        CREATE TABLE IF NOT EXISTS ludra_team_removal_requests (
+          id SERIAL PRIMARY KEY,
+          team_number INT NOT NULL,
+          requested_by_discord_id TEXT NOT NULL,
+          requested_by_name TEXT,
+          target_discord_id TEXT,
+          target_character_name TEXT NOT NULL,
+          target_class_name TEXT,
+          reason TEXT NOT NULL,
+          status TEXT DEFAULT 'PENDING',
+          log_channel_id TEXT,
+          log_message_id TEXT,
+          inquiry_question TEXT,
+          inquiry_target_id TEXT,
+          inquiry_target_type TEXT,
+          inquiry_answer TEXT,
+          reviewed_by_discord_id TEXT,
+          created_at TIMESTAMPTZ DEFAULT NOW(),
+          reviewed_at TIMESTAMPTZ
+        );
 
-    ALTER TABLE ludra_static_teams ADD COLUMN IF NOT EXISTS col1_title TEXT;
-    ALTER TABLE ludra_static_teams ADD COLUMN IF NOT EXISTS col2_title TEXT;
-    ALTER TABLE ludra_static_teams ADD COLUMN IF NOT EXISTS embed_color TEXT;
-    ALTER TABLE ludra_static_team_members ADD COLUMN IF NOT EXISTS role_tag TEXT;
-    ALTER TABLE ludra_static_team_members ADD COLUMN IF NOT EXISTS combat_power INT;
-  `);
+        ALTER TABLE ludra_static_teams ADD COLUMN IF NOT EXISTS col1_title TEXT;
+        ALTER TABLE ludra_static_teams ADD COLUMN IF NOT EXISTS col2_title TEXT;
+        ALTER TABLE ludra_static_teams ADD COLUMN IF NOT EXISTS embed_color TEXT;
+        ALTER TABLE ludra_static_team_members ADD COLUMN IF NOT EXISTS role_tag TEXT;
+        ALTER TABLE ludra_static_team_members ADD COLUMN IF NOT EXISTS combat_power INT;
+      `);
 
-  dbInitialized = true;
+      dbInitialized = true;
+
+      const res = await query(`SELECT * FROM ludra_static_teams`);
+      for (const t of res.rows) {
+        teamCache.set(t.team_number, t);
+      }
+    } catch (err) {
+      console.error("[LudraStaticTeams] DB init error:", err);
+    }
+  })();
+
+  return dbInitPromise;
 }
+
+// Pre-initialize in background on module load
+initLudraStaticTeamsDB();
 
 /**
  * Ensures Team #1 (Boo's Lead Team) is seeded in the database if not present.
@@ -718,13 +758,15 @@ export async function deployOrUpdateTeamEmbed(client, teamNumber) {
  * Checks whether user is the Team Leader, Server Owner, or Server Administrator.
  */
 function isAuthorizedForTeam(interaction, team) {
+  if (!team) return false;
   // Team Leader
   if (String(interaction.user.id) === String(team.leader_discord_id)) return true;
   // Server Owner (Full authority)
   if (interaction.guild && String(interaction.guild.ownerId) === String(interaction.user.id)) return true;
   // Administrator / ManageGuild
-  if (interaction.memberPermissions?.has(PermissionsBitField.Flags.Administrator)) return true;
-  if (interaction.memberPermissions?.has(PermissionsBitField.Flags.ManageGuild)) return true;
+  const perms = interaction.memberPermissions || interaction.member?.permissions;
+  if (perms?.has(PermissionsBitField.Flags.Administrator)) return true;
+  if (perms?.has(PermissionsBitField.Flags.ManageGuild)) return true;
   return false;
 }
 
@@ -753,8 +795,6 @@ async function safeEditReply(interaction, options, delayMs = 5 * 60 * 1000) {
  * Interaction Handler for Static Teams
  */
 export async function handleLudraStaticInteraction(interaction) {
-  await initLudraStaticTeamsDB();
-
   const customId = interaction.customId || "";
   const parts = customId.split(":");
   const action = parts[1];
@@ -764,8 +804,7 @@ export async function handleLudraStaticInteraction(interaction) {
   // ── 1. Team Action Buttons (From Team Card or Leader Panel) ──────────────────
   if (action === "panel" || action === "mention" || action === "dm" || action === "add" || action === "remove") {
     const teamNumber = parseInt(param, 10) || 1;
-    const teamRes = await query(`SELECT * FROM ludra_static_teams WHERE team_number = $1 LIMIT 1`, [teamNumber]);
-    const team = teamRes.rows[0];
+    const team = await getCachedTeam(teamNumber);
     if (!team) {
       return safeReply(interaction, "❌ تعذر العثور على بيانات هذا الفريق.");
     }
@@ -779,6 +818,8 @@ export async function handleLudraStaticInteraction(interaction) {
 
     // ── Open Leader Private Control Panel ──
     if (action === "panel") {
+      await interaction.deferReply({ ephemeral: true });
+
       const panelEmbed = new EmbedBuilder()
         .setColor(0x3498db)
         .setTitle(`🎛️ لوحة إدارة ${team.team_name}`)
@@ -811,7 +852,7 @@ export async function handleLudraStaticInteraction(interaction) {
           .setStyle(ButtonStyle.Danger)
       );
 
-      return safeReply(interaction, {
+      return safeEditReply(interaction, {
         embeds: [panelEmbed],
         components: [panelRow],
       });
@@ -819,14 +860,15 @@ export async function handleLudraStaticInteraction(interaction) {
 
     // ── Mention Team ──
     if (action === "mention") {
+      await interaction.deferReply({ ephemeral: true });
+
       const membersRes = await query(`SELECT discord_id, character_name FROM ludra_static_team_members WHERE team_number = $1`, [teamNumber]);
       const validMentions = membersRes.rows.filter(m => m.discord_id).map(m => `<@${m.discord_id}>`);
 
       if (validMentions.length === 0) {
-        return safeReply(interaction, "⚠️ لا يوجد أعضاء بمعرفات ديسكورد مسجلة في الفريق لمنشنهم.");
+        return safeEditReply(interaction, "⚠️ لا يوجد أعضاء بمعرفات ديسكورد مسجلة في الفريق لمنشنهم.");
       }
 
-      await interaction.deferReply({ ephemeral: true });
       const channel = interaction.channel;
       const sentAlert = await channel.send({
         content:
@@ -868,9 +910,11 @@ export async function handleLudraStaticInteraction(interaction) {
 
     // ── Add Player (Step 1: Choose Class from List) ──
     if (action === "add") {
+      await interaction.deferReply({ ephemeral: true });
+
       const countRes = await query(`SELECT COUNT(*)::int AS cnt FROM ludra_static_team_members WHERE team_number = $1`, [teamNumber]);
       if (countRes.rows[0].cnt >= 10) {
-        return safeReply(
+        return safeEditReply(
           interaction,
           "⚠️ **الفريق مكتمل بالفعل (10 / 10 لاعبين).**\nيجب استبعاد أو نقل لاعب أولاً لتوفير مكان شاغر."
         );
@@ -890,7 +934,7 @@ export async function handleLudraStaticInteraction(interaction) {
           new StringSelectMenuOptionBuilder().setLabel("Spiritmaster (سبيريت ماستر)").setValue("Spiritmaster").setEmoji("🔮")
         );
 
-      return safeReply(interaction, {
+      return safeEditReply(interaction, {
         content:
           `🛡️ **إضافة لاعب — فريق #${teamNumber} (الخطوة 1 من 2):**\n\n` +
           `📌 **تنبيه هام:** يشترط أن يكون اللاعب مسجلاً مسبقاً في **نظام تسجيل لودرا** ليتم قبوله في الفريق الثابت.\n` +
@@ -903,6 +947,8 @@ export async function handleLudraStaticInteraction(interaction) {
 
     // ── Remove Player (Step 1: Select Player) ──
     if (action === "remove") {
+      await interaction.deferReply({ ephemeral: true });
+
       const membersRes = await query(`
         SELECT * FROM ludra_static_team_members
         WHERE team_number = $1
@@ -910,7 +956,7 @@ export async function handleLudraStaticInteraction(interaction) {
       `, [teamNumber]);
 
       if (membersRes.rows.length === 0) {
-        return safeReply(interaction, "⚠️ لا يوجد أعضاء في هذا الفريق لحذفهم.");
+        return safeEditReply(interaction, "⚠️ لا يوجد أعضاء في هذا الفريق لحذفهم.");
       }
 
       const select = new StringSelectMenuBuilder()
@@ -929,7 +975,7 @@ export async function handleLudraStaticInteraction(interaction) {
         );
       });
 
-      return safeReply(interaction, {
+      return safeEditReply(interaction, {
         content: "🔻 **الرجاء تحديد اللاعب المراد استبعاده من القائمة أدناه:**",
         components: [new ActionRowBuilder().addComponents(select)],
       });
@@ -1212,40 +1258,33 @@ export async function handleLudraStaticInteraction(interaction) {
 
     await interaction.deferReply({ ephemeral: true });
 
-    const teamRes = await query(`SELECT * FROM ludra_static_teams WHERE team_number = $1 LIMIT 1`, [teamNumber]);
-    const team = teamRes.rows[0];
+    const team = await getCachedTeam(teamNumber);
 
     const membersRes = await query(`
       SELECT discord_id, character_name FROM ludra_static_team_members
       WHERE team_number = $1 AND discord_id IS NOT NULL
     `, [teamNumber]);
 
-    let delivered = 0;
-    let failed = 0;
+    const dmEmbed = new EmbedBuilder()
+      .setColor(0x3498db)
+      .setTitle(`📨 رسالة من قائد فريقك (${team?.team_name || `فريق #${teamNumber}`})`)
+      .setDescription(
+        `وجه إليك قائد الفريق (<@${interaction.user.id}>) الرسالة التالية:\n\n` +
+        `\`\`\`\n${dmContent}\n\`\`\``
+      )
+      .setFooter({ text: "تحالف M3RGEEN • تنبيهات الفرق الثابتة" })
+      .setTimestamp();
 
-    for (const m of membersRes.rows) {
-      try {
+    const results = await Promise.allSettled(
+      membersRes.rows.map(async (m) => {
         const user = await interaction.client.users.fetch(m.discord_id).catch(() => null);
-        if (user) {
-          const dmEmbed = new EmbedBuilder()
-            .setColor(0x3498db)
-            .setTitle(`📨 رسالة من قائد فريقك (${team?.team_name || `فريق #${teamNumber}`})`)
-            .setDescription(
-              `وجه إليك قائد الفريق (<@${interaction.user.id}>) الرسالة التالية:\n\n` +
-              `\`\`\`\n${dmContent}\n\`\`\``
-            )
-            .setFooter({ text: "تحالف M3RGEEN • تنبيهات الفرق الثابتة" })
-            .setTimestamp();
+        if (!user) throw new Error("User not found");
+        return await user.send({ embeds: [dmEmbed] });
+      })
+    );
 
-          await user.send({ embeds: [dmEmbed] });
-          delivered++;
-        } else {
-          failed++;
-        }
-      } catch (err) {
-        failed++;
-      }
-    }
+    const delivered = results.filter(r => r.status === "fulfilled").length;
+    const failed = results.filter(r => r.status === "rejected").length;
 
     return safeEditReply(interaction, {
       content:
