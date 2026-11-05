@@ -541,8 +541,9 @@ export async function seedTeam8IfMissing() {
     { name: "Nmro", class: "Spiritmaster", discord_id: "399729584477831189", is_leader: false, slot: 4 },
     { name: "OQ", class: "Sorcerer", discord_id: "541784149459992583", is_leader: false, slot: 5 },
 
-    // Ketu Boss (Slots 6, 9, 10 - Slots 7 & 8 are vacant for Tank & Chanter)
+    // Ketu Boss (Slots 6, 8, 9, 10 - Slot 7 is vacant for Tank)
     { name: "Qzz99", class: "Cleric", discord_id: "1457508000196464660", is_leader: false, slot: 6 },
+    { name: "RaMIX", class: "Ranger", discord_id: "272992479832178688", is_leader: false, slot: 8 },
     { name: "OO", class: "Spiritmaster", discord_id: "272056886369583104", is_leader: false, slot: 9 },
     { name: "Aquila", class: "Ranger", discord_id: "713506957956219001", is_leader: false, slot: 10 },
   ];
