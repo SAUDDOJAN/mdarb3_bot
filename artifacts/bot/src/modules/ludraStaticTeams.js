@@ -379,6 +379,68 @@ export async function seedTeam5IfMissing() {
 }
 
 /**
+ * Ensures Team #6 (NotCalm's Lead Team - Raid 4 Boss Divisions) is seeded in the database.
+ */
+export async function seedTeam6IfMissing() {
+  await initLudraStaticTeamsDB();
+
+  const check = await query(`SELECT * FROM ludra_static_teams WHERE team_number = 6 LIMIT 1`);
+  if (check.rows.length === 0) {
+    await query(`
+      INSERT INTO ludra_static_teams (
+        team_number, team_name, leader_discord_id, leader_name, channel_id, logo_filename, col1_title, col2_title, embed_color
+      )
+      VALUES (
+        6, 'الريد الرابع (فريق #6)', '893268209237655572', 'NotCalm', $1, 'team_6_logo.jpg',
+        '🐉 تشكيلة Rahu', '🐍 تشكيلة Ketu', '0x00cec9'
+      )
+    `, [STATIC_TEAMS_CHANNEL_ID]);
+  } else {
+    await query(`
+      UPDATE ludra_static_teams
+      SET team_name = 'الريد الرابع (فريق #6)',
+          leader_discord_id = '893268209237655572',
+          leader_name = 'NotCalm',
+          logo_filename = 'team_6_logo.jpg',
+          col1_title = '🐉 تشكيلة Rahu',
+          col2_title = '🐍 تشكيلة Ketu',
+          embed_color = '0x00cec9'
+      WHERE team_number = 6
+    `);
+  }
+
+  const initialMembers = [
+    // Rahu Boss (Slots 1-5)
+    { name: "HajwalaH", class: "Cleric", discord_id: "465633054480924712", is_leader: false, slot: 1 },
+    { name: "WA", class: "Templar", discord_id: "434756403006013451", is_leader: false, slot: 2 },
+    { name: "Natlus", class: "Chanter", discord_id: "222777886023745536", is_leader: false, slot: 3 },
+    { name: "NotCalm", class: "Spiritmaster", discord_id: "893268209237655572", is_leader: true, slot: 4 },
+    { name: "A22md", class: "Spiritmaster", discord_id: "546756906337959937", is_leader: false, slot: 5 },
+
+    // Ketu Boss (Slots 6-10)
+    { name: "M8", class: "Cleric", discord_id: "505793271327358981", is_leader: false, slot: 6 },
+    { name: "Ms3", class: "Gladiator", discord_id: "684212022258565126", is_leader: false, slot: 7 },
+    { name: "ShadowArow", class: "Ranger", discord_id: "1004740291447754852", is_leader: false, slot: 8 },
+    { name: "Alaeddine", class: "Ranger", discord_id: "227025742020476938", is_leader: false, slot: 9 },
+    { name: "ecico", class: "Spiritmaster", discord_id: "556169687562584093", is_leader: false, slot: 10 },
+  ];
+
+  for (const m of initialMembers) {
+    await query(`
+      INSERT INTO ludra_static_team_members (
+        team_number, discord_id, character_name, class_name, is_leader, slot_index, added_by
+      )
+      VALUES (6, $1, $2, $3, $4, $5, 'SYSTEM_INIT')
+      ON CONFLICT (team_number, character_name) DO UPDATE SET
+        discord_id = EXCLUDED.discord_id,
+        class_name = EXCLUDED.class_name,
+        is_leader = EXCLUDED.is_leader,
+        slot_index = EXCLUDED.slot_index
+    `, [m.discord_id, m.name, m.class, m.is_leader, m.slot]);
+  }
+}
+
+/**
  * Builds the visual Embed, components and attachment for a static team.
  */
 export async function buildTeamEmbedAndComponents(teamNumber) {
@@ -433,6 +495,8 @@ export async function buildTeamEmbedAndComponents(teamNumber) {
     embedColor = 0x9b59b6;
   } else if (team.team_number === 5) {
     embedColor = 0xf1c40f;
+  } else if (team.team_number === 6) {
+    embedColor = 0x00cec9;
   }
 
   const embed = new EmbedBuilder()
