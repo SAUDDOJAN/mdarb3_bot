@@ -339,17 +339,23 @@ export async function handleLudraStaticInteraction(interaction) {
 
       await interaction.deferReply({ ephemeral: true });
       const channel = interaction.channel;
-      await channel.send({
+      const sentAlert = await channel.send({
         content:
           `📢 **تجمع فريق Ludra الثابت #${team.team_number} (${team.team_name})!**\n` +
           `قائد الفريق <@${interaction.user.id}> يدعوكم للاستعداد والجاهزية للريد:\n\n` +
-          validMentions.join(" "),
+          validMentions.join(" ") +
+          `\n\n*(سيتم حذف رسالة التنبيه هذه تلقائياً بعد 5 دقائق للحفاظ على نظافة الروم)*`,
         allowedMentions: {
           users: membersRes.rows.filter(m => m.discord_id).map(m => m.discord_id),
         },
       });
 
-      return interaction.editReply({ content: "✅ **تم إرسال المنشن وتنبيه أعضاء الفريق بنجاح!**" });
+      // Automatically delete the mention message after 5 minutes
+      setTimeout(() => {
+        sentAlert.delete().catch(() => {});
+      }, 5 * 60 * 1000);
+
+      return interaction.editReply({ content: "✅ **تم إرسال المنشن وتنبيه أعضاء الفريق بنجاح!** (سيتم حذفه تلقائياً بعد 5 دقائق لحماية نظافة الروم)." });
     }
 
     // ── Send DM ──
@@ -371,7 +377,7 @@ export async function handleLudraStaticInteraction(interaction) {
       return interaction.showModal(modal);
     }
 
-    // ── Add Player ──
+    // ── Add Player (Step 1: Choose Class from List) ──
     if (action === "add") {
       const countRes = await query(`SELECT COUNT(*)::int AS cnt FROM ludra_static_team_members WHERE team_number = $1`, [teamNumber]);
       if (countRes.rows[0].cnt >= 10) {
@@ -381,42 +387,25 @@ export async function handleLudraStaticInteraction(interaction) {
         });
       }
 
-      const modal = new ModalBuilder()
-        .setCustomId(`ludra_static:modal_add:${teamNumber}`)
-        .setTitle(`إضافة لاعب لفريق #${teamNumber}`);
+      const select = new StringSelectMenuBuilder()
+        .setCustomId(`ludra_static:select_class_add:${teamNumber}`)
+        .setPlaceholder("اختر كلاس اللاعب المراد إضافته...")
+        .addOptions(
+          new StringSelectMenuOptionBuilder().setLabel("Templar (تمبلر)").setValue("Templar").setEmoji("🛡️"),
+          new StringSelectMenuOptionBuilder().setLabel("Gladiator (جلاديتور)").setValue("Gladiator").setEmoji("⚔️"),
+          new StringSelectMenuOptionBuilder().setLabel("Cleric (كليريك)").setValue("Cleric").setEmoji("💖"),
+          new StringSelectMenuOptionBuilder().setLabel("Chanter (تشانتر)").setValue("Chanter").setEmoji("🎶"),
+          new StringSelectMenuOptionBuilder().setLabel("Assassin (أساسن)").setValue("Assassin").setEmoji("🗡️"),
+          new StringSelectMenuOptionBuilder().setLabel("Ranger (رينجر)").setValue("Ranger").setEmoji("🏹"),
+          new StringSelectMenuOptionBuilder().setLabel("Sorcerer (ساحر)").setValue("Sorcerer").setEmoji("🔥"),
+          new StringSelectMenuOptionBuilder().setLabel("Spiritmaster (سبيريت ماستر)").setValue("Spiritmaster").setEmoji("🔮")
+        );
 
-      const nameInput = new TextInputBuilder()
-        .setCustomId("char_name")
-        .setLabel("اسم الشخصية في اللعبة")
-        .setStyle(TextInputStyle.Short)
-        .setPlaceholder("مثال: Boo")
-        .setRequired(true)
-        .setMinLength(2)
-        .setMaxLength(30);
-
-      const classInput = new TextInputBuilder()
-        .setCustomId("char_class")
-        .setLabel("كلاس الشخصية")
-        .setStyle(TextInputStyle.Short)
-        .setPlaceholder("Templar, Gladiator, Cleric, Chanter, Assassin, Ranger...")
-        .setRequired(true)
-        .setMinLength(3)
-        .setMaxLength(25);
-
-      const discordInput = new TextInputBuilder()
-        .setCustomId("discord_id_input")
-        .setLabel("معرف ديسكورد اللاعب (Discord ID أو منشن)")
-        .setStyle(TextInputStyle.Short)
-        .setPlaceholder("مثال: 140247495832764417 أو @Boo (اختياري)")
-        .setRequired(false)
-        .setMaxLength(40);
-
-      modal.addComponents(
-        new ActionRowBuilder().addComponents(nameInput),
-        new ActionRowBuilder().addComponents(classInput),
-        new ActionRowBuilder().addComponents(discordInput)
-      );
-      return interaction.showModal(modal);
+      return interaction.reply({
+        content: "🛡️ **إضافة لاعب — الخطوة 1 من 2:** الرجاء تحديد **كلاس اللاعب** من القائمة أدناه:",
+        components: [new ActionRowBuilder().addComponents(select)],
+        ephemeral: true,
+      });
     }
 
     // ── Remove Player (Step 1: Select Player) ──
@@ -474,6 +463,39 @@ export async function handleLudraStaticInteraction(interaction) {
       .setMaxLength(1000);
 
     modal.addComponents(new ActionRowBuilder().addComponents(reasonInput));
+    return interaction.showModal(modal);
+  }
+
+  // ── 2b. Select Menu: Chosen Class to Add -> Open Name Modal ────────────────
+  if (action === "select_class_add" && interaction.isStringSelectMenu()) {
+    const teamNumber = parseInt(param, 10) || 1;
+    const chosenClass = interaction.values[0];
+
+    const modal = new ModalBuilder()
+      .setCustomId(`ludra_static:modal_add:${teamNumber}:${chosenClass}`)
+      .setTitle(`إضافة لاعب (${chosenClass})`);
+
+    const nameInput = new TextInputBuilder()
+      .setCustomId("char_name")
+      .setLabel("اسم الشخصية في اللعبة")
+      .setStyle(TextInputStyle.Short)
+      .setPlaceholder("مثال: Boo")
+      .setRequired(true)
+      .setMinLength(2)
+      .setMaxLength(30);
+
+    const discordInput = new TextInputBuilder()
+      .setCustomId("discord_id_input")
+      .setLabel("معرف ديسكورد اللاعب (Discord ID أو منشن)")
+      .setStyle(TextInputStyle.Short)
+      .setPlaceholder("مثال: 140247495832764417 أو @Boo (اختياري)")
+      .setRequired(false)
+      .setMaxLength(40);
+
+    modal.addComponents(
+      new ActionRowBuilder().addComponents(nameInput),
+      new ActionRowBuilder().addComponents(discordInput)
+    );
     return interaction.showModal(modal);
   }
 
@@ -574,13 +596,13 @@ export async function handleLudraStaticInteraction(interaction) {
   // ── 4. Modal Submit: Add Player ───────────────────────────────────────────
   if (action === "modal_add" && interaction.isModalSubmit()) {
     const teamNumber = parseInt(param, 10) || 1;
+    const chosenClass = extra || "Gladiator";
     const charName = interaction.fields.getTextInputValue("char_name").trim();
-    const rawClass = interaction.fields.getTextInputValue("char_class").trim();
     const discordRaw = interaction.fields.getTextInputValue("discord_id_input")?.trim() || "";
 
     await interaction.deferReply({ ephemeral: true });
 
-    const normClass = normalizeClassName(rawClass);
+    const normClass = normalizeClassName(chosenClass);
 
     // Extract Discord ID if provided as mention or raw digits
     let parsedDiscordId = null;
