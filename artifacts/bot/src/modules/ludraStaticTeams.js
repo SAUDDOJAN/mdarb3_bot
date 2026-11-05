@@ -279,13 +279,10 @@ export async function deployOrUpdateTeamEmbed(client, teamNumber) {
 }
 
 /**
- * Checks whether user is the Team Leader or a server Administrator.
+ * Checks whether user is strictly the Team Leader.
  */
 function isAuthorizedForTeam(interaction, team) {
-  if (String(interaction.user.id) === String(team.leader_discord_id)) return true;
-  if (interaction.memberPermissions?.has(PermissionsBitField.Flags.Administrator)) return true;
-  if (interaction.memberPermissions?.has(PermissionsBitField.Flags.ManageGuild)) return true;
-  return false;
+  return String(interaction.user.id) === String(team.leader_discord_id);
 }
 
 /**
@@ -311,7 +308,7 @@ export async function handleLudraStaticInteraction(interaction) {
 
     if (!isAuthorizedForTeam(interaction, team)) {
       return interaction.reply({
-        content: `❌ عذراً، لوحة إدارة الفريق مخصصة لقائد الفريق (<@${team.leader_discord_id}>) وإدارة السيرفر فقط.`,
+        content: `❌ عذراً، لوحة إدارة الفريق مخصصة حصرياً لقائد الفريق (<@${team.leader_discord_id}>) فقط. لا تملك صلاحية استخدام هذا الزر.`,
         ephemeral: true,
       });
     }
