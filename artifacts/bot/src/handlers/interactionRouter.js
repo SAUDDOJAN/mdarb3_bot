@@ -163,6 +163,21 @@ export async function route(interaction) {
     return;
   }
 
+  if (customId.startsWith("ludra_survey:") || customId.startsWith("ludra_survey_")) {
+    try {
+      await ludraStaticTeams.handleLudraSurveyInteraction(interaction);
+    } catch (err) {
+      console.error(`[Router] Error handling Ludra Survey interaction "${customId}":`, err);
+      const reply = { content: "❌ حدث خطأ أثناء تسجيل اختيارك، حاول مجدداً.", flags: 64 };
+      if (interaction.replied || interaction.deferred) {
+        await interaction.followUp(reply).catch(() => {});
+      } else {
+        await interaction.reply(reply).catch(() => {});
+      }
+    }
+    return;
+  }
+
   if (customId.startsWith("ticket_") || customId.startsWith("ticket:")) {
     try {
       await tickets.handleInteraction(interaction);

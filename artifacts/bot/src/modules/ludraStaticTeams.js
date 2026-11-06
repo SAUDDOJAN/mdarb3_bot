@@ -1562,3 +1562,77 @@ export async function handleLudraStaticInteraction(interaction) {
     return safeEditReply(interaction, "✅ **تم استلام ردك وإرساله إلى إدارة السيرفر بنجاح. شكراً لك!**");
   }
 }
+
+/**
+ * Handles Ludra Player Intent Survey Interactions (Choice: Normal 2800 vs Hard 3000)
+ */
+export async function handleLudraSurveyInteraction(interaction) {
+  const customId = interaction.customId || "";
+  const parts = customId.split(":");
+  const choice = parts[2]; // 'NORMAL_2800' or 'HARD_3000'
+
+  await interaction.deferReply({ ephemeral: true });
+
+  const label = choice === "NORMAL_2800" ? "Ludra Normal (2800+)" : "Ludra Hard (3000+)";
+
+  // Check character name from ludra_raid_registrations or ludra_static_team_members
+  const regRes = await query(
+    `SELECT character_name FROM ludra_raid_registrations WHERE discord_id = $1 LIMIT 1`,
+    [interaction.user.id]
+  );
+  let charName = regRes.rows[0]?.character_name || null;
+  if (!charName) {
+    const memRes = await query(
+      `SELECT character_name FROM ludra_static_team_members WHERE discord_id = $1 LIMIT 1`,
+      [interaction.user.id]
+    );
+    charName = memRes.rows[0]?.character_name || null;
+  }
+
+  // Ensure table exists
+  await query(`
+    CREATE TABLE IF NOT EXISTS ludra_player_intent_survey (
+      id SERIAL PRIMARY KEY,
+      discord_id TEXT UNIQUE NOT NULL,
+      character_name TEXT,
+      choice TEXT NOT NULL,
+      choice_label TEXT NOT NULL,
+      channel_type TEXT,
+      submitted_at TIMESTAMPTZ DEFAULT NOW(),
+      updated_at TIMESTAMPTZ DEFAULT NOW()
+    );
+  `);
+
+  await query(`
+    INSERT INTO ludra_player_intent_survey (discord_id, character_name, choice, choice_label, channel_type, submitted_at, updated_at)
+    VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
+    ON CONFLICT (discord_id) DO UPDATE SET
+      character_name = COALESCE(EXCLUDED.character_name, ludra_player_intent_survey.character_name),
+      choice = EXCLUDED.choice,
+      choice_label = EXCLUDED.choice_label,
+      channel_type = EXCLUDED.channel_type,
+      updated_at = NOW();
+  `, [
+    interaction.user.id,
+    charName,
+    choice,
+    label,
+    interaction.channel?.type === 1 ? "DM" : "GUILD_CHANNEL"
+  ]);
+
+  if (choice === "NORMAL_2800") {
+    return safeEditReply(
+      interaction,
+      `✅ **تم تسجيل اختيارك بنجاح!**\n` +
+      `• **التوجه المختار:** \`Ludra Normal (2800+)\` 🛡️\n` +
+      `سعداء بوجودك ومشاركتك معنا بالفرق الثابتة لحين نزول نيرف الريد.`
+    );
+  } else {
+    return safeEditReply(
+      interaction,
+      `✅ **تم تسجيل اختيارك بنجاح!**\n` +
+      `• **التوجه المختار:** \`Ludra Hard (3000+)\` ⚔️\n` +
+      `نتمنى لك كامل التوفيق في محاولات الهارد، وسيتم تحديث تشكيلات الفرق الثابتة بناءً على اختيارك.`
+    );
+  }
+}
