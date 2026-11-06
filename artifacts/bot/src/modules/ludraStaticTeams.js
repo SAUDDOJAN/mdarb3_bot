@@ -604,6 +604,29 @@ export async function seedTeam8IfMissing() {
   }
 }
 
+export function getVacantSlotLabel(teamNumber, slot) {
+  const num = parseInt(teamNumber, 10);
+  if (num >= 3 && num <= 8) {
+    if (slot === 1 || slot === 6) return "مطلوب Healer";
+    if (slot === 2 || slot === 7) return "مطلوب Tank";
+    if (slot === 3 || slot === 8) return "مطلوب Chanter";
+    return "مطلوب DPS";
+  }
+  if (num === 1) {
+    if (slot === 1 || slot === 6) return "مطلوب Tank";
+    if (slot === 3) return "مطلوب Chanter";
+    if (slot === 4 || slot === 5) return "مطلوب Healer";
+    return "مطلوب DPS";
+  }
+  if (num === 2) {
+    if (slot === 1) return "مطلوب Chanter";
+    if (slot === 3 || slot === 7) return "مطلوب Tank";
+    if (slot === 5 || slot === 6) return "مطلوب Healer";
+    return "مطلوب DPS";
+  }
+  return "شاغر";
+}
+
 /**
  * Builds the visual Embed, components and attachment for a static team.
  */
@@ -631,9 +654,8 @@ export async function buildTeamEmbedAndComponents(teamNumber) {
   const formatSlot = (slot) => {
     const m = memberBySlot.get(slot);
     if (!m) {
-      if (team.team_number === 8 && slot === 7) return `**${slot}.** ▫️ *[شاغر — مطلوب Tank]*`;
-      if (team.team_number === 8 && slot === 8) return `**${slot}.** ▫️ *[شاغر — مطلوب Chanter]*`;
-      return `**${slot}.** ▫️ *[شاغر]*`;
+      const neededRole = getVacantSlotLabel(team.team_number, slot);
+      return `**${slot}.** ▫️ *[شاغر — ${neededRole}]*`;
     }
     const normClass = normalizeClassName(m.class_name);
     const emoji = CLASS_EMOJIS[normClass] || "🔹";
@@ -1627,15 +1649,80 @@ export async function handleLudraSurveyInteraction(interaction) {
     return safeEditReply(
       interaction,
       `✅ **تم تسجيل اختيارك بنجاح!**\n` +
-      `• **التوجه المختار:** \`Ludra Normal (2800+)\` 🛡️\n` +
+      `• **التوجه المختار:** \`بكمل معكم لودرا نورمال حتى النيرف\` 🛡️\n` +
       `سعداء بوجودك ومشاركتك معنا بالفرق الثابتة لحين نزول نيرف الريد.`
     );
   } else {
+    // ── Choice is HARD_3000 -> Auto-vacate static team slot ──────────────────
+    const teamMemberships = await query(
+      `SELECT * FROM ludra_static_team_members WHERE discord_id = $1`,
+      [interaction.user.id]
+    );
+
+    const vacatedTeams = [];
+
+    if (teamMemberships.rows.length > 0) {
+      for (const mem of teamMemberships.rows) {
+        // Delete member row to free the slot
+        await query(`DELETE FROM ludra_static_team_members WHERE id = $1`, [mem.id]);
+        invalidateTeamCache(mem.team_number);
+
+        const neededRole = getVacantSlotLabel(mem.team_number, mem.slot_index);
+        vacatedTeams.push({
+          teamNumber: mem.team_number,
+          slotIndex: mem.slot_index,
+          characterName: mem.character_name,
+          className: mem.class_name,
+          neededRole,
+        });
+
+        // Auto-update team card in static teams channel
+        try {
+          await deployOrUpdateTeamEmbed(interaction.client, mem.team_number);
+        } catch (updateErr) {
+          console.error(`[LudraSurvey] Failed to auto-update team #${mem.team_number} embed:`, updateErr);
+        }
+
+        // Post audit log to log channel
+        try {
+          const logChannel =
+            interaction.client.channels?.cache?.get(STATIC_LOG_CHANNEL_ID) ||
+            (await interaction.client.channels?.fetch?.(STATIC_LOG_CHANNEL_ID).catch(() => null));
+
+          if (logChannel) {
+            const logEmbed = new EmbedBuilder()
+              .setColor(0xe74c3c)
+              .setTitle("🔻 استبعاد لاعب وتفريغ مقعد تلقائياً (استبيان الهارد)")
+              .setDescription(
+                `اختار اللاعب <@${interaction.user.id}> (\`${mem.character_name}\`) خيار **الهارد 3000+**، وتم تفريغ مقعده تلقائياً في الفريق الثابت:\n\n` +
+                `• **الفريق:** فريق #${mem.team_number}\n` +
+                `• **المقعد المفرغ:** Slot #${mem.slot_index}\n` +
+                `• **الكلاس السابق:** \`${mem.class_name}\`\n` +
+                `• **حالة المقعد الآن:** ▫️ *[شاغر — ${neededRole}]*\n` +
+                `• **التحديث:** تم تحديث بطاقة الفريق مباشرة في الروم المعتمد.`
+              )
+              .setFooter({ text: "تحالف M3RGEEN • سجل تحديثات الفرق الثابتة" })
+              .setTimestamp();
+
+            await logChannel.send({ embeds: [logEmbed] }).catch(() => {});
+          }
+        } catch (logErr) {
+          console.error("[LudraSurvey] Failed to send audit log:", logErr);
+        }
+      }
+    }
+
+    let extraNote = "";
+    if (vacatedTeams.length > 0) {
+      const details = vacatedTeams.map(v => `فريق #${v.teamNumber} (مقعد #${v.slotIndex} — ${v.neededRole})`).join("، ");
+      extraNote = `\n\n📌 **تم تفريغ مقعدك تلقائياً في:** ${details} لتوفير مكان لبديل، وتحديث بطاقة الفريق في الروم.`;
+    }
+
     return safeEditReply(
       interaction,
       `✅ **تم تسجيل اختيارك بنجاح!**\n` +
-      `• **التوجه المختار:** \`Ludra Hard (3000+)\` ⚔️\n` +
-      `نتمنى لك كامل التوفيق في محاولات الهارد، وسيتم تحديث تشكيلات الفرق الثابتة بناءً على اختيارك.`
+      `• **التوجه المختار:** \`بلعب لودرا هارد، طلعوني من التشكيلة\` ⚔️${extraNote}\n\n` +
+      `نتمنى لك كامل التوفيق في محاولات الهارد!`
     );
   }
 }
