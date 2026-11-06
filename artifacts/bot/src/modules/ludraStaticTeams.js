@@ -67,9 +67,6 @@ const teamCache = new Map();
 
 export async function getCachedTeam(teamNumber) {
   const num = parseInt(teamNumber, 10) || 1;
-  if (teamCache.has(num)) {
-    return teamCache.get(num);
-  }
   const res = await query(`SELECT * FROM ludra_static_teams WHERE team_number = $1 LIMIT 1`, [num]);
   const team = res.rows[0] || null;
   if (team) {
@@ -307,7 +304,7 @@ export async function seedTeam4IfMissing() {
         team_number, team_name, leader_discord_id, leader_name, channel_id, logo_filename, col1_title, col2_title, embed_color
       )
       VALUES (
-        4, 'الريد الثاني (فريق #4)', '1486797245885055038', 'QTR', $1, 'team_4_logo.jpg',
+        4, 'الريد الثاني (فريق #4)', '573528099090595841', 'TheForgotten', $1, 'team_4_logo.jpg',
         '🐉 تشكيلة Rahu', '🐍 تشكيلة Ketu', '0x9b59b6'
       )
     `, [STATIC_TEAMS_CHANNEL_ID]);
@@ -315,8 +312,8 @@ export async function seedTeam4IfMissing() {
     await query(`
       UPDATE ludra_static_teams
       SET team_name = 'الريد الثاني (فريق #4)',
-          leader_discord_id = '1486797245885055038',
-          leader_name = 'QTR',
+          leader_discord_id = '573528099090595841',
+          leader_name = 'TheForgotten',
           logo_filename = 'team_4_logo.jpg',
           col1_title = '🐉 تشكيلة Rahu',
           col2_title = '🐍 تشكيلة Ketu',
@@ -334,8 +331,8 @@ export async function seedTeam4IfMissing() {
     { name: "Khaled", class: "Spiritmaster", discord_id: "744953077550809114", is_leader: false, slot: 5 },
 
     // Ketu Boss (Slots 6-10)
-    { name: "QTR", class: "Cleric", discord_id: "1486797245885055038", is_leader: true, slot: 6 },
-    { name: "TheForgotten", class: "Gladiator", discord_id: "573528099090595841", is_leader: false, slot: 7 },
+    { name: "QTR", class: "Cleric", discord_id: "1486797245885055038", is_leader: false, slot: 6 },
+    { name: "TheForgotten", class: "Gladiator", discord_id: "573528099090595841", is_leader: true, slot: 7 },
     { name: "snowWhite", class: "Cleric", discord_id: "327602752282951700", is_leader: false, slot: 8 },
     { name: "SecRets", class: "Ranger", discord_id: "444277151387222016", is_leader: false, slot: 9 },
     { name: "Oraid", class: "Spiritmaster", discord_id: "1060997209627303996", is_leader: false, slot: 10 },
