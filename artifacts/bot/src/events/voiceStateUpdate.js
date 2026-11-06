@@ -70,6 +70,14 @@ export default {
       const { handleAion2VoiceStateUpdate } = await import("../modules/aion2Lfg/handlers/voiceState.js");
       await handleAion2VoiceStateUpdate(oldState, newState);
 
+      // Ludra Static Teams Voice Routing
+      try {
+        const { handleLudraVoiceStateUpdate } = await import("../modules/ludraStaticTeams.js");
+        await handleLudraVoiceStateUpdate(oldState, newState, client);
+      } catch (ludraVoiceErr) {
+        console.error("[VoiceStateUpdate] Error in handleLudraVoiceStateUpdate:", ludraVoiceErr);
+      }
+
         // ─── Mod Tracker Logic for Voice Move ────────────────
         if (newState.guild.id === "861355983975874601") {
            const { AuditLogEvent, EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder } = await import("discord.js");

@@ -21,6 +21,8 @@ import {
   StringSelectMenuOptionBuilder,
   AttachmentBuilder,
   PermissionsBitField,
+  ChannelType,
+  PermissionFlagsBits,
 } from "discord.js";
 import path from "path";
 import fs from "fs";
@@ -33,6 +35,7 @@ const __dirname = path.dirname(__filename);
 // Config
 export const STATIC_TEAMS_CHANNEL_ID = "1567923394769326281"; // 👹┊ʟᴜᴅʀᴀ-ʀᴀɪᴅ・الفرق-الثابتة
 export const STATIC_LOG_CHANNEL_ID = "1567943675470942319";    // 👹┊ʟᴜᴅʀᴀ-ʀᴀɪᴅ・سجل-التغييرات
+export const STATIC_VOICE_CATEGORY_ID = "1552456426885087284"; // 🎙️︱Team Voice・رومات الفرق
 export const MAIN_GUILD_ID = process.env.MAIN_GUILD_ID || "861355983975874601";
 
 export const CLASS_EMOJIS = {
@@ -141,6 +144,7 @@ export async function initLudraStaticTeamsDB() {
         ALTER TABLE ludra_static_teams ADD COLUMN IF NOT EXISTS col1_title TEXT;
         ALTER TABLE ludra_static_teams ADD COLUMN IF NOT EXISTS col2_title TEXT;
         ALTER TABLE ludra_static_teams ADD COLUMN IF NOT EXISTS embed_color TEXT;
+        ALTER TABLE ludra_static_teams ADD COLUMN IF NOT EXISTS voice_channel_id TEXT;
         ALTER TABLE ludra_static_team_members ADD COLUMN IF NOT EXISTS role_tag TEXT;
         ALTER TABLE ludra_static_team_members ADD COLUMN IF NOT EXISTS combat_power INT;
       `);
@@ -782,11 +786,118 @@ function isAuthorizedForTeam(interaction, team) {
   if (String(interaction.user.id) === String(team.leader_discord_id)) return true;
   // Server Owner (Full authority)
   if (interaction.guild && String(interaction.guild.ownerId) === String(interaction.user.id)) return true;
-  // Administrator / ManageGuild
+  // Administrator / ManageGuild / ManageRoles / ManageChannels
   const perms = interaction.memberPermissions || interaction.member?.permissions;
   if (perms?.has(PermissionsBitField.Flags.Administrator)) return true;
   if (perms?.has(PermissionsBitField.Flags.ManageGuild)) return true;
+  if (perms?.has(PermissionsBitField.Flags.ManageRoles)) return true;
+  if (perms?.has(PermissionsBitField.Flags.ManageChannels)) return true;
+
+  // Designated Administration & Officer Roles
+  const memberRoles = interaction.member?.roles;
+  if (memberRoles) {
+    const ADMIN_ROLE_IDS = [
+      "1554242295384252427", // S-Admin
+      "1562477668484644864", // الاداريين
+      "1509497629564866680", // مشرفين السيرفر
+      "1296029940520587264", // Admin
+      "1296028441690374155", // قائد المعرقين
+      "1548343903307178024", // AION 2 Guild Leader
+      "1555965433058693220", // 👑 Emperor Guild Leader
+    ];
+    const hasRole = ADMIN_ROLE_IDS.some(id =>
+      memberRoles.cache ? memberRoles.cache.has(id) : (Array.isArray(memberRoles) ? memberRoles.includes(id) : false)
+    );
+    if (hasRole) return true;
+  }
+
   return false;
+}
+
+const activeVoiceTimers = new Map(); // channelId -> { timer, teamNumber }
+
+export function scheduleVoiceAutoDelete(channelId, teamNumber, client, delayMs = 5 * 60 * 1000) {
+  cancelVoiceAutoDelete(channelId);
+
+  const timer = setTimeout(async () => {
+    try {
+      const channel = await client.channels.fetch(channelId).catch(() => null);
+      if (channel) {
+        if (channel.members.size === 0) {
+          await channel.delete("Ludra static team voice channel empty for 5 minutes").catch(() => {});
+          await query(`UPDATE ludra_static_teams SET voice_channel_id = NULL WHERE voice_channel_id = $1`, [channelId]);
+          console.log(`[LudraVoice] Auto-deleted empty team voice channel ${channelId} for team #${teamNumber}`);
+        }
+      } else {
+        await query(`UPDATE ludra_static_teams SET voice_channel_id = NULL WHERE voice_channel_id = $1`, [channelId]);
+      }
+    } catch (err) {
+      console.error("[LudraVoice] Error during auto-delete:", err);
+    } finally {
+      activeVoiceTimers.delete(channelId);
+    }
+  }, delayMs);
+
+  activeVoiceTimers.set(channelId, { timer, teamNumber });
+  console.log(`[LudraVoice] Scheduled 5m auto-delete timer for channel ${channelId} (Team #${teamNumber})`);
+}
+
+export function cancelVoiceAutoDelete(channelId) {
+  const existing = activeVoiceTimers.get(channelId);
+  if (existing && existing.timer) {
+    clearTimeout(existing.timer);
+    activeVoiceTimers.delete(channelId);
+    console.log(`[LudraVoice] Cancelled auto-delete timer for channel ${channelId}`);
+    return true;
+  }
+  return false;
+}
+
+export async function handleLudraVoiceStateUpdate(oldState, newState, client) {
+  try {
+    const leftChannelId = oldState.channelId;
+    const joinedChannelId = newState.channelId;
+
+    // 1. If someone joined a channel
+    if (joinedChannelId) {
+      if (activeVoiceTimers.has(joinedChannelId)) {
+        cancelVoiceAutoDelete(joinedChannelId);
+      }
+    }
+
+    // 2. If someone left a channel
+    if (leftChannelId && leftChannelId !== joinedChannelId) {
+      const oldChannel = oldState.channel;
+      if (oldChannel && oldChannel.parentId === STATIC_VOICE_CATEGORY_ID) {
+        if (oldChannel.members.size === 0) {
+          const teamRes = await query(`SELECT team_number FROM ludra_static_teams WHERE voice_channel_id = $1 LIMIT 1`, [leftChannelId]);
+          const teamNum = teamRes.rows[0]?.team_number;
+          if (teamNum || activeVoiceTimers.has(leftChannelId)) {
+            console.log(`[LudraVoice] Channel ${leftChannelId} is now empty! Starting 5m countdown...`);
+            scheduleVoiceAutoDelete(leftChannelId, teamNum || 0, client || oldState.client, 5 * 60 * 1000);
+          }
+        }
+      }
+    }
+  } catch (err) {
+    console.error("[LudraVoice] Error handling voice state update:", err);
+  }
+}
+
+export async function auditLudraVoiceChannels(client) {
+  try {
+    const res = await query(`SELECT team_number, voice_channel_id FROM ludra_static_teams WHERE voice_channel_id IS NOT NULL`);
+    for (const row of res.rows) {
+      const channel = await client.channels.fetch(row.voice_channel_id).catch(() => null);
+      if (!channel) {
+        await query(`UPDATE ludra_static_teams SET voice_channel_id = NULL WHERE team_number = $1`, [row.team_number]);
+      } else if (channel.members.size === 0) {
+        scheduleVoiceAutoDelete(channel.id, row.team_number, client, 5 * 60 * 1000);
+      }
+    }
+  } catch (e) {
+    console.error("[LudraVoice] Startup voice audit error:", e);
+  }
 }
 
 /**
@@ -821,7 +932,15 @@ export async function handleLudraStaticInteraction(interaction) {
   const extra = parts[3];
 
   // ── 1. Team Action Buttons (From Team Card or Leader Panel) ──────────────────
-  if (action === "panel" || action === "mention" || action === "dm" || action === "add" || action === "remove") {
+  if (
+    action === "panel" ||
+    action === "mention" ||
+    action === "dm" ||
+    action === "add" ||
+    action === "remove" ||
+    action === "voice_create" ||
+    action === "voice_close"
+  ) {
     const teamNumber = parseInt(param, 10) || 1;
     const team = await getCachedTeam(teamNumber);
     if (!team) {
@@ -839,6 +958,18 @@ export async function handleLudraStaticInteraction(interaction) {
     if (action === "panel") {
       await interaction.deferReply({ ephemeral: true });
 
+      // Check if team currently has an active voice channel in Discord
+      let activeVoiceChannel = null;
+      if (team.voice_channel_id && interaction.guild) {
+        activeVoiceChannel = interaction.guild.channels.cache.get(team.voice_channel_id) ||
+          await interaction.guild.channels.fetch(team.voice_channel_id).catch(() => null);
+        if (!activeVoiceChannel) {
+          // Channel was deleted outside bot
+          await query(`UPDATE ludra_static_teams SET voice_channel_id = NULL WHERE team_number = $1`, [teamNumber]);
+          team.voice_channel_id = null;
+        }
+      }
+
       const panelEmbed = new EmbedBuilder()
         .setColor(0x3498db)
         .setTitle(`🎛️ لوحة إدارة ${team.team_name}`)
@@ -848,11 +979,15 @@ export async function handleLudraStaticInteraction(interaction) {
           `• **📢 منشن الفريق:** لتنبيه الأعضاء بالتجمع والاستعداد (يُحذف تلقائياً بعد 5 دقائق).\n` +
           `• **✉️ إرسال للخاص:** لإرسال رسالة رسمية لخاص جميع أعضاء الفريق مباشرة.\n` +
           `• **➕ إضافة لاعب:** اختيار كلاس وإضافة لاعب جديد في مقعد شاغر.\n` +
-          `• **➖ حذف لاعب:** اختيار لاعب ورفع طلب استبعاد مسبّب للإدارة للمراجعة.`
+          `• **➖ حذف لاعب:** اختيار لاعب ورفع طلب استبعاد مسبّب للإدارة للمراجعة.\n` +
+          `• **🎙️ الروم الصوتي:** إنشاء روم صوتي مخصص لأعضاء فريقك مع صلاحيات كتم الصوت.\n\n` +
+          (activeVoiceChannel
+            ? `🔊 **الروم الصوتي الحالي:** <#${activeVoiceChannel.id}> (مفعّل ونشط)`
+            : `🔇 **الروم الصوتي:** غير مفعّل حالياً (اضغط الزر بالأسفل لإنشائه).`)
         )
         .setFooter({ text: "تحالف M3RGEEN • لوحة تحكم القائد الخاصة (تختفي تلقائياً بعد 5 دقائق)" });
 
-      const panelRow = new ActionRowBuilder().addComponents(
+      const panelRow1 = new ActionRowBuilder().addComponents(
         new ButtonBuilder()
           .setCustomId(`ludra_static:mention:${teamNumber}`)
           .setLabel("📢 منشن الفريق")
@@ -871,9 +1006,30 @@ export async function handleLudraStaticInteraction(interaction) {
           .setStyle(ButtonStyle.Danger)
       );
 
+      const panelRow2 = new ActionRowBuilder();
+      if (!activeVoiceChannel) {
+        panelRow2.addComponents(
+          new ButtonBuilder()
+            .setCustomId(`ludra_static:voice_create:${teamNumber}`)
+            .setLabel("🎙️ إنشاء روم صوتي للفريق")
+            .setStyle(ButtonStyle.Success)
+        );
+      } else {
+        panelRow2.addComponents(
+          new ButtonBuilder()
+            .setLabel("🔊 الدخول للروم الصوتي")
+            .setStyle(ButtonStyle.Link)
+            .setURL(`https://discord.com/channels/${interaction.guild.id}/${activeVoiceChannel.id}`),
+          new ButtonBuilder()
+            .setCustomId(`ludra_static:voice_close:${teamNumber}`)
+            .setLabel("❌ إغلاق الروم الصوتي")
+            .setStyle(ButtonStyle.Danger)
+        );
+      }
+
       return safeEditReply(interaction, {
         embeds: [panelEmbed],
-        components: [panelRow],
+        components: [panelRow1, panelRow2],
       });
     }
 
@@ -998,6 +1154,185 @@ export async function handleLudraStaticInteraction(interaction) {
         content: "🔻 **الرجاء تحديد اللاعب المراد استبعاده من القائمة أدناه:**",
         components: [new ActionRowBuilder().addComponents(select)],
       });
+    }
+
+    // ── Create Team Voice Channel (Strictly Leader Only) ──
+    if (action === "voice_create") {
+      await interaction.deferReply({ ephemeral: true });
+
+      const isLeader = String(interaction.user.id) === String(team.leader_discord_id);
+      const isOwner = interaction.guild && String(interaction.guild.ownerId) === String(interaction.user.id);
+      if (!isLeader && !isOwner) {
+        return safeEditReply(
+          interaction,
+          `❌ عذراً، ميزة إنشاء الروم الصوتي مخصصة لكابتن الفريق (<@${team.leader_discord_id}>) فقط.`
+        );
+      }
+
+      const guild = interaction.guild;
+      if (!guild) {
+        return safeEditReply(interaction, "❌ تعذر الوصول لبيانات السيرفر.");
+      }
+
+      // Check if room already exists in Discord
+      if (team.voice_channel_id) {
+        const existingVoice = guild.channels.cache.get(team.voice_channel_id) ||
+          await guild.channels.fetch(team.voice_channel_id).catch(() => null);
+        if (existingVoice) {
+          return safeEditReply(
+            interaction,
+            `🔊 **الروم الصوتي لفريقك مفعّل بالفعل حالياً:** <#${existingVoice.id}>\nيمكنك الدخول إليه مباشرة أو إغلاقه من لوحة التحكم.`
+          );
+        }
+      }
+
+      // Fetch team members with discord IDs
+      const membersRes = await query(
+        `SELECT discord_id, character_name, is_leader FROM ludra_static_team_members WHERE team_number = $1`,
+        [teamNumber]
+      );
+      const members = membersRes.rows;
+
+      // Construct Permission Overwrites
+      const overwrites = [
+        // @everyone: Cannot connect, but can see channel
+        {
+          id: guild.roles.everyone.id,
+          deny: [PermissionFlagsBits.Connect],
+          allow: [PermissionFlagsBits.ViewChannel],
+        },
+        // Bot permissions
+        {
+          id: guild.members.me?.id || interaction.client.user.id,
+          allow: [
+            PermissionFlagsBits.ViewChannel,
+            PermissionFlagsBits.Connect,
+            PermissionFlagsBits.ManageChannels,
+            PermissionFlagsBits.MoveMembers,
+            PermissionFlagsBits.MuteMembers,
+            PermissionFlagsBits.DeafenMembers,
+          ],
+        },
+      ];
+
+      // Add registered team members
+      for (const m of members) {
+        if (!m.discord_id) continue;
+        if (String(m.discord_id) === String(team.leader_discord_id)) continue;
+
+        overwrites.push({
+          id: m.discord_id,
+          allow: [
+            PermissionFlagsBits.ViewChannel,
+            PermissionFlagsBits.Connect,
+            PermissionFlagsBits.Speak,
+            PermissionFlagsBits.Stream,
+            PermissionFlagsBits.UseVAD,
+            PermissionFlagsBits.SendMessages,
+            PermissionFlagsBits.EmbedLinks,
+            PermissionFlagsBits.AttachFiles,
+            PermissionFlagsBits.AddReactions,
+            PermissionFlagsBits.UseExternalEmojis,
+            PermissionFlagsBits.UseSoundboard,
+            PermissionFlagsBits.UseExternalSounds,
+            PermissionFlagsBits.UseEmbeddedActivities,
+            PermissionFlagsBits.RequestToSpeak,
+          ],
+        });
+      }
+
+      // Leader Overwrites: Full Member permissions + Server Mute, Deafen, Move, Priority Speaker
+      overwrites.push({
+        id: team.leader_discord_id,
+        allow: [
+          PermissionFlagsBits.ViewChannel,
+          PermissionFlagsBits.Connect,
+          PermissionFlagsBits.Speak,
+          PermissionFlagsBits.Stream,
+          PermissionFlagsBits.UseVAD,
+          PermissionFlagsBits.SendMessages,
+          PermissionFlagsBits.EmbedLinks,
+          PermissionFlagsBits.AttachFiles,
+          PermissionFlagsBits.AddReactions,
+          PermissionFlagsBits.UseExternalEmojis,
+          PermissionFlagsBits.UseSoundboard,
+          PermissionFlagsBits.UseExternalSounds,
+          PermissionFlagsBits.UseEmbeddedActivities,
+          PermissionFlagsBits.RequestToSpeak,
+          PermissionFlagsBits.MuteMembers,
+          PermissionFlagsBits.DeafenMembers,
+          PermissionFlagsBits.MoveMembers,
+          PermissionFlagsBits.PrioritySpeaker,
+          PermissionFlagsBits.ManageChannels,
+        ],
+      });
+
+      const leaderCleanName = (team.leader_name || "كابتن").replace(/[^a-zA-Z0-9_\u0600-\u06FF]/g, "");
+      const channelName = `🔊┃فريق-${team.team_number}-${leaderCleanName || "Leader"}`;
+
+      let voiceChannel;
+      try {
+        voiceChannel = await guild.channels.create({
+          name: channelName,
+          type: ChannelType.GuildVoice,
+          parent: STATIC_VOICE_CATEGORY_ID,
+          userLimit: 10,
+          permissionOverwrites: overwrites,
+          reason: `Ludra Static Team #${team.team_number} voice room created by leader ${interaction.user.tag}`,
+        });
+      } catch (err) {
+        console.error("[LudraVoice] Failed to create voice channel:", err);
+        return safeEditReply(interaction, `❌ حدث خطأ أثناء إنشاء الروم الصوتي: ${err.message}`);
+      }
+
+      // Save to database
+      await query(`UPDATE ludra_static_teams SET voice_channel_id = $1 WHERE team_number = $2`, [
+        voiceChannel.id,
+        teamNumber,
+      ]);
+      team.voice_channel_id = voiceChannel.id;
+
+      // Start initial 5-minute empty timer (if nobody joins within 5 minutes of creation, it will auto-delete)
+      scheduleVoiceAutoDelete(voiceChannel.id, teamNumber, interaction.client, 5 * 60 * 1000);
+
+      const registeredCount = members.filter(m => m.discord_id).length;
+      return safeEditReply(
+        interaction,
+        `✅ **تم إنشاء الروم الصوتي بنجاح!**\n\n` +
+        `• **الروم الصوتي:** <#${voiceChannel.id}>\n` +
+        `• **الكاتوقري:** <#${STATIC_VOICE_CATEGORY_ID}>\n` +
+        `• **السعة:** 10 لاعبين بالضبط (مخصص لأعضاء فريقك المسجلين - ${registeredCount} لاعب مصرح لهم)\n` +
+        `• **صلاحيات القائد:** ميزة كتم الصوت (Server Mute/Deafen) ونقل الأعضاء والأولوية الصوتية مفعلة لك.\n` +
+        `• **الحذف التلقائي:** سيتم حذف الروم تلقائياً بعد خروج جميع اللاعبين بـ 5 دقائق.\n\n` +
+        `🎙️ يمكنك الانضمام للروم الآن ومباشرة الريد!`
+      );
+    }
+
+    // ── Close Team Voice Channel (Strictly Leader Only) ──
+    if (action === "voice_close") {
+      await interaction.deferReply({ ephemeral: true });
+
+      const isLeader = String(interaction.user.id) === String(team.leader_discord_id);
+      const isOwner = interaction.guild && String(interaction.guild.ownerId) === String(interaction.user.id);
+      if (!isLeader && !isOwner) {
+        return safeEditReply(
+          interaction,
+          `❌ عذراً، إغلاق الروم الصوتي مخصص لكابتن الفريق (<@${team.leader_discord_id}>) فقط.`
+        );
+      }
+
+      if (team.voice_channel_id) {
+        cancelVoiceAutoDelete(team.voice_channel_id);
+        const ch = interaction.guild?.channels.cache.get(team.voice_channel_id) ||
+          await interaction.guild?.channels.fetch(team.voice_channel_id).catch(() => null);
+        if (ch) {
+          await ch.delete("Closed manually by team leader").catch(() => {});
+        }
+        await query(`UPDATE ludra_static_teams SET voice_channel_id = NULL WHERE team_number = $1`, [teamNumber]);
+        team.voice_channel_id = null;
+      }
+
+      return safeEditReply(interaction, "✅ **تم إغلاق الروم الصوتي وحذفه بنجاح.**");
     }
   }
 

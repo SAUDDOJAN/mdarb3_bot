@@ -97,6 +97,14 @@ export default {
         console.error("[Bot] Failed to start B3.3 Voice Lifecycle workers:", e);
       }
 
+      // Ludra Static Teams Voice Channels Audit
+      try {
+        const { auditLudraVoiceChannels } = await import("../modules/ludraStaticTeams.js");
+        await auditLudraVoiceChannels(client);
+      } catch (ludraAuditErr) {
+        console.error("[Bot] Failed to run Ludra voice audit on startup:", ludraAuditErr);
+      }
+
       console.log("[Bot] All background tasks started successfully.");
     } catch (err) {
       console.error("[Bot] Failed to start background tasks:", err);
