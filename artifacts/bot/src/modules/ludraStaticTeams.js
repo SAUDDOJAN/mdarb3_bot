@@ -607,24 +607,24 @@ export async function seedTeam8IfMissing() {
 export function getVacantSlotLabel(teamNumber, slot) {
   const num = parseInt(teamNumber, 10);
   if (num >= 3 && num <= 8) {
-    if (slot === 1 || slot === 6) return "مطلوب Healer";
-    if (slot === 2 || slot === 7) return "مطلوب Tank";
-    if (slot === 3 || slot === 8) return "مطلوب Chanter";
-    return "مطلوب DPS";
+    if (slot === 1 || slot === 6) return "Healer";
+    if (slot === 2 || slot === 7) return "Tank";
+    if (slot === 3 || slot === 8) return "Chanter";
+    return "DPS";
   }
   if (num === 1) {
-    if (slot === 1 || slot === 6) return "مطلوب Tank";
-    if (slot === 3) return "مطلوب Chanter";
-    if (slot === 4 || slot === 5) return "مطلوب Healer";
-    return "مطلوب DPS";
+    if (slot === 1 || slot === 6) return "Tank";
+    if (slot === 3) return "Chanter";
+    if (slot === 4 || slot === 5) return "Healer";
+    return "DPS";
   }
   if (num === 2) {
-    if (slot === 1) return "مطلوب Chanter";
-    if (slot === 3 || slot === 7) return "مطلوب Tank";
-    if (slot === 5 || slot === 6) return "مطلوب Healer";
-    return "مطلوب DPS";
+    if (slot === 1) return "Chanter";
+    if (slot === 3 || slot === 7) return "Tank";
+    if (slot === 5 || slot === 6) return "Healer";
+    return "DPS";
   }
-  return "شاغر";
+  return "";
 }
 
 /**
@@ -655,7 +655,7 @@ export async function buildTeamEmbedAndComponents(teamNumber) {
     const m = memberBySlot.get(slot);
     if (!m) {
       const neededRole = getVacantSlotLabel(team.team_number, slot);
-      return `**${slot}.** ▫️ *[شاغر — ${neededRole}]*`;
+      return neededRole ? `**${slot}.** ▫️ *شاغر - ${neededRole}*` : `**${slot}.** ▫️ *شاغر*`;
     }
     const normClass = normalizeClassName(m.class_name);
     const emoji = CLASS_EMOJIS[normClass] || "🔹";
@@ -1698,7 +1698,7 @@ export async function handleLudraSurveyInteraction(interaction) {
                 `• **الفريق:** فريق #${mem.team_number}\n` +
                 `• **المقعد المفرغ:** Slot #${mem.slot_index}\n` +
                 `• **الكلاس السابق:** \`${mem.class_name}\`\n` +
-                `• **حالة المقعد الآن:** ▫️ *[شاغر — ${neededRole}]*\n` +
+                `• **حالة المقعد الآن:** ▫️ *شاغر - ${neededRole}*\n` +
                 `• **التحديث:** تم تحديث بطاقة الفريق مباشرة في الروم المعتمد.`
               )
               .setFooter({ text: "تحالف M3RGEEN • سجل تحديثات الفرق الثابتة" })
