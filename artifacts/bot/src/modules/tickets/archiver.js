@@ -489,10 +489,16 @@ export async function archiveAndCloseTicket({ interaction, channel, ticket, acto
     const secCheck = await isReportsChannelSecure(guild);
     if (!secCheck.secure) {
       console.error(`[TicketArchiver] Security HALT: REPORTS channel insecure (${secCheck.reason}). Channel NOT deleted.`);
-      await interaction.reply({
-        content: `⚠️ **توقف أمني:** ${secCheck.reason}\nتم إيقاف أرشفة البلاغ السري وحذف الروم حرصاً على سرية البيانات وعدم كشفها. يرجى تصحيح صلاحيات القناة.`,
-        ephemeral: true,
-      }).catch(() => {});
+      if (interaction.deferred || interaction.replied) {
+        await interaction.editReply({
+          content: `⚠️ **توقف أمني:** ${secCheck.reason}\nتم إيقاف أرشفة البلاغ السري وحذف الروم حرصاً على سرية البيانات وعدم كشفها. يرجى تصحيح صلاحيات القناة.`,
+        }).catch(() => {});
+      } else {
+        await interaction.reply({
+          content: `⚠️ **توقف أمني:** ${secCheck.reason}\nتم إيقاف أرشفة البلاغ السري وحذف الروم حرصاً على سرية البيانات وعدم كشفها. يرجى تصحيح صلاحيات القناة.`,
+          ephemeral: true,
+        }).catch(() => {});
+      }
       return {
         success: false,
         securityHalt: true,
@@ -502,9 +508,15 @@ export async function archiveAndCloseTicket({ interaction, channel, ticket, acto
   }
 
   // 3. Inform users in room that archiving has started
-  await interaction.reply({
-    content: "⏳ جاري إغلاق التذكرة واستخراج المحادثة والمرفقات وحفظ الأرشيف بأمان...",
-  });
+  if (interaction.deferred || interaction.replied) {
+    await interaction.editReply({
+      content: "⏳ جاري إغلاق التذكرة واستخراج المحادثة والمرفقات وحفظ الأرشيف بأمان...",
+    }).catch(() => {});
+  } else {
+    await interaction.reply({
+      content: "⏳ جاري إغلاق التذكرة واستخراج المحادثة والمرفقات وحفظ الأرشيف بأمان...",
+    }).catch(() => {});
+  }
 
   // 4. Atomically close ticket in DB
   const closeRes = await closeTicketAtomic(ticket.channel_id, actor.id, closeReason);

@@ -1223,14 +1223,24 @@ async function handleUserSelectAction(interaction, action) {
  * Handle action modal submissions (request_info or close).
  */
 async function handleActionModalSubmission(interaction, action) {
+  if (action === "close") {
+    await interaction.deferReply().catch(() => {});
+  }
+
   const ticket = await getTicketByChannel(interaction.channelId);
   if (!ticket || ticket.status === "CLOSED") {
+    if (interaction.deferred || interaction.replied) {
+      return await interaction.editReply({ content: "❌ التذكرة غير متاحة أو مغلقة." });
+    }
     return await interaction.reply({ content: "❌ التذكرة غير متاحة أو مغلقة.", ephemeral: true });
   }
 
   // Authorization Check
   const auth = checkStaffActionPermission(interaction, ticket, action);
   if (!auth.allowed) {
+    if (interaction.deferred || interaction.replied) {
+      return await interaction.editReply({ content: auth.reason });
+    }
     return await interaction.reply({ content: auth.reason, ephemeral: true });
   }
 
