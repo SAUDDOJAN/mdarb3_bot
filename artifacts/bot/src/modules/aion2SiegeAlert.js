@@ -173,6 +173,173 @@ export function buildSiegeAnnouncementEmbed({
 }
 
 /**
+ * Register active siege announcement for automated reminders (2 hours & 5 minutes before)
+ */
+export function registerActiveSiege({ messageId, channelId, siegeUnix, gatheringUnix }) {
+  const data = loadData();
+  data._active_sieges = Array.isArray(data._active_sieges) ? data._active_sieges : [];
+
+  // Remove any previous entry with same messageId
+  data._active_sieges = data._active_sieges.filter(s => s.messageId !== messageId);
+
+  data._active_sieges.push({
+    messageId,
+    channelId,
+    siegeUnix,
+    gatheringUnix,
+    reminded2h: false,
+    reminded5m: false,
+    createdAt: new Date().toISOString()
+  });
+
+  saveData(data);
+  console.log(`[aion2SiegeAlert] Registered active siege for reminders: Message ${messageId}, Siege Unix: ${siegeUnix}`);
+}
+
+/**
+ * Send 2-Hour reminder mentioning participants and emphasizing gathering necessity
+ */
+async function send2HourReminder(client, siege) {
+  const channel = client.channels.cache.get(siege.channelId) ?? await client.channels.fetch(siege.channelId).catch(() => null);
+  if (!channel || !channel.isTextBased()) return;
+
+  const attendees = getAttendees(siege.messageId);
+  const mentionsText = attendees.length > 0 
+    ? attendees.map(id => `<@${id}>`).join(" ") 
+    : `<@&${M3RGEEN_ROLE_ID}>`;
+
+  const embed = new EmbedBuilder()
+    .setColor(0xE67E22) // Warning Orange
+    .setTitle("⏳ تذكير بحرب الحصار (AION 2 Siege) | متبقي ساعتان!")
+    .setDescription([
+      "**نداء إلى جميع الأبطال المشاركين في الحصار اليوم:**",
+      `⏰ **موعد انطلاق الحصار:** <t:${siege.siegeUnix}:t> (<t:${siege.siegeUnix}:R>)`,
+      `🌀 **موعد التجمع:** <t:${siege.gatheringUnix}:t> (<t:${siege.gatheringUnix}:R>)`,
+      `📍 **مكان التجمع:** \`قاعدة الأبيس جانب الكورة المتوهجة\``,
+      `🔊 **الروم الصوتي:** <#${VOICE_CHANNEL_ID}> ([اضغط هنا للدخول المباشر](https://discord.com/channels/861355983975874601/${VOICE_CHANNEL_ID}))`,
+      "",
+      "🛡️ **تذكير بالتعليمات الهامة:**",
+      "• **التواجد ضروري في الروم الصوتي قبل موعد التجمع بساعة كاملة.**",
+      "• تجهيز كافة الجرع والأطعمة وبوفات الحرب والعتاد مسبقاً والجاهزية التامة.",
+      "• التواجد في قاعدة الأبيس جانب الكورة المتوهجة وقت التجمع دون أي تأخير.",
+      "",
+      `👥 **المشاركون المسجلون حتى الآن (${attendees.length}):**`,
+      mentionsText
+    ].join("\n"))
+    .setFooter({ text: "تحالف M3RGEEN • استعدوا للحرب" })
+    .setTimestamp();
+
+  const originalMsg = await channel.messages.fetch(siege.messageId).catch(() => null);
+  const payload = {
+    content: `📢 **تنبيه للمشاركين في السيج (متبقي ساعتان):**\n${mentionsText}`,
+    embeds: [embed],
+    allowedMentions: { parse: ["users", "roles"] }
+  };
+
+  if (originalMsg) {
+    await originalMsg.reply(payload).catch(async () => {
+      await channel.send(payload).catch(() => {});
+    });
+  } else {
+    await channel.send(payload).catch(() => {});
+  }
+
+  console.log(`[aion2SiegeAlert] Successfully sent 2h siege reminder for message ${siege.messageId}`);
+}
+
+/**
+ * Send 5-Minute urgent reminder mentioning participants to stay gathered around MDARB3
+ */
+async function send5MinuteReminder(client, siege) {
+  const channel = client.channels.cache.get(siege.channelId) ?? await client.channels.fetch(siege.channelId).catch(() => null);
+  if (!channel || !channel.isTextBased()) return;
+
+  const attendees = getAttendees(siege.messageId);
+  const mentionsText = attendees.length > 0 
+    ? attendees.map(id => `<@${id}>`).join(" ") 
+    : `<@&${M3RGEEN_ROLE_ID}>`;
+
+  const embed = new EmbedBuilder()
+    .setColor(0xE74C3C) // Danger Red
+    .setTitle("⚔️ نداء الحرب العاجل | بقيت 5 دقائق فقط على انطلاق السيج! 🔥")
+    .setDescription([
+      "🚨 **السيج حيبدأ بعد 5 دقائق! خلوكم متجمعين حول مدربع وجاهزين للانطلاق فوراً!**",
+      "",
+      `📍 **مكان التجمع:** \`قاعدة الأبيس جانب الكورة المتوهجة\``,
+      `🔊 **الروم الصوتي:** <#${VOICE_CHANNEL_ID}> ([انتقال فوري للروم الصوتي](https://discord.com/channels/861355983975874601/${VOICE_CHANNEL_ID}))`,
+      `⏰ **موعد البدء:** <t:${siege.siegeUnix}:t> (<t:${siege.siegeUnix}:R>)`,
+      "",
+      "⚔️ **إلى المعركة يا أبطال معرقين! النصر لحلفنا!**",
+      "",
+      `👥 **المحاربون المشاركون (${attendees.length}):**`,
+      mentionsText
+    ].join("\n"))
+    .setFooter({ text: "تحالف M3RGEEN • جيش المعرقين" })
+    .setTimestamp();
+
+  const originalMsg = await channel.messages.fetch(siege.messageId).catch(() => null);
+  const payload = {
+    content: `⚔️ **تنبيه عاجل للمشاركين (5 دقائق على بدء السيج):**\n${mentionsText}`,
+    embeds: [embed],
+    allowedMentions: { parse: ["users", "roles"] }
+  };
+
+  if (originalMsg) {
+    await originalMsg.reply(payload).catch(async () => {
+      await channel.send(payload).catch(() => {});
+    });
+  } else {
+    await channel.send(payload).catch(() => {});
+  }
+
+  console.log(`[aion2SiegeAlert] Successfully sent 5m siege reminder for message ${siege.messageId}`);
+}
+
+/**
+ * Check and process automated 2h and 5m reminders
+ */
+export async function checkSiegeReminders(client) {
+  const data = loadData();
+  if (!Array.isArray(data._active_sieges) || data._active_sieges.length === 0) return;
+
+  const nowUnix = Math.floor(Date.now() / 1000);
+  let updated = false;
+
+  for (const siege of data._active_sieges) {
+    const timeUntilSiege = siege.siegeUnix - nowUnix;
+
+    // 1. T-2 Hours Reminder (<= 7200 seconds / 2h, and > 300 seconds)
+    if (!siege.reminded2h && timeUntilSiege <= 2 * 3600 && timeUntilSiege > 5 * 60) {
+      await send2HourReminder(client, siege).catch(err => {
+        console.error("[aion2SiegeAlert] Error sending 2h reminder:", err);
+      });
+      siege.reminded2h = true;
+      updated = true;
+    }
+
+    // 2. T-5 Minutes Reminder (<= 300 seconds / 5m, and > -1800 seconds)
+    if (!siege.reminded5m && timeUntilSiege <= 5 * 60 && timeUntilSiege > -1800) {
+      await send5MinuteReminder(client, siege).catch(err => {
+        console.error("[aion2SiegeAlert] Error sending 5m reminder:", err);
+      });
+      siege.reminded5m = true;
+      updated = true;
+    }
+  }
+
+  // Clean up completed sieges older than 2 hours after siege start
+  const initialCount = data._active_sieges.length;
+  data._active_sieges = data._active_sieges.filter(s => (s.siegeUnix - nowUnix) > -7200);
+  if (data._active_sieges.length !== initialCount) {
+    updated = true;
+  }
+
+  if (updated) {
+    saveData(data);
+  }
+}
+
+/**
  * Publish the siege announcement into Discord
  */
 export async function publishSiegeAnnouncement(client, { channelId = TARGET_CHANNEL_ID, notes = null, forceSend = false } = {}) {
@@ -206,14 +373,22 @@ export async function publishSiegeAnnouncement(client, { channelId = TARGET_CHAN
   const sentMessage = await channel.send(sendPayload);
   await sentMessage.react("✅").catch(err => console.warn("[aion2SiegeAlert] Failed to react ✅:", err.message));
 
+  // Automatically register for 2-hour and 5-minute automated participant reminders
+  registerActiveSiege({
+    messageId: sentMessage.id,
+    channelId: channel.id,
+    siegeUnix: siegeInfo.siegeUnix,
+    gatheringUnix: siegeInfo.gatheringUnix
+  });
+
   return sentMessage;
 }
 
 /**
- * Daily Cron running at 10:00 AM (Saudi Time UTC+3)
+ * Daily Cron running (Checks every 30 seconds for exact trigger timing and reminders)
  */
 export function startDailySiegeCron(client) {
-  console.log("[aion2SiegeAlert] Initializing Daily Siege Checker (Runs every minute, executes at 10:00 AM KSA)...");
+  console.log("[aion2SiegeAlert] Initializing Siege Checker & Participant Reminder Cron (Runs every 30s)...");
 
   setInterval(async () => {
     try {
@@ -223,6 +398,7 @@ export function startDailySiegeCron(client) {
       const ksaHour = Number(now.toLocaleTimeString("en-US", { timeZone: "Asia/Riyadh", hour12: false, hour: "numeric" }));
       const ksaMin = Number(now.toLocaleTimeString("en-US", { timeZone: "Asia/Riyadh", hour12: false, minute: "numeric" }));
 
+      // 1. Daily 10:00 AM Announcement Check
       if (ksaHour === 10 && ksaMin === 0) {
         const data = loadData();
         data._meta = data._meta || {};
@@ -244,10 +420,14 @@ export function startDailySiegeCron(client) {
           }
         }
       }
+
+      // 2. Active Reminders Check (2-hour and 5-minute checks for registered participants)
+      await checkSiegeReminders(client);
+
     } catch (err) {
-      console.error("[aion2SiegeAlert] Error in Daily Siege Cron:", err);
+      console.error("[aion2SiegeAlert] Error in Siege Cron ticker:", err);
     }
-  }, 60 * 1000);
+  }, 30 * 1000);
 }
 
 export async function handleInteraction(interaction) {
@@ -344,6 +524,8 @@ export default {
   fetchShugoTimers,
   getEuropeSiegeSchedule,
   buildSiegeAnnouncementEmbed,
+  registerActiveSiege,
+  checkSiegeReminders,
   publishSiegeAnnouncement,
   startDailySiegeCron,
   handleInteraction
