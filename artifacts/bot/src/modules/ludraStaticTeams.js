@@ -1573,7 +1573,10 @@ export async function handleLudraSurveyInteraction(interaction) {
 
   await interaction.deferReply({ ephemeral: true });
 
-  const label = choice === "NORMAL_2800" ? "Ludra Normal (2800+)" : "Ludra Hard (3000+)";
+  const label =
+    choice === "NORMAL_2800"
+      ? "بكمل معكم لودرا نورمال حتى النيرف"
+      : "بلعب لودرا هارد، طلعوني من التشكيلة";
 
   // Check character name from ludra_raid_registrations or ludra_static_team_members
   const regRes = await query(
