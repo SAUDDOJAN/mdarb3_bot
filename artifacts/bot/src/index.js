@@ -248,6 +248,10 @@ async function main() {
     // Startup resume for Ludra Raid queue & fixed embeds
     resumeLudraRaidSystemOnStartup(client).catch(err => console.warn("[LudraRaid] Startup sync failed:", err.message));
 
+    // Daily AION 2 Siege Announcement Cron (checks at 10:00 AM KSA against Shugo schedule)
+    const { startDailySiegeCron } = await import("./modules/aion2SiegeAlert.js").catch(() => ({ startDailySiegeCron: () => {} }));
+    startDailySiegeCron(client);
+
     // Start scheduled reminders checker
     setInterval(async () => {
       try {

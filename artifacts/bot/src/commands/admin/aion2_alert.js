@@ -1,89 +1,31 @@
 import { 
   SlashCommandBuilder, 
   PermissionFlagsBits, 
-  EmbedBuilder 
+  ChannelType 
 } from "discord.js";
-import { buildSiegeComponents } from "../../modules/aion2SiegeAlert.js";
-
-const TARGET_CHANNEL_ID = "1548357027758219378";
-const M3RGEEN_ROLE_ID = "1555617080521269368";
-const SIEGE_BANNER_URL = "https://raw.githubusercontent.com/SAUDDOJAN/mdarb3_bot/main/artifacts/bot/assets/aion2_siege_banner.jpg";
-
-function getHourChoices() {
-  const choices = [];
-  for (let i = 1; i <= 12; i++) {
-    const padded = String(i).padStart(2, "0");
-    choices.push({ name: `${padded}:00 (الساعة ${i})`, value: i });
-  }
-  return choices;
-}
+import { 
+  TARGET_CHANNEL_ID, 
+  publishSiegeAnnouncement 
+} from "../../modules/aion2SiegeAlert.js";
 
 export const data = new SlashCommandBuilder()
   .setName("aion2_alert")
-  .setDescription("إرسال إعلان حصار AION 2 مع توقيت التجمع ورقم التليبورت وزر الحضور")
+  .setDescription("إرسال إعلان حصار AION 2 المربوط بتايمر شوقو التلقائي وروم الإعلانات")
   .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
-  .addIntegerOption(opt =>
-    opt.setName("gathering_hour")
-      .setDescription("ساعة التجمع للتليبورت (1 - 12)")
-      .setRequired(true)
-      .addChoices(...getHourChoices())
-  )
-  .addStringOption(opt =>
-    opt.setName("gathering_minute")
-      .setDescription("دقيقة التجمع")
-      .setRequired(true)
-      .addChoices(
-        { name: "00 (تماماً)", value: "00" },
-        { name: "15 (ربع)", value: "15" },
-        { name: "30 (نصف)", value: "30" },
-        { name: "45 (إلا ربع)", value: "45" }
-      )
-  )
-  .addStringOption(opt =>
-    opt.setName("gathering_period")
-      .setDescription("الفترة للتجمع (مساءً أو صباحاً)")
-      .setRequired(true)
-      .addChoices(
-        { name: "مساءً (PM)", value: "مساءً" },
-        { name: "صباحاً (AM)", value: "صباحاً" }
-      )
-  )
-  .addIntegerOption(opt =>
-    opt.setName("siege_hour")
-      .setDescription("ساعة الحضور وبدء الحصار (1 - 12)")
-      .setRequired(true)
-      .addChoices(...getHourChoices())
-  )
-  .addStringOption(opt =>
-    opt.setName("siege_minute")
-      .setDescription("دقيقة الحضور وبدء الحصار")
-      .setRequired(true)
-      .addChoices(
-        { name: "00 (تماماً)", value: "00" },
-        { name: "15 (ربع)", value: "15" },
-        { name: "30 (نصف)", value: "30" },
-        { name: "45 (إلا ربع)", value: "45" }
-      )
-  )
-  .addStringOption(opt =>
-    opt.setName("siege_period")
-      .setDescription("الفترة للحصار (مساءً أو صباحاً)")
-      .setRequired(true)
-      .addChoices(
-        { name: "مساءً (PM)", value: "مساءً" },
-        { name: "صباحاً (AM)", value: "صباحاً" }
-      )
-  )
-  .addIntegerOption(opt =>
-    opt.setName("teleport_number")
-      .setDescription("رقم التليبورت المتفق عليه (من 01 إلى 99)")
-      .setRequired(true)
-      .setMinValue(1)
-      .setMaxValue(99)
-  )
   .addStringOption(opt =>
     opt.setName("notes")
       .setDescription("توجيهات أو ملاحظات تكتيكية إضافية للكتيبة (اختياري)")
+      .setRequired(false)
+  )
+  .addChannelOption(opt =>
+    opt.setName("channel")
+      .setDescription("القناة المستهدفة لإرسال الإعلان (افتراضياً: روم الإعلانات)")
+      .addChannelTypes(ChannelType.GuildText)
+      .setRequired(false)
+  )
+  .addBooleanOption(opt =>
+    opt.setName("force_send")
+      .setDescription("إرسال الإعلان حتى لو لم يكن اليوم موعد سيج (افتراضياً: نعم عند التشغيل اليدوي)")
       .setRequired(false)
   );
 
@@ -96,71 +38,33 @@ export async function execute(interaction) {
   }
 
   try {
-    const targetChannel = await interaction.client.channels.fetch(TARGET_CHANNEL_ID).catch(() => null)
-      || interaction.channel;
+    const selectedChannel = interaction.options.getChannel("channel");
+    const targetChannelId = selectedChannel ? selectedChannel.id : TARGET_CHANNEL_ID;
+    const notes = interaction.options.getString("notes");
+    const forceSendOption = interaction.options.getBoolean("force_send");
+    const forceSend = forceSendOption !== null ? forceSendOption : true;
 
+    const targetChannel = await interaction.client.channels.fetch(targetChannelId).catch(() => null);
     if (!targetChannel || !targetChannel.isTextBased()) {
-      return interaction.editReply({ content: "❌ تعذر العثور على الروم المستهدف أو أن الروم ليس كتابياً." });
+      return interaction.editReply({ 
+        content: `❌ تعذر العثور على القناة المستهدفة (<#${targetChannelId}>) أو أنها ليست قناة كتابية.` 
+      });
     }
 
-    const gHour = interaction.options.getInteger("gathering_hour");
-    const gMin = interaction.options.getString("gathering_minute");
-    const gPeriod = interaction.options.getString("gathering_period");
-    const gatheringFormatted = `${String(gHour).padStart(2, "0")}:${gMin} ${gPeriod}`;
-
-    const sHour = interaction.options.getInteger("siege_hour");
-    const sMin = interaction.options.getString("siege_minute");
-    const sPeriod = interaction.options.getString("siege_period");
-    const siegeFormatted = `${String(sHour).padStart(2, "0")}:${sMin} ${sPeriod}`;
-
-    const tpNum = interaction.options.getInteger("teleport_number");
-    const tpFormatted = String(tpNum).padStart(2, "0");
-
-    const notes = interaction.options.getString("notes");
-
-    // Build the rich Embed (banner placed cleanly in the embed without standalone attachment)
-    const embed = new EmbedBuilder()
-      .setColor(0x992D22) // Royal Dark Crimson
-      .setTitle("⚔️ إعلان حصار AION 2 | نداء الحرب لكتيبة M3RGEEN ⚔️")
-      .setDescription([
-        "**تعلن قيادة تحالف معرقين عن انطلاق عمليات الحصار.**",
-        "على جميع المقاتلين الالتزام التام بالتوقيتات المحددة والتواجد في الروم الصوتي.",
-        "",
-        `📅 **اليوم:** \`اليوم\``,
-        `🌀 **توقيت التجمع والتليبورت:** \`${gatheringFormatted}\``,
-        `⚔️ **توقيت الحضور وبدء الحصار:** \`${siegeFormatted}\``,
-        `📍 **رقم التليبورت:** \`تليبورت رقم [ ${tpFormatted} ]\``,
-        "",
-        ...(notes ? [`📝 **توجيهات القيادة والتكتيك:**\n${notes}`, ""] : []),
-        "🛡️ **التعليمات والإرشادات:**",
-        "• التواجد في الروم الصوتي الخاص بالقتال قبل موعد التجمع بـ 10 دقائق.",
-        "• تجهيز كافة الجرع والأطعمة وبوفات الحرب والعتاد مسبقاً.",
-        `• الانتقال الفوري لرقم التليبورت المحدد (\`${tpFormatted}\`) وقت التجمع دون تأخير.`,
-        "",
-        "👥 **عدد الحضور المؤكدين:** `0 لاعب`"
-      ].join("\n"))
-      .setImage(SIEGE_BANNER_URL)
-      .setFooter({ text: "تحالف M3RGEEN • جيش المعرقين • اضغط علامة الصح لتأكيد حضورك" })
-      .setTimestamp();
-
-    const row = buildSiegeComponents(0);
-
-    const sendPayload = {
-      content: `<@&${M3RGEEN_ROLE_ID}>`,
-      allowedMentions: { roles: [M3RGEEN_ROLE_ID] },
-      embeds: [embed],
-      components: [row]
-    };
-
-    const sentMessage = await targetChannel.send(sendPayload);
-
-    // Add green checkmark reaction as well
-    await sentMessage.react("✅").catch(err => {
-      console.warn("[aion2_alert] Failed to add reaction:", err.message);
+    const sentMessage = await publishSiegeAnnouncement(interaction.client, {
+      channelId: targetChannelId,
+      notes,
+      forceSend
     });
 
+    if (!sentMessage) {
+      return interaction.editReply({
+        content: "⚠️ **لم يتم إرسال الإعلان لأن اليوم ليس موعد سيج حسب شوقو.**\n(إذا كنت تريد إرساله للتجربة أو مبكراً، فعّل خيار `force_send: true`)."
+      });
+    }
+
     return interaction.editReply({
-      content: `✅ **تم إرسال إعلان الحصار بنجاح في القناة:** <#${targetChannel.id}>`
+      content: `✅ **تم إرسال إعلان الحصار بنجاح في القناة:** <#${targetChannel.id}>\n🔗 [الانتقال للرسالة](${sentMessage.url})`
     });
   } catch (err) {
     console.error("[aion2_alert] Error executing command:", err);
