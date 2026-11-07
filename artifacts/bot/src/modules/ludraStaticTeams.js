@@ -19,6 +19,7 @@ import {
   TextInputStyle,
   StringSelectMenuBuilder,
   StringSelectMenuOptionBuilder,
+  UserSelectMenuBuilder,
   AttachmentBuilder,
   PermissionsBitField,
   ChannelType,
@@ -939,7 +940,8 @@ export async function handleLudraStaticInteraction(interaction) {
     action === "add" ||
     action === "remove" ||
     action === "voice_create" ||
-    action === "voice_close"
+    action === "voice_close" ||
+    action === "voice_invite"
   ) {
     const teamNumber = parseInt(param, 10) || 1;
     const team = await getCachedTeam(teamNumber);
@@ -980,7 +982,8 @@ export async function handleLudraStaticInteraction(interaction) {
           `• **✉️ إرسال للخاص:** لإرسال رسالة رسمية لخاص جميع أعضاء الفريق مباشرة.\n` +
           `• **➕ إضافة لاعب:** اختيار كلاس وإضافة لاعب جديد في مقعد شاغر.\n` +
           `• **➖ حذف لاعب:** اختيار لاعب ورفع طلب استبعاد مسبّب للإدارة للمراجعة.\n` +
-          `• **🎙️ الروم الصوتي:** إنشاء روم صوتي مخصص لأعضاء فريقك مع صلاحيات كتم الصوت.\n\n` +
+          `• **🎙️ الروم الصوتي:** إنشاء روم صوتي مخصص لأعضاء فريقك مع صلاحيات كتم الصوت.\n` +
+          `• **📥 تصريح / سحب لاعب:** لمنح أي عضو بالسيرفر إذن الدخول وسحبه فوراً لروم فريقك.\n\n` +
           (activeVoiceChannel
             ? `🔊 **الروم الصوتي الحالي:** <#${activeVoiceChannel.id}> (مفعّل ونشط)`
             : `🔇 **الروم الصوتي:** غير مفعّل حالياً (اضغط الزر بالأسفل لإنشائه).`)
@@ -1020,6 +1023,10 @@ export async function handleLudraStaticInteraction(interaction) {
             .setLabel("🔊 الدخول للروم الصوتي")
             .setStyle(ButtonStyle.Link)
             .setURL(`https://discord.com/channels/${interaction.guild.id}/${activeVoiceChannel.id}`),
+          new ButtonBuilder()
+            .setCustomId(`ludra_static:voice_invite:${teamNumber}`)
+            .setLabel("📥 تصريح / سحب لاعب")
+            .setStyle(ButtonStyle.Primary),
           new ButtonBuilder()
             .setCustomId(`ludra_static:voice_close:${teamNumber}`)
             .setLabel("❌ إغلاق الروم الصوتي")
@@ -1373,6 +1380,39 @@ export async function handleLudraStaticInteraction(interaction) {
 
       return safeEditReply(interaction, "✅ **تم إغلاق الروم الصوتي وحذفه بنجاح.**");
     }
+
+    // ── Invite / Drag Member to Voice Room (Strictly Leader Only) ──
+    if (action === "voice_invite") {
+      await interaction.deferReply({ ephemeral: true });
+
+      const isLeader = String(interaction.user.id) === String(team.leader_discord_id);
+      const isOwner = interaction.guild && String(interaction.guild.ownerId) === String(interaction.user.id);
+      if (!isLeader && !isOwner) {
+        return safeEditReply(
+          interaction,
+          `❌ عذراً، ميزة تصريح وسحب اللاعبين مخصصة لكابتن الفريق (<@${team.leader_discord_id}>) فقط.`
+        );
+      }
+
+      if (!team.voice_channel_id) {
+        return safeEditReply(interaction, "⚠️ الروم الصوتي للفريق غير مفعّل حالياً. يرجى إنشاؤه أولاً.");
+      }
+
+      const userSelect = new UserSelectMenuBuilder()
+        .setCustomId(`ludra_static:voice_user_select:${teamNumber}`)
+        .setPlaceholder("اختر اللاعب من السيرفر لمنحه الصلاحية وسحبه للروم...")
+        .setMinValues(1)
+        .setMaxValues(1);
+
+      return safeEditReply(interaction, {
+        content:
+          `📥 **تصريح وسحب لاعب لروم فريق #${teamNumber} الصوتي:**\n` +
+          `اختر العضو المطلوب من القائمة أدناه:\n` +
+          `• سيتم منح العضو فوراً صلاحية الدخول والتحدث وبث الشاشة في روم الفريق.\n` +
+          `• إذا كان العضو متواجداً في أي روم صوتي آخر بالسيرفر، سيقوم البوت بسحبه فوراً لروم فريقك!`,
+        components: [new ActionRowBuilder().addComponents(userSelect)],
+      });
+    }
   }
 
   // ── 2. Select Menu: Chosen Member to Remove -> Open Reason Modal ───────────
@@ -1428,6 +1468,109 @@ export async function handleLudraStaticInteraction(interaction) {
       new ActionRowBuilder().addComponents(discordInput)
     );
     return interaction.showModal(modal);
+  }
+
+  // ── 2c. Select Menu: Target User to Grant Access / Drag into Voice Room ─────
+  if (action === "voice_user_select" && interaction.isUserSelectMenu()) {
+    await interaction.deferReply({ ephemeral: true });
+    const teamNumber = parseInt(param, 10) || 1;
+    const team = await getCachedTeam(teamNumber);
+    if (!team) return safeEditReply(interaction, "❌ تعذر العثور على بيانات الفريق.");
+
+    const isLeader = String(interaction.user.id) === String(team.leader_discord_id);
+    const isOwner = interaction.guild && String(interaction.guild.ownerId) === String(interaction.user.id);
+    if (!isLeader && !isOwner) {
+      return safeEditReply(interaction, `❌ عذراً، هذا الإجراء مخصص لكابتن الفريق (<@${team.leader_discord_id}>) فقط.`);
+    }
+
+    if (!team.voice_channel_id) {
+      return safeEditReply(interaction, "⚠️ الروم الصوتي للفريق غير مفعّل حالياً.");
+    }
+
+    const guild = interaction.guild;
+    if (!guild) {
+      return safeEditReply(interaction, "❌ تعذر الوصول لبيانات السيرفر.");
+    }
+
+    const voiceChannel = guild.channels.cache.get(team.voice_channel_id) ||
+      await guild.channels.fetch(team.voice_channel_id).catch(() => null);
+    if (!voiceChannel) {
+      return safeEditReply(interaction, "❌ تعذر العثور على الروم الصوتي في السيرفر (قد يكون تم حذفه).");
+    }
+
+    const targetUserId = interaction.values[0];
+    const targetMember = await guild.members.fetch(targetUserId).catch(() => null);
+    if (!targetMember) {
+      return safeEditReply(interaction, "❌ تعذر العثور على هذا العضو في السيرفر.");
+    }
+
+    if (targetMember.user.bot) {
+      return safeEditReply(interaction, "⚠️ لا يمكن سحب أو تصريح البوتات في الروم الصوتي.");
+    }
+
+    // 1. Grant full permission overwrites for the target member
+    try {
+      await voiceChannel.permissionOverwrites.edit(targetUserId, {
+        ViewChannel: true,
+        Connect: true,
+        Speak: true,
+        Stream: true,
+        UseVAD: true,
+        SendMessages: true,
+        UseSoundboard: true,
+        UseExternalSounds: true,
+        UseEmbeddedActivities: true,
+      }, { reason: `Voice access granted by team #${teamNumber} leader ${interaction.user.tag}` });
+    } catch (permErr) {
+      console.error("[LudraVoice] Failed to edit permissions:", permErr);
+      return safeEditReply(interaction, `❌ فشل منح الصلاحية للاعب: ${permErr.message}`);
+    }
+
+    // 2. Pull / Drag the member if they are currently in a voice channel
+    let moved = false;
+    if (targetMember.voice?.channelId) {
+      if (targetMember.voice.channelId === voiceChannel.id) {
+        return safeEditReply(
+          interaction,
+          `✅ اللاعب <@${targetUserId}> متواجد بالفعل داخل روم فريقك الصوتي، وتم التأكيد على صلاحياته بالكامل!`
+        );
+      }
+      try {
+        await targetMember.voice.setChannel(
+          voiceChannel,
+          `Pulled into team #${teamNumber} room by leader ${interaction.user.tag}`
+        );
+        moved = true;
+      } catch (moveErr) {
+        console.error("[LudraVoice] Failed to move member:", moveErr);
+      }
+    }
+
+    // Send target member a DM notification if not moved
+    if (!moved) {
+      targetMember.send({
+        content:
+          `🎙️ أهلاً بك! قام قائد الفريق <@${interaction.user.id}> بمنحك صلاحية الدخول لروم الفريق الصوتي في سيرفر **${guild.name}**:\n` +
+          `👉 <#${voiceChannel.id}>\n` +
+          `يمكنك الانضمام مباشرة الآن بالضغط على الرابط أعلاه!`,
+      }).catch(() => {});
+    }
+
+    if (moved) {
+      return safeEditReply(
+        interaction,
+        `🎯 **تم بنجاح!**\n` +
+        `• تم فتح الصلاحيات بالكامل للاعب <@${targetUserId}>.\n` +
+        `• تم سحب اللاعب فوراً ونقله إلى روم فريقك الصوتي: <#${voiceChannel.id}>.`
+      );
+    } else {
+      return safeEditReply(
+        interaction,
+        `✅ **تم منح الصلاحيات بنجاح!**\n` +
+        `• تم فتح إذن الدخول والتحدث وبث الشاشة للاعب <@${targetUserId}> في روم فريقك الصوتي: <#${voiceChannel.id}>.\n` +
+        `ℹ️ *ملاحظة:* اللاعب ليس متصلاً بأي روم صوتي في السيرفر حالياً ليتم سحبه تلقائياً، ولكن يمكنه الدخول للروم بنفسه في أي وقت (تم إرسال إشعار له في الخاص).`
+      );
+    }
   }
 
   // ── 3. Modal Submit: Removal Reason -> Submit to Admin Log ──────────────────
