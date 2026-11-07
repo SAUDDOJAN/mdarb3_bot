@@ -1295,13 +1295,52 @@ export async function handleLudraStaticInteraction(interaction) {
       // Start initial 5-minute empty timer (if nobody joins within 5 minutes of creation, it will auto-delete)
       scheduleVoiceAutoDelete(voiceChannel.id, teamNumber, interaction.client, 5 * 60 * 1000);
 
+      // Mention team members so they notice the new voice room immediately
+      const validMentions = members.filter(m => m.discord_id).map(m => `<@${m.discord_id}>`);
+      if (validMentions.length > 0) {
+        try {
+          const alertChannel = interaction.channel ||
+            interaction.guild.channels.cache.get(STATIC_TEAMS_CHANNEL_ID) ||
+            await interaction.guild.channels.fetch(STATIC_TEAMS_CHANNEL_ID).catch(() => null);
+
+          if (alertChannel && alertChannel.isTextBased()) {
+            const joinRow = new ActionRowBuilder().addComponents(
+              new ButtonBuilder()
+                .setLabel("🔊 الانضمام للروم الصوتي الآن")
+                .setStyle(ButtonStyle.Link)
+                .setURL(`https://discord.com/channels/${guild.id}/${voiceChannel.id}`)
+            );
+
+            const voiceAlertMsg = await alertChannel.send({
+              content:
+                `🎙️ **نداء تجمع صوتي — فريق Ludra الثابت #${team.team_number} (${team.team_name})!**\n` +
+                `قام قائد الفريق <@${interaction.user.id}> بإنشاء الروم الصوتي الخاص بالريد: <#${voiceChannel.id}>\n\n` +
+                validMentions.join(" ") +
+                `\n\n*(يرجى من جميع أعضاء الفريق التواجد بالروم الصوتي فوراً • سيتم حذف هذا التنبيه تلقائياً بعد 10 دقائق)*`,
+              components: [joinRow],
+              allowedMentions: {
+                users: members.filter(m => m.discord_id).map(m => m.discord_id),
+              },
+            });
+
+            // Automatically clean up mention message after 10 minutes
+            setTimeout(() => {
+              voiceAlertMsg.delete().catch(() => {});
+            }, 10 * 60 * 1000);
+          }
+        } catch (pingErr) {
+          console.error("[LudraVoice] Failed to send team voice mention:", pingErr);
+        }
+      }
+
       const registeredCount = members.filter(m => m.discord_id).length;
       return safeEditReply(
         interaction,
-        `✅ **تم إنشاء الروم الصوتي بنجاح!**\n\n` +
+        `✅ **تم إنشاء الروم الصوتي بنجاح وتنبيه الفريق!**\n\n` +
         `• **الروم الصوتي:** <#${voiceChannel.id}>\n` +
         `• **الكاتوقري:** <#${STATIC_VOICE_CATEGORY_ID}>\n` +
         `• **السعة:** 10 لاعبين بالضبط (مخصص لأعضاء فريقك المسجلين - ${registeredCount} لاعب مصرح لهم)\n` +
+        `• **المنشن:** تم إرسال تنبيه ومنشن لجميع أعضاء الفريق للانضمام للروم الصوتي.\n` +
         `• **صلاحيات القائد:** ميزة كتم الصوت (Server Mute/Deafen) ونقل الأعضاء والأولوية الصوتية مفعلة لك.\n` +
         `• **الحذف التلقائي:** سيتم حذف الروم تلقائياً بعد خروج جميع اللاعبين بـ 5 دقائق.\n\n` +
         `🎙️ يمكنك الانضمام للروم الآن ومباشرة الريد!`
