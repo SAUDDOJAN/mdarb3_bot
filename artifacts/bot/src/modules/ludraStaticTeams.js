@@ -699,12 +699,20 @@ export async function buildTeamEmbedAndComponents(teamNumber) {
     embedColor = 0xe67e22;
   }
 
+  const leaderDisplay =
+    team.leader_discord_id &&
+    team.leader_discord_id !== "0" &&
+    team.leader_name &&
+    team.leader_name !== "شاغر"
+      ? `<@${team.leader_discord_id}> (\`${team.leader_name}\`)`
+      : `▫️ *شاغر (قيد التحديد)*`;
+
   const embed = new EmbedBuilder()
     .setColor(embedColor)
     .setTitle(`🛡️ ${team.team_name} — Ludra Raid`)
     .setDescription(
       `⚔️ **تحالف M3RGEEN • منظومة الفرق الثابتة**\n\n` +
-      `👑 **قائد الفريق:** <@${team.leader_discord_id}> (\`${team.leader_name}\`)\n` +
+      `👑 **قائد الفريق:** ${leaderDisplay}\n` +
       `📊 **حالة الفريق:** ${isFull ? "مكتمل" : "غير مكتمل"} \`${count} / 10\` لاعبين\n` +
       `━━━━━━━━━━━━━━━━━━━━━━━━━`
     )
@@ -790,7 +798,13 @@ export async function deployOrUpdateTeamEmbed(client, teamNumber) {
 function isAuthorizedForTeam(interaction, team) {
   if (!team) return false;
   // Team Leader
-  if (String(interaction.user.id) === String(team.leader_discord_id)) return true;
+  if (
+    team.leader_discord_id &&
+    team.leader_discord_id !== "0" &&
+    String(interaction.user.id) === String(team.leader_discord_id)
+  ) {
+    return true;
+  }
   // Server Owner (Full authority)
   if (interaction.guild && String(interaction.guild.ownerId) === String(interaction.user.id)) return true;
   // Administrator / ManageGuild / ManageRoles / ManageChannels
