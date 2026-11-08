@@ -225,6 +225,70 @@ export function buildDispatchCard(request) {
 }
 
 /**
+ * Queries registered players matching the needed classes and builds mention strings
+ * grouped by class, excluding members of the requesting team and the leader.
+ */
+export async function buildClassMentions(neededClasses, teamNumber, leaderId) {
+  if (!neededClasses || neededClasses.length === 0) return "";
+
+  try {
+    const teamMembersRes = await query(
+      `SELECT discord_id FROM ludra_static_team_members WHERE team_number = $1 AND discord_id IS NOT NULL`,
+      [teamNumber]
+    );
+    const excludeIds = new Set(teamMembersRes.rows.map(r => String(r.discord_id)));
+    if (leaderId) excludeIds.add(String(leaderId));
+
+    const allRes = await query(`
+      SELECT DISTINCT discord_id, class_name FROM (
+        SELECT discord_id, class_name FROM ludra_raid_registrations WHERE discord_id IS NOT NULL
+        UNION
+        SELECT discord_id, class_name FROM ludra_external_profiles WHERE discord_id IS NOT NULL
+        UNION
+        SELECT discord_id, class_name FROM ludra_static_team_members WHERE discord_id IS NOT NULL
+      ) as t
+    `);
+
+    const mentionsByClass = {};
+    for (const row of allRes.rows) {
+      if (!row.discord_id || excludeIds.has(String(row.discord_id))) continue;
+      const clsNorm = normalizeClassName(row.class_name || "");
+
+      for (const target of neededClasses) {
+        const targetNorm = normalizeClassName(target);
+        if (clsNorm.toLowerCase() === targetNorm.toLowerCase()) {
+          if (!mentionsByClass[targetNorm]) mentionsByClass[targetNorm] = [];
+          if (!mentionsByClass[targetNorm].includes(row.discord_id)) {
+            mentionsByClass[targetNorm].push(row.discord_id);
+          }
+        }
+      }
+    }
+
+    const mentionLines = [];
+    let totalMentions = 0;
+    for (const cls of neededClasses) {
+      const targetNorm = normalizeClassName(cls);
+      const ids = mentionsByClass[targetNorm] || [];
+      if (ids.length > 0) {
+        const emoji = CLASS_EMOJIS[targetNorm] || "⚔️";
+        // Limit mentions per class to 25 to avoid message length overflow
+        const sliced = ids.slice(0, 25);
+        totalMentions += sliced.length;
+        mentionLines.push(`• ${emoji} **${targetNorm}:** ${sliced.map(id => `<@${id}>`).join(" ")}`);
+      }
+    }
+
+    if (mentionLines.length === 0) return "";
+
+    return `\n\n🔔 **نداء لأبطال الكلاسات المطلوبة (${totalMentions} لاعب متاح):**\n${mentionLines.join("\n")}`;
+  } catch (err) {
+    console.error("[LudraSupport] Error generating class mentions:", err);
+    return "";
+  }
+}
+
+/**
  * Main Interaction Handler for Support System
  */
 export async function handleLudraSupportInteraction(interaction) {
@@ -331,7 +395,25 @@ export async function handleLudraSupportInteraction(interaction) {
       return interaction.editReply("❌ تعذر العثور على بيانات هذا الفريق.");
     }
 
-    // Cancel any older OPEN request for this team to keep board clean
+    // Fetch dispatch channel first
+    const dispatchChannel = await interaction.guild.channels.fetch(LUDRA_DISPATCH_CHANNEL_ID).catch(() => null);
+    if (!dispatchChannel || !dispatchChannel.isTextBased()) {
+      return interaction.editReply(`❌ تعذر الوصول لروم الطلبات <#${LUDRA_DISPATCH_CHANNEL_ID}>.`);
+    }
+
+    // Cancel any older OPEN request for this team and clean up old card message
+    const oldOpen = await query(
+      `SELECT id, message_id FROM ludra_support_requests WHERE team_number = $1 AND status = 'OPEN'`,
+      [teamNumber]
+    );
+    for (const oldReq of oldOpen.rows) {
+      if (oldReq.message_id) {
+        try {
+          const oldMsg = await dispatchChannel.messages.fetch(oldReq.message_id).catch(() => null);
+          if (oldMsg) await oldMsg.delete().catch(() => {});
+        } catch (_) {}
+      }
+    }
     await query(`UPDATE ludra_support_requests SET status = 'CANCELLED', updated_at = NOW() WHERE team_number = $1 AND status = 'OPEN'`, [teamNumber]);
 
     // Insert new request
@@ -352,15 +434,20 @@ export async function handleLudraSupportInteraction(interaction) {
 
     const newRequest = insertRes.rows[0];
 
-    // Post to Dispatch Channel 1568407430050611311
-    const dispatchChannel = await interaction.guild.channels.fetch(LUDRA_DISPATCH_CHANNEL_ID).catch(() => null);
-    if (!dispatchChannel || !dispatchChannel.isTextBased()) {
-      return interaction.editReply(`❌ تعذر الوصول لروم الطلبات <#${LUDRA_DISPATCH_CHANNEL_ID}>.`);
+    // Build smart mentions for registered players of needed classes
+    const mentionsText = await buildClassMentions(classesList, teamNumber, interaction.user.id);
+    let messageContent =
+      `📢 **نداء فزعة جديد لـ ${team.team_name || `فريق Ludra #${teamNumber}`}!**\n` +
+      `• **الكلاسات المطلوبة:** ${classesList.map(c => `**${normalizeClassName(c)}**`).join("، ")}` +
+      mentionsText;
+
+    if (messageContent.length > 1950) {
+      messageContent = messageContent.slice(0, 1900) + "...";
     }
 
     const { embed, components } = buildDispatchCard(newRequest);
     const sentMsg = await dispatchChannel.send({
-      content: `📢 **نداء فزعة جديد لفريق Ludra #${teamNumber}!** بانتظار متطوعين للكلاسات: ${classesList.map(c => `**${c}**`).join("، ")}`,
+      content: messageContent,
       embeds: [embed],
       components,
     });
