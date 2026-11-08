@@ -608,6 +608,12 @@ export async function seedTeam8IfMissing() {
 
 export function getVacantSlotLabel(teamNumber, slot) {
   const num = parseInt(teamNumber, 10);
+  if (num === 7) {
+    if (slot === 1 || slot === 6 || slot === 8) return "Healer";
+    if (slot === 2 || slot === 7) return "Tank";
+    if (slot === 3) return "Chanter";
+    return "DPS";
+  }
   if (num >= 3 && num <= 8) {
     if (slot === 1 || slot === 6) return "Healer";
     if (slot === 2 || slot === 7) return "Tank";
