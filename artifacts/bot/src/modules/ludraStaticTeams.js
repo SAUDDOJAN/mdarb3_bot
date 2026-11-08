@@ -972,6 +972,10 @@ export async function handleLudraStaticInteraction(interaction) {
         }
       }
 
+      // Check team weekly clear status
+      const { isTeamWeeklyCleared } = await import("./ludraSupportSystem.js");
+      const isTeamCleared = await isTeamWeeklyCleared(teamNumber);
+
       const panelEmbed = new EmbedBuilder()
         .setColor(0x3498db)
         .setTitle(`🎛️ لوحة إدارة ${team.team_name}`)
@@ -984,7 +988,11 @@ export async function handleLudraStaticInteraction(interaction) {
           `• **➖ حذف لاعب:** اختيار لاعب ورفع طلب استبعاد مسبّب للإدارة للمراجعة.\n` +
           `• **🎙️ الروم الصوتي:** إنشاء روم صوتي مخصص لأعضاء فريقك مع صلاحيات كتم الصوت.\n` +
           `• **📥 تصريح / سحب لاعب:** لمنح أي عضو بالسيرفر إذن الدخول وسحبه فوراً لروم فريقك.\n` +
-          `• **🚨 طلب دعم وفزعة:** إرسال نداء في روم الطلبات لتعويض الكلاسات الناقصة من الفرق الأخرى.\n\n` +
+          `• **🚨 طلب دعم وفزعة:** إرسال نداء في روم الطلبات لتعويض الكلاسات الناقصة من الفرق الأخرى.\n` +
+          `• **🏁 إنهاء ريد الأسبوع:** تسجيل إنهاء الريد وإعفاء كامل الفريق من إشعارات ومنشنات الفزعة.\n\n` +
+          (isTeamCleared
+            ? `🏆 **حالة رن الأسبوع:** 🟢 تم إنهاء الريد بنجاح (أعضاء الفريق معفيين من المنشنات)\n`
+            : `⏳ **حالة رن الأسبوع:** ⚪ قيد الانتظار (لم يتم تسجيل إنهاء الريد بعد)\n`) +
           (activeVoiceChannel
             ? `🔊 **الروم الصوتي الحالي:** <#${activeVoiceChannel.id}> (مفعّل ونشط)`
             : `🔇 **الروم الصوتي:** غير مفعّل حالياً (اضغط الزر بالأسفل لإنشائه).`)
@@ -1043,9 +1051,17 @@ export async function handleLudraStaticInteraction(interaction) {
         );
       }
 
+      const panelRow3 = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId(`ludra_static:finish_raid:${teamNumber}`)
+          .setLabel(isTeamCleared ? "🏁 إلغاء تسجيل إنهاء الريد" : "🏁 تسجيل إنهاء الريد للأسبوع")
+          .setStyle(isTeamCleared ? ButtonStyle.Secondary : ButtonStyle.Success)
+          .setEmoji(isTeamCleared ? "🔄" : "🏆")
+      );
+
       return safeEditReply(interaction, {
         embeds: [panelEmbed],
-        components: [panelRow1, panelRow2],
+        components: [panelRow1, panelRow2, panelRow3],
       });
     }
 
@@ -1421,6 +1437,49 @@ export async function handleLudraStaticInteraction(interaction) {
           `• إذا كان العضو متواجداً في أي روم صوتي آخر بالسيرفر، سيقوم البوت بسحبه فوراً لروم فريقك!`,
         components: [new ActionRowBuilder().addComponents(userSelect)],
       });
+    }
+
+    // ── Finish Weekly Raid for Team (Strictly Leader Only) ──
+    if (action === "finish_raid") {
+      await interaction.deferReply({ ephemeral: true });
+
+      const isLeader = String(interaction.user.id) === String(team.leader_discord_id);
+      const isOwner = interaction.guild && String(interaction.guild.ownerId) === String(interaction.user.id);
+      if (!isLeader && !isOwner) {
+        return safeEditReply(
+          interaction,
+          `❌ عذراً، تسجيل إنهاء الريد مخصص لكابتن الفريق (<@${team.leader_discord_id}>) فقط.`
+        );
+      }
+
+      const {
+        getCurrentRaidWeekKey,
+        isTeamWeeklyCleared,
+        markTeamWeeklyCleared,
+        unmarkTeamWeeklyCleared
+      } = await import("./ludraSupportSystem.js");
+
+      const weekKey = getCurrentRaidWeekKey();
+      const isCleared = await isTeamWeeklyCleared(teamNumber, weekKey);
+
+      if (isCleared) {
+        await unmarkTeamWeeklyCleared(teamNumber, weekKey);
+        return safeEditReply(
+          interaction,
+          `🔄 **تم إلغاء تسجيل إنهاء الريد لفريق #${teamNumber}!**\n\n` +
+          `• أصبح أعضاء فريقك متاحين مجدداً لتلقي إشعارات ومنشنات الفزعة للكلاسات الناقصة في الفرق الأخرى.`
+        );
+      } else {
+        const count = await markTeamWeeklyCleared(teamNumber, weekKey);
+        return safeEditReply(
+          interaction,
+          `🏆 **كفو يا كابتن! تم تسجيل إنهاء ريد لودرا لهذا الأسبوع بنجاح!**\n\n` +
+          `• **الفريق:** ${team.team_name}\n` +
+          `• **اللاعبون المسجلون:** تم تسجيل ${count} لاعباً من فريقك كـ (منتهين من رن الأسبوع).\n` +
+          `• **الإعفاء الذكي:** تم إيقاف جميع إشعارات ومنشنات الفزعة عن أعضاء فريقك طوال باقي الأسبوع حتى موعد التصفير القادم (الأربعاء 9:00 ص بتوقيت السعودية).\n\n` +
+          `*(يمكنك إلغاء التسجيل في أي وقت من نفس الزر إذا أردتم إعادة تفعيل التنبيهات).*`
+        );
+      }
     }
   }
 

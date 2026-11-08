@@ -50,6 +50,19 @@ export async function initLudraSupportDB() {
           updated_at TIMESTAMPTZ DEFAULT NOW()
         );
         CREATE INDEX IF NOT EXISTS idx_ludra_support_status ON ludra_support_requests (status);
+
+        CREATE TABLE IF NOT EXISTS ludra_weekly_clears (
+          discord_id TEXT NOT NULL,
+          character_name TEXT,
+          class_name TEXT,
+          cleared_week TEXT NOT NULL,
+          source TEXT NOT NULL,
+          team_number INT,
+          cleared_at TIMESTAMPTZ DEFAULT NOW(),
+          PRIMARY KEY (discord_id, cleared_week)
+        );
+        CREATE INDEX IF NOT EXISTS idx_ludra_clears_week ON ludra_weekly_clears (cleared_week);
+        CREATE INDEX IF NOT EXISTS idx_ludra_clears_team ON ludra_weekly_clears (team_number, cleared_week);
       `);
       dbInitialized = true;
     } catch (err) {
@@ -66,6 +79,102 @@ export async function initLudraSupportDB() {
 
 // Auto init on import
 initLudraSupportDB();
+
+/**
+ * Calculates current Raid Week Key based on weekly reset on Wednesday 06:00 UTC (09:00 KSA).
+ * Returns string format: 'W_YYYY_MM_DD' where YYYY_MM_DD is the Wednesday start of the cycle.
+ */
+export function getCurrentRaidWeekKey(now = new Date()) {
+  const RESET_DAY = 3; // Wednesday (0 is Sunday, 1 is Monday, ..., 3 is Wednesday)
+  const RESET_HOUR_UTC = 6; // 06:00 UTC
+
+  const d = new Date(Date.UTC(
+    now.getUTCFullYear(),
+    now.getUTCMonth(),
+    now.getUTCDate(),
+    now.getUTCHours(),
+    now.getUTCMinutes(),
+    now.getUTCSeconds()
+  ));
+
+  const day = d.getUTCDay();
+  const diffDays = (day - RESET_DAY + 7) % 7;
+
+  const startWednesday = new Date(d);
+  startWednesday.setUTCDate(d.getUTCDate() - diffDays);
+  startWednesday.setUTCHours(RESET_HOUR_UTC, 0, 0, 0);
+
+  if (d < startWednesday) {
+    startWednesday.setUTCDate(startWednesday.getUTCDate() - 7);
+  }
+
+  const year = startWednesday.getUTCFullYear();
+  const month = String(startWednesday.getUTCMonth() + 1).padStart(2, "0");
+  const date = String(startWednesday.getUTCDate()).padStart(2, "0");
+
+  return `W_${year}_${month}_${date}`;
+}
+
+export async function isPlayerWeeklyCleared(discordId, weekKey = getCurrentRaidWeekKey()) {
+  await initLudraSupportDB();
+  const res = await query(
+    `SELECT discord_id, character_name, class_name, source, cleared_at FROM ludra_weekly_clears WHERE discord_id = $1 AND cleared_week = $2 LIMIT 1`,
+    [discordId, weekKey]
+  );
+  return res.rows[0] || null;
+}
+
+export async function markPlayerWeeklyCleared(discordId, source = "SELF_TOGGLE", charName = null, className = null, teamNumber = null, weekKey = getCurrentRaidWeekKey()) {
+  await initLudraSupportDB();
+  await query(
+    `INSERT INTO ludra_weekly_clears (discord_id, character_name, class_name, cleared_week, source, team_number, cleared_at)
+     VALUES ($1, $2, $3, $4, $5, $6, NOW())
+     ON CONFLICT (discord_id, cleared_week) DO UPDATE SET
+       source = EXCLUDED.source,
+       character_name = COALESCE(EXCLUDED.character_name, ludra_weekly_clears.character_name),
+       class_name = COALESCE(EXCLUDED.class_name, ludra_weekly_clears.class_name),
+       team_number = COALESCE(EXCLUDED.team_number, ludra_weekly_clears.team_number),
+       cleared_at = NOW()`,
+    [discordId, charName, className, weekKey, source, teamNumber]
+  );
+}
+
+export async function unmarkPlayerWeeklyCleared(discordId, weekKey = getCurrentRaidWeekKey()) {
+  await initLudraSupportDB();
+  await query(
+    `DELETE FROM ludra_weekly_clears WHERE discord_id = $1 AND cleared_week = $2`,
+    [discordId, weekKey]
+  );
+}
+
+export async function markTeamWeeklyCleared(teamNumber, weekKey = getCurrentRaidWeekKey()) {
+  await initLudraSupportDB();
+  const membersRes = await query(
+    `SELECT discord_id, character_name, class_name FROM ludra_static_team_members WHERE team_number = $1 AND discord_id IS NOT NULL`,
+    [teamNumber]
+  );
+  for (const m of membersRes.rows) {
+    await markPlayerWeeklyCleared(m.discord_id, "LEADER_TEAM_CLEAR", m.character_name, m.class_name, teamNumber, weekKey);
+  }
+  return membersRes.rows.length;
+}
+
+export async function unmarkTeamWeeklyCleared(teamNumber, weekKey = getCurrentRaidWeekKey()) {
+  await initLudraSupportDB();
+  await query(
+    `DELETE FROM ludra_weekly_clears WHERE team_number = $1 AND cleared_week = $2`,
+    [teamNumber, weekKey]
+  );
+}
+
+export async function isTeamWeeklyCleared(teamNumber, weekKey = getCurrentRaidWeekKey()) {
+  await initLudraSupportDB();
+  const res = await query(
+    `SELECT count(*) FROM ludra_weekly_clears WHERE team_number = $1 AND cleared_week = $2`,
+    [teamNumber, weekKey]
+  );
+  return parseInt(res.rows[0].count, 10) > 0;
+}
 
 /**
  * Returns emoji identifier for button (e.g. { id: '...' } or string)
@@ -95,12 +204,10 @@ export async function deployLudraSupportPanel(client) {
       .setColor(0xe67e22)
       .setTitle("🚨 لوحة طلب الدعم والفزعة — تحالف M3RGEEN 🪽")
       .setDescription(
-        `أهلاً بكم يا قادة الفرق في **نظام طلب الدعم والتعزيز لريدات لودرا**!\n\n` +
-        `إذا كان فريقك الثابت يواجه نقصاً في أحد الكلاسات أو غياباً للاعبين، يمكنك الآن طلب فزعة فورية من الفرق الأخرى:\n\n` +
-        `• **👑 خاص بالقادة:** اضغط الزر أدناه لاختيار الكلاسات الناقصة في فريقك.\n` +
-        `• **📢 نشر فوري:** سيتم إرسال نداء الدعم فوراً في <#${LUDRA_DISPATCH_CHANNEL_ID}>.\n` +
-        `• **⚡ ربط وسحب تلقائي:** عند تطوع أي لاعب مسجل، يُمنح صلاحية روم فريقك الصوتي ويُسحب إليه فوراً!\n\n` +
-        `*(اضغط على الزر بالأسفل لتقديم طلب دعم لفريقك)*`
+        `أهلاً بكم يا أبطال وقادة الفرق في **نظام طلب الدعم والتعزيز لريدات لودرا**!\n\n` +
+        `• **👑 لقادة الفرق:** اضغط زر **\`طلب فزعة / دعم كلاسات\`** لتحديد الكلاسات الناقصة، وسيقوم البوت بمنشن اللاعبين المتاحين فوراً وسحب المتطوعين لروم فريقك الصوتي.\n` +
+        `• **🛡️ لجميع اللاعبين:** اضغط زر **\`حالتي: أنهيت اللودرا / متاح\`** لتسجيل إنهاء ريدك الأسبوعي وإيقاف الإشعارات والمنشنات عنك حتى موعد التصفير القادم.\n\n` +
+        `*(اضغط أحد الأزرار بالأسفل لتنفيذ الإجراء المطلوب)*`
       )
       .setFooter({ text: "تحالف M3RGEEN • منظومة الفزعة المؤتمتة لريدات Ludra" })
       .setTimestamp();
@@ -110,7 +217,12 @@ export async function deployLudraSupportPanel(client) {
         .setCustomId("ludra_support:start_request")
         .setLabel("📢 طلب فزعة / دعم كلاسات")
         .setStyle(ButtonStyle.Primary)
-        .setEmoji("🚨")
+        .setEmoji("🚨"),
+      new ButtonBuilder()
+        .setCustomId("ludra_support:toggle_my_clear")
+        .setLabel("🛑 حالتي: أنهيت اللودرا / متاح للفزعة")
+        .setStyle(ButtonStyle.Secondary)
+        .setEmoji("🛡️")
     );
 
     // Look for existing bot message in the channel
@@ -239,6 +351,16 @@ export async function buildClassMentions(neededClasses, teamNumber, leaderId) {
     const excludeIds = new Set(teamMembersRes.rows.map(r => String(r.discord_id)));
     if (leaderId) excludeIds.add(String(leaderId));
 
+    // Exclude players who have completed Ludra this week
+    const weekKey = getCurrentRaidWeekKey();
+    const clearsRes = await query(
+      `SELECT discord_id FROM ludra_weekly_clears WHERE cleared_week = $1`,
+      [weekKey]
+    );
+    for (const c of clearsRes.rows) {
+      if (c.discord_id) excludeIds.add(String(c.discord_id));
+    }
+
     const allRes = await query(`
       SELECT DISTINCT discord_id, class_name FROM (
         SELECT discord_id, class_name FROM ludra_raid_registrations WHERE discord_id IS NOT NULL
@@ -281,7 +403,9 @@ export async function buildClassMentions(neededClasses, teamNumber, leaderId) {
 
     if (mentionLines.length === 0) return "";
 
-    return `\n\n🔔 **نداء لأبطال الكلاسات المطلوبة (${totalMentions} لاعب متاح):**\n${mentionLines.join("\n")}`;
+    const excludedClearedCount = clearsRes.rows.length;
+    const noteText = excludedClearedCount > 0 ? ` *(تم استثناء ${excludedClearedCount} لاعباً مسجلين كمنتهين هذا الأسبوع)*` : "";
+    return `\n\n🔔 **نداء لأبطال الكلاسات المطلوبة (${totalMentions} لاعب متاح)${noteText}:**\n${mentionLines.join("\n")}`;
   } catch (err) {
     console.error("[LudraSupport] Error generating class mentions:", err);
     return "";
@@ -298,6 +422,55 @@ export async function handleLudraSupportInteraction(interaction) {
   const param1 = parts[2];
   const param2 = parts[3];
   const param3 = parts[4];
+
+  // ── 0. Toggle My Weekly Clearance Status (Self-Service) ──
+  if (action === "toggle_my_clear") {
+    await interaction.deferReply({ ephemeral: true });
+
+    const weekKey = getCurrentRaidWeekKey();
+    const existingClear = await isPlayerWeeklyCleared(interaction.user.id, weekKey);
+
+    if (existingClear) {
+      // Toggle OFF: Player wants to receive mentions again
+      await unmarkPlayerWeeklyCleared(interaction.user.id, weekKey);
+      return interaction.editReply({
+        content:
+          `🔔 **تم تفعيل استقبال إشعارات الفزعة بنجاح!**\n\n` +
+          `• **الحالة الحالية:** 🟢 **متاح للفزعة واستقبال المنشنات**\n` +
+          `• إذا احتاج أي فريق لدعم في كلاسك، سيصلك تنبيه فوري في روم الطلبات.\n\n` +
+          `*(إذا أنهيت لودرا وأردت إيقاف الإشعارات مجدداً، يمكنك الضغط على نفس الزر في أي وقت).*`,
+      });
+    } else {
+      // Toggle ON: Player completed Ludra this week
+      const regRes = await query(`
+        SELECT character_name, class_name FROM (
+          SELECT character_name, class_name FROM ludra_raid_registrations WHERE discord_id = $1
+          UNION
+          SELECT character_name, class_name FROM ludra_external_profiles WHERE discord_id = $1
+          UNION
+          SELECT character_name, class_name FROM ludra_static_team_members WHERE discord_id = $1
+        ) as t LIMIT 1
+      `, [interaction.user.id]);
+      const pInfo = regRes.rows[0] || {};
+
+      await markPlayerWeeklyCleared(
+        interaction.user.id,
+        "SELF_TOGGLE",
+        pInfo.character_name || interaction.user.username,
+        pInfo.class_name || null,
+        null,
+        weekKey
+      );
+
+      return interaction.editReply({
+        content:
+          `✅ **تم تسجيلك بنجاح: أنهيت لودرا لهذا الأسبوع!**\n\n` +
+          `• **الحالة الحالية:** 🔴 **مكتمل للأسبوع** (تم إيقاف المنشنات والإشعارات)\n` +
+          `• لن يصلك أي تنبيه أو منشن لطلبات الفزعة طوال باقي الأسبوع حتى موعد التصفير القادم (الأربعاء 9:00 ص بتوقيت السعودية).\n\n` +
+          `*(إذا رغبت بالعودة للمساعدة بشخصية ثانية أو مع أصدقائك، اضغط نفس الزر مجدداً).*`,
+      });
+    }
+  }
 
   // ── 1. Start Request: Triggered from Panel or Leader Panel ──
   if (action === "start_request") {
@@ -603,6 +776,21 @@ export async function handleLudraSupportInteraction(interaction) {
         }).catch(() => {});
       }
     } catch (_) {}
+
+    // Mark volunteer player as weekly cleared
+    try {
+      const weekKey = getCurrentRaidWeekKey();
+      await markPlayerWeeklyCleared(
+        interaction.user.id,
+        "VOLUNTEER_SUCCESS",
+        player.character_name,
+        targetClass,
+        request.team_number,
+        weekKey
+      );
+    } catch (clearErr) {
+      console.error("[LudraSupport] Error marking volunteer as cleared:", clearErr);
+    }
 
     return interaction.editReply(
       `🎯 **كفو يا بطل! تم قبول فزعتك كـ (${targetClass}) لفريق #${request.team_number} بنجاح!**\n\n` +
