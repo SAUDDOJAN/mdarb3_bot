@@ -983,7 +983,8 @@ export async function handleLudraStaticInteraction(interaction) {
           `• **➕ إضافة لاعب:** اختيار كلاس وإضافة لاعب جديد في مقعد شاغر.\n` +
           `• **➖ حذف لاعب:** اختيار لاعب ورفع طلب استبعاد مسبّب للإدارة للمراجعة.\n` +
           `• **🎙️ الروم الصوتي:** إنشاء روم صوتي مخصص لأعضاء فريقك مع صلاحيات كتم الصوت.\n` +
-          `• **📥 تصريح / سحب لاعب:** لمنح أي عضو بالسيرفر إذن الدخول وسحبه فوراً لروم فريقك.\n\n` +
+          `• **📥 تصريح / سحب لاعب:** لمنح أي عضو بالسيرفر إذن الدخول وسحبه فوراً لروم فريقك.\n` +
+          `• **🚨 طلب دعم وفزعة:** إرسال نداء في روم الطلبات لتعويض الكلاسات الناقصة من الفرق الأخرى.\n\n` +
           (activeVoiceChannel
             ? `🔊 **الروم الصوتي الحالي:** <#${activeVoiceChannel.id}> (مفعّل ونشط)`
             : `🔇 **الروم الصوتي:** غير مفعّل حالياً (اضغط الزر بالأسفل لإنشائه).`)
@@ -1014,22 +1015,30 @@ export async function handleLudraStaticInteraction(interaction) {
         panelRow2.addComponents(
           new ButtonBuilder()
             .setCustomId(`ludra_static:voice_create:${teamNumber}`)
-            .setLabel("🎙️ إنشاء روم صوتي للفريق")
-            .setStyle(ButtonStyle.Success)
+            .setLabel("🎙️ إنشاء روم صوتي")
+            .setStyle(ButtonStyle.Success),
+          new ButtonBuilder()
+            .setCustomId(`ludra_support:start_request:${teamNumber}`)
+            .setLabel("🚨 طلب دعم من الفرق")
+            .setStyle(ButtonStyle.Primary)
         );
       } else {
         panelRow2.addComponents(
           new ButtonBuilder()
-            .setLabel("🔊 الدخول للروم الصوتي")
+            .setLabel("🔊 الدخول للروم")
             .setStyle(ButtonStyle.Link)
             .setURL(`https://discord.com/channels/${interaction.guild.id}/${activeVoiceChannel.id}`),
           new ButtonBuilder()
             .setCustomId(`ludra_static:voice_invite:${teamNumber}`)
-            .setLabel("📥 تصريح / سحب لاعب")
+            .setLabel("📥 سحب لاعب")
+            .setStyle(ButtonStyle.Secondary),
+          new ButtonBuilder()
+            .setCustomId(`ludra_support:start_request:${teamNumber}`)
+            .setLabel("🚨 طلب دعم")
             .setStyle(ButtonStyle.Primary),
           new ButtonBuilder()
             .setCustomId(`ludra_static:voice_close:${teamNumber}`)
-            .setLabel("❌ إغلاق الروم الصوتي")
+            .setLabel("❌ إغلاق الروم")
             .setStyle(ButtonStyle.Danger)
         );
       }

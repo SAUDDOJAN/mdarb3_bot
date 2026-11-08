@@ -105,6 +105,14 @@ export default {
         console.error("[Bot] Failed to run Ludra voice audit on startup:", ludraAuditErr);
       }
 
+      // Ludra Support System Panel Deploy
+      try {
+        const { deployLudraSupportPanel } = await import("../modules/ludraSupportSystem.js");
+        await deployLudraSupportPanel(client);
+      } catch (ludraSupportErr) {
+        console.error("[Bot] Failed to deploy Ludra support panel on startup:", ludraSupportErr);
+      }
+
       console.log("[Bot] All background tasks started successfully.");
     } catch (err) {
       console.error("[Bot] Failed to start background tasks:", err);

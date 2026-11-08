@@ -178,6 +178,22 @@ export async function route(interaction) {
     return;
   }
 
+  if (customId.startsWith("ludra_support:") || customId.startsWith("ludra_support_")) {
+    try {
+      const { handleLudraSupportInteraction } = await import("../modules/ludraSupportSystem.js");
+      await handleLudraSupportInteraction(interaction);
+    } catch (err) {
+      console.error(`[Router] Error handling Ludra Support interaction "${customId}":`, err);
+      const reply = { content: "❌ حدث خطأ أثناء معالجة طلب الدعم، حاول مجدداً.", flags: 64 };
+      if (interaction.replied || interaction.deferred) {
+        await interaction.followUp(reply).catch(() => {});
+      } else {
+        await interaction.reply(reply).catch(() => {});
+      }
+    }
+    return;
+  }
+
   if (customId.startsWith("ticket_") || customId.startsWith("ticket:")) {
     try {
       await tickets.handleInteraction(interaction);
