@@ -331,6 +331,15 @@ export function buildDispatchCard(request) {
     );
 
     components.push(volunteerRow);
+
+    // Row 2: Self-service Weekly Clearance Button (Player-opt-out from pings)
+    const clearRow = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId("ludra_support:toggle_my_clear")
+        .setLabel("🛑 أنا خلصت لودرا (لا تمنشني)")
+        .setStyle(ButtonStyle.Secondary)
+    );
+    components.push(clearRow);
   }
 
   return { embed, components };

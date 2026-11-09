@@ -848,6 +848,7 @@ export function scheduleVoiceAutoDelete(channelId, teamNumber, client, delayMs =
           await channel.delete("Ludra static team voice channel empty for 5 minutes").catch(() => {});
           await query(`UPDATE ludra_static_teams SET voice_channel_id = NULL WHERE voice_channel_id = $1`, [channelId]);
           console.log(`[LudraVoice] Auto-deleted empty team voice channel ${channelId} for team #${teamNumber}`);
+          sweepExpiredVoiceAlerts(client).catch(() => {});
         }
       } else {
         await query(`UPDATE ludra_static_teams SET voice_channel_id = NULL WHERE voice_channel_id = $1`, [channelId]);
@@ -905,6 +906,46 @@ export async function handleLudraVoiceStateUpdate(oldState, newState, client) {
   }
 }
 
+export async function sweepExpiredVoiceAlerts(client) {
+  try {
+    const channel =
+      client.channels.cache.get(STATIC_TEAMS_CHANNEL_ID) ||
+      (await client.channels.fetch(STATIC_TEAMS_CHANNEL_ID).catch(() => null));
+    if (!channel || !channel.isTextBased()) return;
+
+    const messages = await channel.messages.fetch({ limit: 40 }).catch(() => null);
+    if (!messages) return;
+
+    const now = Date.now();
+    for (const [id, msg] of messages) {
+      if (msg.author.id !== client.user.id) continue;
+      if (!msg.content || !msg.content.includes("نداء تجمع صوتي")) continue;
+
+      const ageMs = now - msg.createdTimestamp;
+      const match = msg.content.match(/<#(\d+)>/);
+      const vcId = match ? match[1] : null;
+
+      let vcExists = false;
+      if (vcId) {
+        const vc =
+          channel.guild.channels.cache.get(vcId) ||
+          (await channel.guild.channels.fetch(vcId).catch(() => null));
+        if (vc) vcExists = true;
+      }
+
+      // If older than 10 minutes OR referenced voice channel no longer exists
+      if (ageMs > 10 * 60 * 1000 || !vcExists) {
+        console.log(`[LudraVoice] Auto-sweeping expired voice summon message: ${id}`);
+        await msg.delete().catch(() => {});
+      }
+    }
+  } catch (err) {
+    console.error("[LudraVoice] Error in sweepExpiredVoiceAlerts:", err);
+  }
+}
+
+let voiceSweeperInterval = null;
+
 export async function auditLudraVoiceChannels(client) {
   try {
     const res = await query(`SELECT team_number, voice_channel_id FROM ludra_static_teams WHERE voice_channel_id IS NOT NULL`);
@@ -915,6 +956,16 @@ export async function auditLudraVoiceChannels(client) {
       } else if (channel.members.size === 0) {
         scheduleVoiceAutoDelete(channel.id, row.team_number, client, 5 * 60 * 1000);
       }
+    }
+
+    // Run immediate sweep of expired summon messages
+    await sweepExpiredVoiceAlerts(client).catch(() => {});
+
+    // Set recurring 2-minute sweeper
+    if (!voiceSweeperInterval) {
+      voiceSweeperInterval = setInterval(() => {
+        sweepExpiredVoiceAlerts(client).catch(() => {});
+      }, 2 * 60 * 1000);
     }
   } catch (e) {
     console.error("[LudraVoice] Startup voice audit error:", e);
@@ -1247,11 +1298,10 @@ export async function handleLudraStaticInteraction(interaction) {
 
       // Construct Permission Overwrites
       const overwrites = [
-        // @everyone: Cannot connect, but can see channel
+        // @everyone: Deny ViewChannel and Connect so room is completely hidden from non-registered users
         {
           id: guild.roles.everyone.id,
-          deny: [PermissionFlagsBits.Connect],
-          allow: [PermissionFlagsBits.ViewChannel],
+          deny: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.Connect],
         },
         // Bot permissions
         {
@@ -1266,6 +1316,31 @@ export async function handleLudraStaticInteraction(interaction) {
           ],
         },
       ];
+
+      // Grant ViewChannel only to registered active Ludra players (so they can see the room and members, but cannot join)
+      try {
+        const regRes = await query(
+          `SELECT DISTINCT discord_id FROM ludra_raid_registrations WHERE eligibility_status = 'ACTIVE' AND discord_id IS NOT NULL`
+        );
+        const teamMemberIds = new Set(members.filter(m => m.discord_id).map(m => String(m.discord_id)));
+        if (team.leader_discord_id) teamMemberIds.add(String(team.leader_discord_id));
+
+        for (const row of regRes.rows) {
+          const regId = String(row.discord_id);
+          if (teamMemberIds.has(regId)) continue;
+          if (regId === String(guild.roles.everyone.id)) continue;
+
+          if (overwrites.length < 480) {
+            overwrites.push({
+              id: regId,
+              allow: [PermissionFlagsBits.ViewChannel],
+              deny: [PermissionFlagsBits.Connect],
+            });
+          }
+        }
+      } catch (err) {
+        console.error("[LudraVoice] Error attaching registered players overwrites:", err);
+      }
 
       // Add registered team members
       for (const m of members) {
@@ -1421,6 +1496,7 @@ export async function handleLudraStaticInteraction(interaction) {
         }
         await query(`UPDATE ludra_static_teams SET voice_channel_id = NULL WHERE team_number = $1`, [teamNumber]);
         team.voice_channel_id = null;
+        sweepExpiredVoiceAlerts(interaction.client).catch(() => {});
       }
 
       return safeEditReply(interaction, "✅ **تم إغلاق الروم الصوتي وحذفه بنجاح.**");
