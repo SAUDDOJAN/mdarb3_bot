@@ -629,8 +629,8 @@ export function getVacantSlotLabel(teamNumber, slot) {
   }
   if (num >= 9) {
     if (slot === 1 || slot === 6) return "Healer (Cleric)";
-    if (slot === 2) return "Tank (Templar)";
-    if (slot === 7) return "Tank (Gladiator)";
+    if (slot === 2) return "Tank (Gladiator)";
+    if (slot === 7) return "Tank (Templar)";
     if (slot === 3) return "Chanter";
     if (slot === 8) return "Chanter / DPS";
     if (slot === 4 || slot === 9) return "DPS (Magic)";
@@ -728,6 +728,8 @@ export async function buildTeamEmbedAndComponents(teamNumber) {
     embedColor = 0x9b59b6;
   } else if (team.team_number === 12) {
     embedColor = 0x10ac84;
+  } else if (team.team_number === 13) {
+    embedColor = 0x6c5ce7;
   }
 
   const leaderDisplay =
