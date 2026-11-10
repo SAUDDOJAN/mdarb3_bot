@@ -24,11 +24,13 @@ import {
   PermissionsBitField,
   ChannelType,
   PermissionFlagsBits,
+  OverwriteType,
 } from "discord.js";
 import path from "path";
 import fs from "fs";
 import { fileURLToPath } from "url";
 import { query } from "../database/index.js";
+import { ensureLudraRegisteredRole } from "./ludraRaid.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -1323,16 +1325,19 @@ export async function handleLudraStaticInteraction(interaction) {
       );
       const members = membersRes.rows;
 
-      // Construct Permission Overwrites
+      // Construct Permission Overwrites (Explicit OverwriteType to prevent uncached User errors & 100-overwrite API cap)
+      const isValidSnowflake = (val) => typeof val === "string" && /^\d{17,20}$/.test(val);
       const overwrites = [
         // @everyone: Deny ViewChannel and Connect so room is completely hidden from non-registered users
         {
-          id: guild.roles.everyone.id,
+          id: String(guild.id),
+          type: OverwriteType.Role,
           deny: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.Connect],
         },
         // Bot permissions
         {
-          id: guild.members.me?.id || interaction.client.user.id,
+          id: String(guild.members.me?.id || interaction.client.user.id),
+          type: OverwriteType.Member,
           allow: [
             PermissionFlagsBits.ViewChannel,
             PermissionFlagsBits.Connect,
@@ -1344,38 +1349,30 @@ export async function handleLudraStaticInteraction(interaction) {
         },
       ];
 
-      // Grant ViewChannel only to registered active Ludra players (so they can see the room and members, but cannot join)
+      // Grant ViewChannel only to the automated "🎯 مسجل لودرا" role (visible to all active registered Ludra players)
       try {
-        const regRes = await query(
-          `SELECT DISTINCT discord_id FROM ludra_raid_registrations WHERE eligibility_status = 'ACTIVE' AND discord_id IS NOT NULL`
-        );
-        const teamMemberIds = new Set(members.filter(m => m.discord_id).map(m => String(m.discord_id)));
-        if (team.leader_discord_id) teamMemberIds.add(String(team.leader_discord_id));
-
-        for (const row of regRes.rows) {
-          const regId = String(row.discord_id);
-          if (teamMemberIds.has(regId)) continue;
-          if (regId === String(guild.roles.everyone.id)) continue;
-
-          if (overwrites.length < 480) {
-            overwrites.push({
-              id: regId,
-              allow: [PermissionFlagsBits.ViewChannel],
-              deny: [PermissionFlagsBits.Connect],
-            });
-          }
+        const ludraRole = await ensureLudraRegisteredRole(guild);
+        if (ludraRole) {
+          overwrites.push({
+            id: String(ludraRole.id),
+            type: OverwriteType.Role,
+            allow: [PermissionFlagsBits.ViewChannel],
+            deny: [PermissionFlagsBits.Connect],
+          });
         }
-      } catch (err) {
-        console.error("[LudraVoice] Error attaching registered players overwrites:", err);
+      } catch (roleErr) {
+        console.error("[LudraVoice] Error attaching Ludra Registered role overwrite:", roleErr);
       }
 
       // Add registered team members
       for (const m of members) {
-        if (!m.discord_id) continue;
-        if (String(m.discord_id) === String(team.leader_discord_id)) continue;
+        const memberId = m.discord_id ? String(m.discord_id) : "";
+        if (!isValidSnowflake(memberId)) continue;
+        if (memberId === String(team.leader_discord_id)) continue;
 
         overwrites.push({
-          id: m.discord_id,
+          id: memberId,
+          type: OverwriteType.Member,
           allow: [
             PermissionFlagsBits.ViewChannel,
             PermissionFlagsBits.Connect,
@@ -1396,30 +1393,34 @@ export async function handleLudraStaticInteraction(interaction) {
       }
 
       // Leader Overwrites: Full Member permissions + Server Mute, Deafen, Move, Priority Speaker
-      overwrites.push({
-        id: team.leader_discord_id,
-        allow: [
-          PermissionFlagsBits.ViewChannel,
-          PermissionFlagsBits.Connect,
-          PermissionFlagsBits.Speak,
-          PermissionFlagsBits.Stream,
-          PermissionFlagsBits.UseVAD,
-          PermissionFlagsBits.SendMessages,
-          PermissionFlagsBits.EmbedLinks,
-          PermissionFlagsBits.AttachFiles,
-          PermissionFlagsBits.AddReactions,
-          PermissionFlagsBits.UseExternalEmojis,
-          PermissionFlagsBits.UseSoundboard,
-          PermissionFlagsBits.UseExternalSounds,
-          PermissionFlagsBits.UseEmbeddedActivities,
-          PermissionFlagsBits.RequestToSpeak,
-          PermissionFlagsBits.MuteMembers,
-          PermissionFlagsBits.DeafenMembers,
-          PermissionFlagsBits.MoveMembers,
-          PermissionFlagsBits.PrioritySpeaker,
-          PermissionFlagsBits.ManageChannels,
-        ],
-      });
+      const leaderIdStr = team.leader_discord_id ? String(team.leader_discord_id) : "";
+      if (isValidSnowflake(leaderIdStr) && leaderIdStr !== "0") {
+        overwrites.push({
+          id: leaderIdStr,
+          type: OverwriteType.Member,
+          allow: [
+            PermissionFlagsBits.ViewChannel,
+            PermissionFlagsBits.Connect,
+            PermissionFlagsBits.Speak,
+            PermissionFlagsBits.Stream,
+            PermissionFlagsBits.UseVAD,
+            PermissionFlagsBits.SendMessages,
+            PermissionFlagsBits.EmbedLinks,
+            PermissionFlagsBits.AttachFiles,
+            PermissionFlagsBits.AddReactions,
+            PermissionFlagsBits.UseExternalEmojis,
+            PermissionFlagsBits.UseSoundboard,
+            PermissionFlagsBits.UseExternalSounds,
+            PermissionFlagsBits.UseEmbeddedActivities,
+            PermissionFlagsBits.RequestToSpeak,
+            PermissionFlagsBits.MuteMembers,
+            PermissionFlagsBits.DeafenMembers,
+            PermissionFlagsBits.MoveMembers,
+            PermissionFlagsBits.PrioritySpeaker,
+            PermissionFlagsBits.ManageChannels,
+          ],
+        });
+      }
 
       const leaderCleanName = (team.leader_name || "كابتن").replace(/[^a-zA-Z0-9_\u0600-\u06FF]/g, "");
       const channelName = `🔊┃فريق-${team.team_number}-${leaderCleanName || "Leader"}`;

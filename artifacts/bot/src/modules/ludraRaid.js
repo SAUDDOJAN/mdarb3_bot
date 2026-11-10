@@ -31,6 +31,7 @@ export const MAIN_GUILD_ID = process.env.MAIN_GUILD_ID || "861355983975874601";
 export const LUDRA_TEST_CHANNEL_ID = "1290449971639881849";
 export const LUDRA_OFFICIAL_CHANNEL_ID = "1566867947786473583";
 export const LUDRA_CONFIG_KEY = "ludra_raid_system";
+export const LUDRA_REGISTERED_ROLE_NAME = "🎯 مسجل لودرا";
 
 // Strictly the two official guild roles (Never confuse with AION 2 Member or 🔥 المعرقين)
 export const M3RGEEN_GUILD_ROLE_ID = "1555617080521269368"; // M3RGEEN Guild (Global: M3RGEEN / M3RG33N / M3RGEEEN)
@@ -1397,6 +1398,96 @@ export function setLudraDiscordClient(client) {
   activeDiscordClient = client;
 }
 
+/**
+ * Ensures the "🎯 مسجل لودرا" Discord role exists in the guild and returns it.
+ */
+export async function ensureLudraRegisteredRole(guild) {
+  if (!guild) return null;
+  let role = guild.roles.cache.find((r) => r.name === LUDRA_REGISTERED_ROLE_NAME);
+  if (!role) {
+    const fetched = await guild.roles.fetch().catch(() => null);
+    if (fetched) {
+      role = fetched.find((r) => r.name === LUDRA_REGISTERED_ROLE_NAME);
+    }
+  }
+  if (!role) {
+    role = await guild.roles.create({
+      name: LUDRA_REGISTERED_ROLE_NAME,
+      color: 0x9b59b6,
+      permissions: [],
+      hoist: false,
+      mentionable: false,
+      reason: "Automated role for Ludra Raid registered members voice room visibility",
+    });
+    console.log(`[LudraRole] Created dedicated role "${LUDRA_REGISTERED_ROLE_NAME}" (${role.id})`);
+  }
+  return role;
+}
+
+/**
+ * Grants the "🎯 مسجل لودرا" role to a newly registered or active member.
+ */
+export async function grantLudraRegisteredRoleToUser(client, discordId) {
+  const targetClient = client || activeDiscordClient;
+  if (!targetClient || !discordId) return false;
+  try {
+    const guild = targetClient.guilds.cache.get(MAIN_GUILD_ID) || (await targetClient.guilds.fetch(MAIN_GUILD_ID).catch(() => null));
+    if (!guild) return false;
+    const role = await ensureLudraRegisteredRole(guild);
+    if (!role) return false;
+    const member = guild.members.cache.get(String(discordId)) || (await guild.members.fetch(String(discordId)).catch(() => null));
+    if (!member) return false;
+    if (!member.roles.cache.has(role.id)) {
+      await member.roles.add(role, "Registered in Ludra Raid system");
+    }
+    return true;
+  } catch (err) {
+    console.warn(`[LudraRole] Could not grant role to ${discordId}:`, err.message);
+    return false;
+  }
+}
+
+/**
+ * Synchronizes "🎯 مسجل لودرا" role across all guild members against active DB registrations.
+ */
+export async function syncLudraRegisteredRoles(client) {
+  const targetClient = client || activeDiscordClient;
+  if (!targetClient) return { added: 0, removed: 0 };
+  await initLudraRaidDB();
+
+  const guild = targetClient.guilds.cache.get(MAIN_GUILD_ID) || (await targetClient.guilds.fetch(MAIN_GUILD_ID).catch(() => null));
+  if (!guild) return { added: 0, removed: 0 };
+
+  const role = await ensureLudraRegisteredRole(guild);
+  if (!role) return { added: 0, removed: 0 };
+
+  const activeRes = await query(
+    `SELECT DISTINCT discord_id FROM ludra_raid_registrations WHERE eligibility_status = 'ACTIVE' AND discord_id IS NOT NULL`
+  );
+  const activeIds = new Set(activeRes.rows.map((r) => String(r.discord_id)));
+
+  const members = await guild.members.fetch().catch(() => guild.members.cache);
+  let added = 0;
+  let removed = 0;
+
+  for (const [mId, member] of members) {
+    if (member.user.bot) continue;
+    const shouldHave = activeIds.has(String(mId));
+    const hasRole = member.roles.cache.has(role.id);
+
+    if (shouldHave && !hasRole) {
+      await member.roles.add(role, "Active Ludra Raid registration sync").catch(() => {});
+      added++;
+    } else if (!shouldHave && hasRole) {
+      await member.roles.remove(role, "Not active in Ludra Raid registrations").catch(() => {});
+      removed++;
+    }
+  }
+
+  console.log(`[LudraRole] Sync complete: +${added} granted, -${removed} revoked.`);
+  return { added, removed, roleId: role.id };
+}
+
 export async function getLudraPanelConfig() {
   await initLudraRaidDB();
   const res = await query(
@@ -1986,6 +2077,10 @@ async function executeQueueTask(task) {
     [task.id, freshData.shugoCharacterId, txResult.code]
   );
 
+  if (txResult.accepted) {
+    grantLudraRegisteredRoleToUser(activeDiscordClient, task.discord_id).catch(() => {});
+  }
+
   if (txResult.embedsChanged) {
     scheduleLudraEmbedsUpdate();
   }
@@ -2020,6 +2115,9 @@ export async function resumeLudraRaidSystemOnStartup(client) {
   triggerLudraQueueWorker();
   await refreshLudraEmbedsNow(client).catch((err) =>
     console.warn("[LudraRaid] Startup embed sync warning:", err.message)
+  );
+  syncLudraRegisteredRoles(client).catch((err) =>
+    console.warn("[LudraRole] Startup role sync warning:", err.message)
   );
 }
 
