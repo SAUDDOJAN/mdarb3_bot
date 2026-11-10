@@ -265,6 +265,16 @@ export async function initLudraRaidDB() {
     CREATE UNIQUE INDEX IF NOT EXISTS uq_ludra_queue_active_char
       ON ludra_sync_queue (shugo_character_id)
       WHERE status IN ('PENDING', 'PROCESSING') AND shugo_character_id IS NOT NULL;
+
+    CREATE TABLE IF NOT EXISTS ludra_blacklist (
+      id BIGSERIAL PRIMARY KEY,
+      discord_id VARCHAR(64) NOT NULL UNIQUE,
+      character_name TEXT,
+      shugo_character_id TEXT,
+      reason TEXT,
+      banned_by TEXT DEFAULT 'ADMIN',
+      banned_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
   `);
   dbInitialized = true;
 }
@@ -752,6 +762,21 @@ export async function applyLudraRegistrationTransaction({
       combatPower,
       verifiedAt,
     } = freshData;
+
+    // 0. Check if user or character is permanently blacklisted from Ludra system
+    const blRes = await client.query(
+      `SELECT reason FROM ludra_blacklist WHERE discord_id = $1 OR ($2::text IS NOT NULL AND shugo_character_id = $2) LIMIT 1`,
+      [String(discordId), shugoCharacterId]
+    );
+    if (blRes.rows.length > 0) {
+      await client.query("ROLLBACK");
+      return {
+        accepted: false,
+        code: "BLACKLISTED_FROM_LUDRA",
+        embedsChanged: false,
+        message: `⛔ **عذراً، تم استبعادك ومنع هذا الحساب/الشخصية من التسجيل في منظومة لودرا بالسيرفر.**\n• **السبب:** ${blRes.rows[0].reason || "مخالفة قوانين وأنظمة التحالف."}`,
+      };
+    }
 
     // 1. Check if another Discord user already registered this exact Shugo character
     const charOwnerRes = await client.query(
@@ -2057,6 +2082,20 @@ export async function handleLudraInteraction(interaction) {
   }
 
   const roleStatus = detectMemberGuildRoleStatus(member);
+
+  // Check Ludra blacklist before allowing registration, refresh, or modal submit
+  if (action === "register" || action === "refresh" || action === "modal") {
+    const blRes = await query(
+      `SELECT reason FROM ludra_blacklist WHERE discord_id = $1 LIMIT 1`,
+      [String(interaction.user.id)]
+    );
+    if (blRes.rows.length > 0) {
+      return interaction.reply({
+        content: `⛔ **عذراً، تم استبعادك ومنعك بشكل نهائي من التسجيل في منظومة لودرا بالسيرفر.**\n• **السبب:** ${blRes.rows[0].reason || "مخالفة أنظمة القيلد ومنظومة لودرا."}`,
+        ephemeral: true,
+      });
+    }
+  }
 
   // ── 1. Register / Refresh Button Clicked ──────────────────────────────────
   if (action === "register" || action === "refresh") {
