@@ -614,6 +614,16 @@ export function getVacantSlotLabel(teamNumber, slot) {
     if (slot === 3) return "Chanter";
     return "DPS";
   }
+  if (num === 8) {
+    if (slot === 1 || slot === 6) return "Healer (Cleric)";
+    if (slot === 2) return "Tank (Templar)";
+    if (slot === 7) return "Tank (Gladiator)";
+    if (slot === 3) return "Chanter";
+    if (slot === 8) return "Chanter / DPS";
+    if (slot === 4 || slot === 9) return "DPS (Magic)";
+    if (slot === 5 || slot === 10) return "DPS (Ranger/Sin)";
+    return "DPS";
+  }
   if (num >= 3 && num <= 8) {
     if (slot === 1 || slot === 6) return "Healer";
     if (slot === 2 || slot === 7) return "Tank";
