@@ -726,6 +726,8 @@ export async function buildTeamEmbedAndComponents(teamNumber) {
     embedColor = 0xe17055;
   } else if (team.team_number === 11) {
     embedColor = 0x9b59b6;
+  } else if (team.team_number === 12) {
+    embedColor = 0x10ac84;
   }
 
   const leaderDisplay =
