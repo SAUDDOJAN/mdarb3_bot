@@ -21,6 +21,8 @@ import {
   StringSelectMenuOptionBuilder,
   UserSelectMenuBuilder,
   AttachmentBuilder,
+  TextDisplayBuilder,
+  LabelBuilder,
   PermissionsBitField,
   ChannelType,
   PermissionFlagsBits,
@@ -139,6 +141,21 @@ export async function initLudraStaticTeamsDB() {
           inquiry_target_id TEXT,
           inquiry_target_type TEXT,
           inquiry_answer TEXT,
+          reviewed_by_discord_id TEXT,
+          created_at TIMESTAMPTZ DEFAULT NOW(),
+          reviewed_at TIMESTAMPTZ
+        );
+
+        CREATE TABLE IF NOT EXISTS ludra_team_admin_requests (
+          id SERIAL PRIMARY KEY,
+          team_number INT NOT NULL,
+          requested_by_discord_id TEXT NOT NULL,
+          requested_by_name TEXT,
+          message TEXT NOT NULL,
+          status TEXT DEFAULT 'PENDING',
+          log_channel_id TEXT,
+          log_message_id TEXT,
+          admin_reply TEXT,
           reviewed_by_discord_id TEXT,
           created_at TIMESTAMPTZ DEFAULT NOW(),
           reviewed_at TIMESTAMPTZ
@@ -1027,6 +1044,27 @@ async function safeEditReply(interaction, options, delayMs = 5 * 60 * 1000) {
 }
 
 /**
+ * Checks whether the interacting user holds server admin/management permissions.
+ */
+function isServerAdmin(interaction) {
+  return (
+    interaction.memberPermissions?.has(PermissionsBitField.Flags.Administrator) ||
+    interaction.memberPermissions?.has(PermissionsBitField.Flags.ManageGuild) ||
+    (interaction.guild && String(interaction.guild.ownerId) === String(interaction.user.id))
+  );
+}
+
+/**
+ * Fetches the private static teams admin log channel if accessible.
+ */
+async function getStaticLogChannel(client) {
+  return (
+    client.channels?.cache?.get(STATIC_LOG_CHANNEL_ID) ||
+    (await client.channels?.fetch?.(STATIC_LOG_CHANNEL_ID).catch(() => null))
+  );
+}
+
+/**
  * Interaction Handler for Static Teams
  */
 export async function handleLudraStaticInteraction(interaction) {
@@ -1041,6 +1079,7 @@ export async function handleLudraStaticInteraction(interaction) {
     action === "panel" ||
     action === "mention" ||
     action === "dm" ||
+    action === "admin_request" ||
     action === "add" ||
     action === "remove" ||
     action === "voice_create" ||
@@ -1087,13 +1126,14 @@ export async function handleLudraStaticInteraction(interaction) {
           `أهلاً بك يا كابتن <@${interaction.user.id}>!\n` +
           `من هنا يمكنك التحكم بفريقك الثابت بشكل خاص ومباشر:\n\n` +
           `• **📢 منشن الفريق:** لتنبيه الأعضاء بالتجمع والاستعداد (يُحذف تلقائياً بعد 5 دقائق).\n` +
-          `• **✉️ إرسال للخاص:** لإرسال رسالة رسمية لخاص جميع أعضاء الفريق مباشرة.\n` +
+          `• **✉️ مراسلة الفريق (خاص):** لإرسال رسالة جماعية لخاص جميع أعضاء فريقك مباشرة.\n` +
           `• **➕ إضافة لاعب:** اختيار كلاس وإضافة لاعب جديد في مقعد شاغر.\n` +
           `• **➖ حذف لاعب:** اختيار لاعب ورفع طلب استبعاد مسبّب للإدارة للمراجعة.\n` +
           `• **🎙️ الروم الصوتي:** إنشاء روم صوتي مخصص لأعضاء فريقك مع صلاحيات كتم الصوت.\n` +
           `• **📥 تصريح / سحب لاعب:** لمنح أي عضو بالسيرفر إذن الدخول وسحبه فوراً لروم فريقك.\n` +
           `• **🚨 طلب دعم وفزعة:** إرسال نداء في روم الطلبات لتعويض الكلاسات الناقصة من الفرق الأخرى.\n` +
-          `• **🏁 إنهاء ريد الأسبوع:** تسجيل إنهاء الريد وإعفاء كامل الفريق من إشعارات ومنشنات الفزعة.\n\n` +
+          `• **🏁 إنهاء ريد الأسبوع:** تسجيل إنهاء الريد وإعفاء كامل الفريق من إشعارات ومنشنات الفزعة.\n` +
+          `• **📩 راسل منظم الفرق:** لإرسال طلب تغيير إداري أو أي تعديل بالفريق مباشرة إلى منظم الفرق والإدارة.\n\n` +
           (isTeamCleared
             ? `🏆 **حالة رن الأسبوع:** 🟢 تم إنهاء الريد بنجاح (أعضاء الفريق معفيين من المنشنات)\n`
             : `⏳ **حالة رن الأسبوع:** ⚪ قيد الانتظار (لم يتم تسجيل إنهاء الريد بعد)\n`) +
@@ -1110,7 +1150,7 @@ export async function handleLudraStaticInteraction(interaction) {
           .setStyle(ButtonStyle.Primary),
         new ButtonBuilder()
           .setCustomId(`ludra_static:dm:${teamNumber}`)
-          .setLabel("✉️ إرسال للخاص")
+          .setLabel("✉️ مراسلة الفريق (خاص)")
           .setStyle(ButtonStyle.Secondary),
         new ButtonBuilder()
           .setCustomId(`ludra_static:add:${teamNumber}`)
@@ -1160,7 +1200,11 @@ export async function handleLudraStaticInteraction(interaction) {
           .setCustomId(`ludra_static:finish_raid:${teamNumber}`)
           .setLabel(isTeamCleared ? "🏁 إلغاء تسجيل إنهاء الريد" : "🏁 تسجيل إنهاء الريد للأسبوع")
           .setStyle(isTeamCleared ? ButtonStyle.Secondary : ButtonStyle.Success)
-          .setEmoji(isTeamCleared ? "🔄" : "🏆")
+          .setEmoji(isTeamCleared ? "🔄" : "🏆"),
+        new ButtonBuilder()
+          .setCustomId(`ludra_static:admin_request:${teamNumber}`)
+          .setLabel("📩 راسل منظم الفرق")
+          .setStyle(ButtonStyle.Primary)
       );
 
       return safeEditReply(interaction, {
@@ -1200,22 +1244,55 @@ export async function handleLudraStaticInteraction(interaction) {
       return safeEditReply(interaction, "✅ **تم إرسال المنشن وتنبيه أعضاء الفريق بنجاح!** (سيتم حذفه تلقائياً بعد 5 دقائق لحماية نظافة الروم).");
     }
 
-    // ── Send DM ──
+    // ── Send DM to Team Members ──
     if (action === "dm") {
       const modal = new ModalBuilder()
         .setCustomId(`ludra_static:modal_dm:${teamNumber}`)
-        .setTitle(`إرسال رسالة لخاص فريق #${teamNumber}`);
+        .setTitle(`مراسلة أعضاء فريق #${teamNumber}`);
 
       const input = new TextInputBuilder()
         .setCustomId("dm_content")
-        .setLabel("نص الرسالة لأعضاء الفريق")
+        .setLabel("نص الرسالة لأعضاء فريقك (على الخاص)")
         .setStyle(TextInputStyle.Paragraph)
-        .setPlaceholder("اكتب التوجيهات أو الموعد أو التعليمات التي تريد إيصالها لخاص أعضاء فريقك...")
+        .setPlaceholder("اكتب التوجيهات أو الموعد لتصل لخاص أعضاء فريقك (هذه الرسالة لأعضاء الفريق وليس للإدارة)...")
         .setRequired(true)
         .setMinLength(5)
         .setMaxLength(1500);
 
       modal.addComponents(new ActionRowBuilder().addComponents(input));
+      return interaction.showModal(modal);
+    }
+
+    // ── Contact Team Organizer / Admin Change Request ──
+    if (action === "admin_request") {
+      const modal = new ModalBuilder()
+        .setCustomId(`ludra_static:modal_admin_request:${teamNumber}`)
+        .setTitle(`طلب تغيير إداري — فريق #${teamNumber}`);
+
+      const noticeDisplay = new TextDisplayBuilder().setContent(
+        `📌 **تنبيه هام — هذه النافذة لمراسلة منظم الفرق والإدارة فقط:**\n` +
+        `• هذه الرسالة ستصل مباشرة إلى **منظم الفرق** لطلب تعديل أو تغيير أو أي شيء يخص فريقك (مثل: تبديل أماكن اللاعبين، تعديل تشكيل، أو طلب إداري).\n` +
+        `• إذا كنت ترغب في **إضافة لاعب**: أغلق هذه النافذة واضغط زر **\`➕ إضافة لاعب\`**.\n` +
+        `• إذا كنت ترغب في **حذف لاعب**: أغلق هذه النافذة واضغط زر **\`➖ حذف لاعب\`**.`
+      );
+
+      const reqInput = new TextInputBuilder()
+        .setCustomId("admin_request_message")
+        .setStyle(TextInputStyle.Paragraph)
+        .setPlaceholder("اكتب طلب التغيير أو الرسالة التي تريد إيصالها إلى منظم الفرق والإدارة هنا...")
+        .setRequired(true)
+        .setMinLength(5)
+        .setMaxLength(1500);
+
+      const reqLabel = new LabelBuilder()
+        .setLabel("رسالتك أو طلب التعديل لمنظم الفرق")
+        .setDescription("مخصصة فقط لإرسال رسالة للإدارة بتغيير أو تعديل شيء في الفريق")
+        .setTextInputComponent(reqInput);
+
+      modal
+        .addTextDisplayComponents(noticeDisplay)
+        .addLabelComponents(reqLabel);
+
       return interaction.showModal(modal);
     }
 
@@ -2027,13 +2104,191 @@ export async function handleLudraStaticInteraction(interaction) {
     });
   }
 
+  // ── 5b. Modal Submit: Team Organizer / Admin Change Request ─────────────────
+  if (action === "modal_admin_request" && interaction.isModalSubmit()) {
+    const teamNumber = parseInt(param, 10) || 1;
+    const requestText = interaction.fields.getTextInputValue("admin_request_message").trim();
+
+    await interaction.deferReply({ ephemeral: true });
+
+    const team = await getCachedTeam(teamNumber);
+    if (!team) {
+      return safeEditReply(interaction, "❌ تعذر العثور على بيانات هذا الفريق.");
+    }
+    if (!isAuthorizedForTeam(interaction, team)) {
+      return safeEditReply(interaction, "❌ عذراً، هذا الإجراء مخصص لقائد الفريق وإدارة السيرفر فقط.");
+    }
+
+    const ins = await query(`
+      INSERT INTO ludra_team_admin_requests (
+        team_number, requested_by_discord_id, requested_by_name, message, status, log_channel_id
+      ) VALUES ($1, $2, $3, $4, 'PENDING', $5)
+      RETURNING id
+    `, [teamNumber, interaction.user.id, interaction.user.username, requestText, STATIC_LOG_CHANNEL_ID]);
+    const reqId = ins.rows[0].id;
+
+    const logChannel = await getStaticLogChannel(interaction.client);
+    if (logChannel) {
+      const logEmbed = new EmbedBuilder()
+        .setColor(0x3498db)
+        .setTitle(`📩 طلب تغيير إداري — فريق #${teamNumber}`)
+        .setDescription(`أرسل قائد الفريق رسالة / طلب تعديل موجه إلى **منظم الفرق والإدارة**.`)
+        .addFields(
+          { name: "👑 مقدم الطلب", value: `<@${interaction.user.id}> (\`${interaction.user.username}\`)`, inline: true },
+          { name: "🛡️ الفريق", value: `${team.team_name || `فريق #${teamNumber}`}`, inline: true },
+          { name: "📝 نص الطلب / التعديل المطلوب", value: `\`\`\`\n${requestText}\n\`\`\``, inline: false },
+          { name: "📊 الحالة", value: "⏳ **قيد المراجعة لدى منظم الفرق**", inline: false }
+        )
+        .setFooter({ text: `طلب إداري رقم #${reqId} • نظام تنظيم الفرق الثابتة` })
+        .setTimestamp();
+
+      const logRow = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId(`ludra_static:admin_msg_done:${reqId}`)
+          .setLabel("✅ تم التنفيذ")
+          .setStyle(ButtonStyle.Success),
+        new ButtonBuilder()
+          .setCustomId(`ludra_static:admin_msg_reply:${reqId}`)
+          .setLabel("💬 رد على القائد")
+          .setStyle(ButtonStyle.Primary)
+      );
+
+      const logMsg = await logChannel.send({ embeds: [logEmbed], components: [logRow] }).catch(() => null);
+      if (logMsg) {
+        await query(`UPDATE ludra_team_admin_requests SET log_message_id = $1 WHERE id = $2`, [logMsg.id, reqId]);
+      }
+    }
+
+    return safeEditReply(
+      interaction,
+      `✅ **تم إرسال طلبك إلى منظم الفرق والإدارة بنجاح (طلب رقم #${reqId})!**\n` +
+      `• سيقوم منظم الفرق بمراجعة رسالتك والتواصل معك أو تنفيذ التعديل المطلوب قريباً.\n\n*(تختفي هذه الرسالة تلقائياً بعد 5 دقائق)*`
+    );
+  }
+
+  // ── 5c. Organizer Actions for Admin Change Request Messages ─────────────────
+  if (action === "admin_msg_done" || action === "admin_msg_reply") {
+    if (!isServerAdmin(interaction)) {
+      return safeReply(interaction, "❌ هذه الإجراءات مخصصة لمنظم الفرق وإدارة السيرفر فقط.");
+    }
+
+    const reqId = parseInt(param, 10);
+    const reqRes = await query(`SELECT * FROM ludra_team_admin_requests WHERE id = $1 LIMIT 1`, [reqId]);
+    const req = reqRes.rows[0];
+    if (!req) return safeReply(interaction, "❌ تعذر العثور على هذا الطلب الإداري.");
+
+    if (action === "admin_msg_done") {
+      if (req.status === "DONE") {
+        return safeReply(interaction, "ℹ️ تم إنهاء وتنفيذ هذا الطلب مسبقاً.");
+      }
+      await interaction.deferReply({ ephemeral: true });
+
+      await query(
+        `UPDATE ludra_team_admin_requests SET status = 'DONE', reviewed_by_discord_id = $1, reviewed_at = NOW() WHERE id = $2`,
+        [interaction.user.id, reqId]
+      );
+
+      if (interaction.message?.embeds?.[0]) {
+        const updatedEmbed = EmbedBuilder.from(interaction.message.embeds[0])
+          .setColor(0x2ecc71)
+          .spliceFields(3, 1, {
+            name: "📊 الحالة",
+            value: `✅ **تم التنفيذ بواسطة** <@${interaction.user.id}>`,
+            inline: false,
+          });
+        await interaction.message.edit({ embeds: [updatedEmbed], components: [] }).catch(() => {});
+      }
+
+      const leaderUser = await interaction.client.users.fetch(req.requested_by_discord_id).catch(() => null);
+      if (leaderUser) {
+        await leaderUser.send({
+          content: `✅ **إشعار من منظم الفرق:** تم تنفيذ طلبك الإداري رقم \`#${reqId}\` الخاص بـ **فريق #${req.team_number}**.`,
+        }).catch(() => {});
+      }
+
+      return safeEditReply(interaction, `✅ **تم اعتماد تنفيذ الطلب الإداري #${reqId} وإشعار القائد.**`);
+    }
+
+    if (action === "admin_msg_reply") {
+      const modal = new ModalBuilder()
+        .setCustomId(`ludra_static:modal_admin_msg_reply:${reqId}`)
+        .setTitle(`رد على طلب #${reqId} (فريق #${req.team_number})`);
+
+      const replyInput = new TextInputBuilder()
+        .setCustomId("admin_reply_text")
+        .setLabel("نص الرد على قائد الفريق")
+        .setStyle(TextInputStyle.Paragraph)
+        .setPlaceholder("اكتب الرد الذي سيصل إلى خاص قائد الفريق...")
+        .setRequired(true)
+        .setMinLength(2)
+        .setMaxLength(1500);
+
+      modal.addComponents(new ActionRowBuilder().addComponents(replyInput));
+      return interaction.showModal(modal);
+    }
+  }
+
+  if (action === "modal_admin_msg_reply" && interaction.isModalSubmit()) {
+    if (!isServerAdmin(interaction)) {
+      return safeReply(interaction, "❌ هذه الإجراءات مخصصة لمنظم الفرق وإدارة السيرفر فقط.");
+    }
+
+    const reqId = parseInt(param, 10);
+    const replyText = interaction.fields.getTextInputValue("admin_reply_text").trim();
+    await interaction.deferReply({ ephemeral: true });
+
+    const reqRes = await query(`SELECT * FROM ludra_team_admin_requests WHERE id = $1 LIMIT 1`, [reqId]);
+    const req = reqRes.rows[0];
+    if (!req) return safeEditReply(interaction, "❌ تعذر العثور على هذا الطلب الإداري.");
+
+    const leaderUser = await interaction.client.users.fetch(req.requested_by_discord_id).catch(() => null);
+    if (!leaderUser) {
+      return safeEditReply(interaction, "❌ تعذر الوصول لحساب قائد الفريق في الديسكورد.");
+    }
+
+    try {
+      await leaderUser.send({
+        embeds: [
+          new EmbedBuilder()
+            .setColor(0x2ecc71)
+            .setTitle(`💬 رد من منظم الفرق — فريق #${req.team_number}`)
+            .setDescription(
+              `بخصوص طلبك الإداري رقم \`#${reqId}\`:\n\n` +
+              `\`\`\`\n${replyText}\n\`\`\``
+            )
+            .setFooter({ text: "تحالف M3RGEEN • إدارة تنظيم الفرق الثابتة" })
+            .setTimestamp(),
+        ],
+      });
+    } catch (_) {
+      return safeEditReply(interaction, "❌ تعذر إرسال الرد لخاص قائد الفريق (الخاص لديه مغلق).");
+    }
+
+    await query(
+      `UPDATE ludra_team_admin_requests SET admin_reply = $1, reviewed_by_discord_id = $2 WHERE id = $3`,
+      [replyText, interaction.user.id, reqId]
+    );
+
+    const logChannel = await getStaticLogChannel(interaction.client);
+    if (logChannel && req.log_message_id) {
+      const logMsg = await logChannel.messages.fetch(req.log_message_id).catch(() => null);
+      if (logMsg?.embeds?.[0]) {
+        const updatedEmbed = EmbedBuilder.from(logMsg.embeds[0]).addFields({
+          name: `💬 رد الإدارة (<@${interaction.user.id}>)`,
+          value: `\`\`\`\n${replyText}\n\`\`\``,
+          inline: false,
+        });
+        await logMsg.edit({ embeds: [updatedEmbed] }).catch(() => {});
+      }
+    }
+
+    return safeEditReply(interaction, `✅ **تم إرسال ردك بنجاح إلى خاص قائد الفريق (<@${req.requested_by_discord_id}>).**`);
+  }
+
   // ── 6. Admin Actions (In Log Channel) ───────────────────────────────────────
   if (action === "admin_approve" || action === "admin_reject" || action === "admin_inquire") {
     // Check Admin permissions
-    if (
-      !interaction.memberPermissions?.has(PermissionsBitField.Flags.Administrator) &&
-      !interaction.memberPermissions?.has(PermissionsBitField.Flags.ManageGuild)
-    ) {
+    if (!isServerAdmin(interaction)) {
       return safeReply(interaction, "❌ هذه الإجراءات مخصصة لإدارة السيرفر فقط.");
     }
 
