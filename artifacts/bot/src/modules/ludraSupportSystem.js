@@ -496,7 +496,7 @@ export async function handleLudraSupportInteraction(interaction) {
 
     if (leaderTeams.length === 0 && isGuildOwner) {
       // Owner fallback: if owner, allow them to manage or test
-      const allTeams = await query(`SELECT team_number, team_name, leader_discord_id, leader_name, voice_channel_id FROM ludra_static_teams ORDER BY team_number LIMIT 8`);
+      const allTeams = await query(`SELECT team_number, team_name, leader_discord_id, leader_name, voice_channel_id FROM ludra_static_teams ORDER BY team_number LIMIT 25`);
       leaderTeams = allTeams.rows;
     }
 
