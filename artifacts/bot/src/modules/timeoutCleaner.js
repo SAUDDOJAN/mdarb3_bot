@@ -52,6 +52,7 @@ export function trackRecentUserMessage(message) {
   const existing = recentUserMessages.get(key) || [];
   const filtered = existing.filter((m) => m.createdAt >= cutoff);
   filtered.push({
+    authorId: message.author.id,
     channelId: message.channel.id,
     messageId: message.id,
     createdAt: message.createdTimestamp || Date.now(),
@@ -72,6 +73,7 @@ function takeTrackedMessages(guildId, userId, cutoffMs) {
 
   const byChannel = new Map();
   for (const entry of list) {
+    if (entry.authorId && entry.authorId !== userId) continue;
     if (entry.createdAt < cutoffMs || PROTECTED_CHANNEL_IDS.has(entry.channelId)) continue;
     if (!byChannel.has(entry.channelId)) byChannel.set(entry.channelId, new Set());
     byChannel.get(entry.channelId).add(entry.messageId);
@@ -168,13 +170,16 @@ async function collectSweepableChannels(guild, botMember, cutoffMs) {
  * channels and active threads in the guild, then logs a summary if messages were removed.
  */
 export async function purgeTimedOutMemberMessages(member, options = {}) {
+  const activeUntil = member?.communicationDisabledUntilTimestamp || 0;
   const {
     lookbackMs = DEFAULT_LOOKBACK_MS,
     reason = "تم تطبيق التايم أوت على العضو",
-    timeoutUntilMs = member?.communicationDisabledUntilTimestamp || Date.now(),
+    timeoutUntilMs = activeUntil,
   } = options;
 
+  // Hard guard: target must be a real guild member actively under timeout right now
   if (!member?.guild || !member?.id || member.user?.bot) return { deletedCount: 0, skipped: true };
+  if (!activeUntil || activeUntil <= Date.now()) return { deletedCount: 0, skipped: true };
 
   const dedupKey = `${member.guild.id}:${member.id}`;
   const now = Date.now();

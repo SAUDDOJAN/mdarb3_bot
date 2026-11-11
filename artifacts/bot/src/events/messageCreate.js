@@ -16,10 +16,11 @@ export default {
       try {
         const member = message.member || await message.guild.members.fetch(message.author.id).catch(() => null);
         if (member && member.moderatable) {
-          await member.timeout(ONE_WEEK_MS, "مخالفة: إرسال رسالة في الروم المحظور (تايم اوت تلقائي لمدة أسبوع)");
+          const timedOutMember = await member.timeout(ONE_WEEK_MS, "مخالفة: إرسال رسالة في الروم المحظور (تايم اوت تلقائي لمدة أسبوع)");
           console.log(`[AutoTimeout] تم إعطاء تايم اوت لمدة أسبوع للعضو ${member.user?.tag || member.id} (${member.id}) بسبب الإرسال في الروم ${message.channel.id}`);
 
-          purgeTimedOutMemberMessages(member, {
+          purgeTimedOutMemberMessages(timedOutMember || member, {
+            timeoutUntilMs: timedOutMember?.communicationDisabledUntilTimestamp || (Date.now() + ONE_WEEK_MS),
             reason: `تايم اوت تلقائي (الإرسال في روم التحقق <#${AUTO_TIMEOUT_CHANNEL_ID}>)`,
           }).catch((purgeErr) => {
             console.error("[AutoTimeout] فشل تنظيف رسائل العضو بعد التايم اوت التلقائي:", purgeErr);
