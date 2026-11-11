@@ -889,6 +889,8 @@ export function startDailySiegeCron(client) {
   console.log("[aion2SiegeAlert] Initializing Siege Checker & Participant Reminder Cron (Runs every 30s)...");
   initSiegeAlertDB().catch(() => {});
 
+  let dailyPostInFlight = false;
+
   setInterval(async () => {
     try {
       await initSiegeAlertDB();
@@ -897,29 +899,34 @@ export function startDailySiegeCron(client) {
       const ksaHour = Number(now.toLocaleTimeString("en-US", { timeZone: "Asia/Riyadh", hour12: false, hour: "numeric" }));
       const ksaMin = Number(now.toLocaleTimeString("en-US", { timeZone: "Asia/Riyadh", hour12: false, minute: "numeric" }));
 
-      // 1. Daily 10:00 AM Announcement Check
-      if (ksaHour === 10 && ksaMin === 0) {
+      // 1. Daily 10:00-10:04 AM KSA Announcement Check (window handles restarts cleanly)
+      if (ksaHour === 10 && ksaMin >= 0 && ksaMin < 5 && !dailyPostInFlight) {
         const metaRes = await query(`SELECT value FROM aion2_siege_meta WHERE key = 'last_daily_post' LIMIT 1`);
         const lastDailyPost = metaRes.rows[0]?.value;
 
         if (lastDailyPost !== ksaDateStr) {
-          console.log(`[aion2SiegeAlert] 10:00 AM KSA Triggered for ${ksaDateStr}. Checking Shugo schedule...`);
-          await query(
-            `INSERT INTO aion2_siege_meta (key, value, updated_at)
-             VALUES ('last_daily_post', $1, NOW())
-             ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()`,
-            [ksaDateStr]
-          );
+          dailyPostInFlight = true;
+          try {
+            console.log(`[aion2SiegeAlert] 10:00 AM KSA Triggered for ${ksaDateStr}. Checking Shugo schedule...`);
+            const result = await publishSiegeAnnouncement(client, {
+              channelId: TARGET_CHANNEL_ID,
+              forceSend: false,
+            });
 
-          const result = await publishSiegeAnnouncement(client, {
-            channelId: TARGET_CHANNEL_ID,
-            forceSend: false,
-          });
+            await query(
+              `INSERT INTO aion2_siege_meta (key, value, updated_at)
+               VALUES ('last_daily_post', $1, NOW())
+               ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()`,
+              [ksaDateStr]
+            );
 
-          if (result) {
-            console.log(`[aion2SiegeAlert] Successfully posted daily siege alert for ${ksaDateStr} in channel ${TARGET_CHANNEL_ID}`);
-          } else {
-            console.log(`[aion2SiegeAlert] No siege scheduled for today (${ksaDateStr}).`);
+            if (result) {
+              console.log(`[aion2SiegeAlert] Successfully posted daily siege alert for ${ksaDateStr} in channel ${TARGET_CHANNEL_ID}`);
+            } else {
+              console.log(`[aion2SiegeAlert] No siege scheduled for today (${ksaDateStr}).`);
+            }
+          } finally {
+            dailyPostInFlight = false;
           }
         }
       }
