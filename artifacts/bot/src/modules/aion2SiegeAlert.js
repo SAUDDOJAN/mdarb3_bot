@@ -362,6 +362,25 @@ export async function getAttendees(messageId) {
 }
 
 /**
+ * Formats a Unix timestamp strictly in the Gregorian calendar (Asia/Riyadh) with day name.
+ */
+export function formatGregorianDate(unixSeconds) {
+  const date = new Date(Number(unixSeconds) * 1000);
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Riyadh",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  }).formatToParts(date);
+  const get = (t) => parts.find((p) => p.type === t)?.value || "";
+  const weekdayAr = new Intl.DateTimeFormat("ar-SA-u-ca-gregory", {
+    timeZone: "Asia/Riyadh",
+    weekday: "long",
+  }).format(date);
+  return `${weekdayAr} ${get("day")}-${get("month")}-${get("year")}`;
+}
+
+/**
  * Builds the Raid-Helper style 3-column Siege announcement embed with class breakdowns,
  * Melee / Ranged / Healers counts, totals, countdowns, and the Abyss banner image.
  */
@@ -427,8 +446,8 @@ export function buildSiegeAnnouncementEmbed({
         inline: true,
       },
       {
-        name: "📅 التاريخ ووقت السيز",
-        value: `<t:${siegeUnix}:D>\n⚔️ السيز: **<t:${siegeUnix}:t>**\n\u200b`,
+        name: "📅 التاريخ ووقت السيج",
+        value: `**${formatGregorianDate(siegeUnix)}**\n⚔️ السيج: **<t:${siegeUnix}:t>**\n\u200b`,
         inline: true,
       },
       {
@@ -529,7 +548,7 @@ export function buildSiegeAnnouncementEmbed({
       },
       {
         name: `🔔 مسجلو التنبيه (${remindCount}) :`,
-        value: `**${remindCount}** لاعب *(DM قبل السيز بـ 1.5 ساعة)*`,
+        value: `**${remindCount}** لاعب *(DM قبل السيج بـ 1.5 ساعة)*`,
         inline: true,
       }
     )
@@ -575,11 +594,11 @@ export async function registerActiveSiege({
 async function sendSiegeDmToUser(user, { siegeUnix, gatheringUnix, isScheduledAlert = false }) {
   const title = isScheduledAlert
     ? "🚨 تنبيه الحصار — حان وقت التجمع الآن! (متبقي ساعة ونصف)"
-    : "🔔 تم تفعيل تنبيه السيز بنجاح — تحالف M3RGEEN";
+    : "🔔 تم تفعيل تنبيه السيج بنجاح — تحالف M3RGEEN";
 
   const leadLine = isScheduledAlert
-    ? "**بدأ الآن وقت التجمع للحصار (متبقي ساعة ونصف فقط على انطلاق السيز)!**"
-    : "تم تسجيلك في قائمة التنبيهات الخاصة بالسيز بنجاح، وسيصلك تذكير تلقائي آخر على الخاص **قبل انطلاق السيز بساعة ونصف (وقت التجمع)**.";
+    ? "**بدأ الآن وقت التجمع للحصار (متبقي ساعة ونصف فقط على انطلاق السيج)!**"
+    : "تم تسجيلك في قائمة التنبيهات الخاصة بالسيج بنجاح، وسيصلك تذكير تلقائي آخر على الخاص **قبل انطلاق السيج بساعة ونصف (وقت التجمع)**.";
 
   const dmEmbed = new EmbedBuilder()
     .setColor(isScheduledAlert ? 0xE67E22 : 0x3498DB)
@@ -587,7 +606,7 @@ async function sendSiegeDmToUser(user, { siegeUnix, gatheringUnix, isScheduledAl
     .setDescription([
       leadLine,
       "",
-      `📅 **تاريخ الحصار:** <t:${siegeUnix}:D>`,
+      `📅 **تاريخ الحصار:** ${formatGregorianDate(siegeUnix)}`,
       `🌀 **وقت التجمع (قبل الحدث بـ 1.5 ساعة):** <t:${gatheringUnix}:t> (<t:${gatheringUnix}:R>)`,
       `⚔️ **انطلاق الحصار:** <t:${siegeUnix}:t> (<t:${siegeUnix}:R>)`,
       `📍 **مكان التجمع:** \`قاعدة الأبيس جانب الكورة المتوهجة\``,
@@ -668,7 +687,7 @@ async function send2HourReminder(client, siege) {
 
   const originalMsg = await channel.messages.fetch(siege.message_id).catch(() => null);
   const payload = {
-    content: `📢 **تنبيه للمشاركين في السيز (متبقي ساعتان):**\n${mentionsText}`,
+    content: `📢 **تنبيه للمشاركين في السيج (متبقي ساعتان):**\n${mentionsText}`,
     embeds: [embed],
     allowedMentions: { parse: ["users", "roles"] },
   };
@@ -695,9 +714,9 @@ async function send5MinuteReminder(client, siege) {
 
   const embed = new EmbedBuilder()
     .setColor(0xE74C3C)
-    .setTitle("⚔️ نداء الحرب العاجل | بقيت 5 دقائق فقط على انطلاق السيز! 🔥")
+    .setTitle("⚔️ نداء الحرب العاجل | بقيت 5 دقائق فقط على انطلاق السيج! 🔥")
     .setDescription([
-      "🚨 **السيز حيبدأ بعد 5 دقائق! خلوكم متجمعين حول مدربع وجاهزين للانطلاق فوراً!**",
+      "🚨 **السيج حيبدأ بعد 5 دقائق! خلوكم متجمعين حول مدربع وجاهزين للانطلاق فوراً!**",
       "",
       `📍 **مكان التجمع:** \`قاعدة الأبيس جانب الكورة المتوهجة\``,
       `🔊 **الروم الصوتي:** <#${VOICE_CHANNEL_ID}> ([انتقال فوري للروم الصوتي](https://discord.com/channels/${MAIN_GUILD_ID}/${VOICE_CHANNEL_ID}))`,
@@ -711,7 +730,7 @@ async function send5MinuteReminder(client, siege) {
 
   const originalMsg = await channel.messages.fetch(siege.message_id).catch(() => null);
   const payload = {
-    content: `⚔️ **تنبيه عاجل للمشاركين (5 دقائق على بدء السيز):**\n${mentionsText}`,
+    content: `⚔️ **تنبيه عاجل للمشاركين (5 دقائق على بدء السيج):**\n${mentionsText}`,
     embeds: [embed],
     allowedMentions: { parse: ["users", "roles"] },
   };
@@ -1030,7 +1049,7 @@ export async function handleInteraction(interaction) {
 
     const emoji = CLASS_EMOJIS[className] || CLASS_EMOJIS.Other;
     if (isTogglingOff) {
-      replyText = "⚠️ **تم إلغاء تسجيل حالتك الحالية في إعلان السيز.** يمكنك الاختيار مجدداً في أي وقت.";
+      replyText = "⚠️ **تم إلغاء تسجيل حالتك الحالية في إعلان السيج.** يمكنك الاختيار مجدداً في أي وقت.";
     } else if (nextStatus === "ATTENDING") {
       replyText = `✅ **كفو يا \`${characterName}\`!** تم تسجيلك في **أنا معكم** تحت كلاس ${emoji} **${className}**.`;
     } else if (nextStatus === "MAYBE") {
@@ -1066,10 +1085,10 @@ export async function handleInteraction(interaction) {
       } catch (_) {}
 
       replyText = dmDelivered
-        ? "🔔 **تم تفعيل زر التنبيه وأرسلت لك التفاصيل فوراً على الخاص (DM)!**\nسيصلك تذكير تلقائي آخر قبل السيز بساعة ونصف (وقت التجمع)."
-        : "🔔 **تم تفعيل التنبيه لك!** لكن الخاص (DMs) لديك مغلق حالياً؛ يرجى فتح الرسائل الخاصة من السيرفر لتستلم تنبيه التجمع قبل السيز بساعة ونصف.";
+        ? "🔔 **تم تفعيل زر التنبيه وأرسلت لك التفاصيل فوراً على الخاص (DM)!**\nسيصلك تذكير تلقائي آخر قبل السيج بساعة ونصف (وقت التجمع)."
+        : "🔔 **تم تفعيل التنبيه لك!** لكن الخاص (DMs) لديك مغلق حالياً؛ يرجى فتح الرسائل الخاصة من السيرفر لتستلم تنبيه التجمع قبل السيج بساعة ونصف.";
     } else {
-      replyText = "🔕 **تم إلغاء تفعيل تنبيه الخاص للسيز.** يمكنك الضغط على الزر مجدداً في أي وقت.";
+      replyText = "🔕 **تم إلغاء تفعيل تنبيه الخاص للسيج.** يمكنك الضغط على الزر مجدداً في أي وقت.";
     }
   }
 
