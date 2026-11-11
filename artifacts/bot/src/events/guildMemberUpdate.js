@@ -1,4 +1,5 @@
 import { EmbedBuilder } from "discord.js";
+import { handleGuildMemberTimeoutTransition } from "../modules/timeoutCleaner.js";
 
 const SAGE_GUILD_ID = "1507696012410749030";
 const VISITOR_ROLE_ID = "1508443474960060487";
@@ -9,6 +10,13 @@ export default {
   name: "guildMemberUpdate",
   once: false,
   async execute(oldMember, newMember) {
+    // ── 0. Auto-purge recent messages across all channels on any new timeout ──
+    try {
+      await handleGuildMemberTimeoutTransition(oldMember, newMember);
+    } catch (timeoutErr) {
+      console.error("[TimeoutCleaner] Error in guildMemberUpdate hook:", timeoutErr);
+    }
+
     // ── 1. Isolation Protocol ──────────────────────────────────────────────────
     if (newMember.guild.id !== SAGE_GUILD_ID) return;
 

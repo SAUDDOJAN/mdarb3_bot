@@ -1,4 +1,5 @@
 import * as leveling from "../modules/leveling.js";
+import { trackRecentUserMessage, purgeTimedOutMemberMessages } from "../modules/timeoutCleaner.js";
 
 // روم التايم اوت التلقائي (أسبوع كامل)
 const AUTO_TIMEOUT_CHANNEL_ID = "1564210919053983834";
@@ -17,6 +18,12 @@ export default {
         if (member && member.moderatable) {
           await member.timeout(ONE_WEEK_MS, "مخالفة: إرسال رسالة في الروم المحظور (تايم اوت تلقائي لمدة أسبوع)");
           console.log(`[AutoTimeout] تم إعطاء تايم اوت لمدة أسبوع للعضو ${member.user?.tag || member.id} (${member.id}) بسبب الإرسال في الروم ${message.channel.id}`);
+
+          purgeTimedOutMemberMessages(member, {
+            reason: `تايم اوت تلقائي (الإرسال في روم التحقق <#${AUTO_TIMEOUT_CHANNEL_ID}>)`,
+          }).catch((purgeErr) => {
+            console.error("[AutoTimeout] فشل تنظيف رسائل العضو بعد التايم اوت التلقائي:", purgeErr);
+          });
         } else if (member && !member.moderatable) {
           console.warn(`[AutoTimeout] تعذر تطبيق التايم اوت على ${member.user?.tag || member.id} (رتبة العضو أعلى من رتبة البوت أو مالك السيرفر).`);
         }
@@ -31,6 +38,7 @@ export default {
       return; // عدم احتساب نقاط XP لمن يرسل في هذا الروم
     }
 
+    trackRecentUserMessage(message);
     await leveling.handleXp(message);
   },
 };
