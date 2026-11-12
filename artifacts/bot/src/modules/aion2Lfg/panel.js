@@ -1,6 +1,7 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } from 'discord.js';
 import fs from 'fs';
 import path from 'path';
+import { buildControlPanelPayload } from './instantVoice.js';
 
 export const LFG_CHANNEL_ID = '1548358065945059428';
 const CONFIG_PATH = path.join(process.cwd(), 'src', 'modules', 'aion2Lfg', 'panel_config.json');
@@ -54,55 +55,24 @@ export async function ensureLfgPanel(client) {
     // 2. Fallback search if stable ID failed
     if (!existingPanel) {
       const messages = await channel.messages.fetch({ limit: 20 });
-      existingPanel = messages.find(m => m.author.id === client.user.id && m.embeds.length > 0 && m.embeds[0].title === 'AION 2 LFG Control Panel');
+      existingPanel = messages.find(m => m.author.id === client.user.id && m.embeds.length > 0);
       if (existingPanel) {
         console.log(`[LFG] Found panel via fallback search. New ID: ${existingPanel.id}`);
         storePanelId(existingPanel.id);
       }
     }
 
-    const embed = new EmbedBuilder()
-      .setTitle('AION 2 LFG Control Panel')
-      .setDescription('اختر النشاط الذي ترغب في إنشاء مجموعة له أو الانضمام إليه.\n\n🛡️ **الأنشطة المتاحة:**\n- إكسبدشن: مجموعات 5 لاعبين\n- ترانسندنس: مجموعات 5 لاعبين (4 مراحل)\n- سانكشوري: مجموعات 10 لاعبين\n- أبيس: مجموعات 20 لاعب (بدون قيود كلاس)\n- زعماء العالم: مجموعات 20 لاعب (بدون قيود كلاس)')
-      .setColor('#9A67D2');
-
-    const row = new ActionRowBuilder().addComponents(
-      new ButtonBuilder()
-        .setCustomId('aion2_lfg_nav_dungeons')
-        .setLabel('إكسبدشن')
-        .setEmoji('🗡️')
-        .setStyle(ButtonStyle.Primary),
-      new ButtonBuilder()
-        .setCustomId('aion2_lfg_nav_transcendence')
-        .setLabel('ترانسندنس')
-        .setEmoji('✨')
-        .setStyle(ButtonStyle.Primary),
-      new ButtonBuilder()
-        .setCustomId('aion2_lfg_nav_sanctuary')
-        .setLabel('سانكشوري')
-        .setEmoji('⛩️')
-        .setStyle(ButtonStyle.Success),
-      new ButtonBuilder()
-        .setCustomId('aion2_lfg_nav_abyss')
-        .setLabel('أبيس')
-        .setEmoji('⚔️')
-        .setStyle(ButtonStyle.Danger),
-      new ButtonBuilder()
-        .setCustomId('aion2_lfg_nav_world_boss')
-        .setLabel('زعماء العالم')
-        .setEmoji('👹')
-        .setStyle(ButtonStyle.Danger)
-    );
+    const payload = buildControlPanelPayload();
 
     if (existingPanel) {
       // Edit existing to avoid spam
-      await existingPanel.edit({ embeds: [embed], components: [row] });
-      console.log(`[LFG Stage B1.1] Panel updated. Message ID: ${existingPanel.id}`);
+      await existingPanel.edit(payload);
+      console.log(`[LFG InstantVoice] Panel updated. Message ID: ${existingPanel.id}`);
       return existingPanel.id;
     } else {
       // Send new and store ID
-      const newMsg = await channel.send({ embeds: [embed], components: [row] });
-      console.log(`[LFG Stage B1.1] Panel created. Message ID: ${newMsg.id}`);
+      const newMsg = await channel.send(payload);
+      console.log(`[LFG InstantVoice] Panel created. Message ID: ${newMsg.id}`);
       storePanelId(newMsg.id);
       return newMsg.id;
     }

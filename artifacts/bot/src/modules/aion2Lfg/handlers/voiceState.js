@@ -5,6 +5,15 @@ export async function handleAion2VoiceStateUpdate(oldState, newState) {
   const member = newState.member ?? oldState.member;
   if (!member || member.user.bot) return;
 
+  // Instant Dungeon Voice Handler
+  try {
+    const client = newState.client || oldState.client;
+    const { handleInstantVoiceState } = await import('../instantVoice.js');
+    await handleInstantVoiceState(oldState, newState, client);
+  } catch (instantVoiceErr) {
+    console.error("[InstantVoice] Error handling voice state update:", instantVoiceErr);
+  }
+
   const joinedNew  = !oldState.channelId && newState.channelId;
   const leftOld    = oldState.channelId && !newState.channelId;
   const movedBetween = oldState.channelId && newState.channelId && oldState.channelId !== newState.channelId;

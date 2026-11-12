@@ -16,6 +16,39 @@ import {
 export async function lfgRouter(interaction) {
   const cid = interaction.customId;
 
+  // Instant Dungeon Voice System Routing
+  if (cid.startsWith('aion2_lfg_v_')) {
+    const { handleInstantVoiceInteraction } = await import('./instantVoice.js');
+    return handleInstantVoiceInteraction(interaction);
+  }
+
+  // Legacy Button Fallbacks -> Route to Instant Voice
+  if (cid === 'aion2_lfg_nav_dungeons') {
+    const { handleInstantVoiceInteraction } = await import('./instantVoice.js');
+    interaction.customId = 'aion2_lfg_v_dungeons';
+    return handleInstantVoiceInteraction(interaction);
+  }
+  if (cid === 'aion2_lfg_nav_transcendence') {
+    const { handleInstantVoiceInteraction } = await import('./instantVoice.js');
+    interaction.customId = 'aion2_lfg_v_transcendence';
+    return handleInstantVoiceInteraction(interaction);
+  }
+  if (cid === 'aion2_lfg_nav_sanctuary') {
+    const { handleInstantVoiceInteraction } = await import('./instantVoice.js');
+    interaction.customId = 'aion2_lfg_v_sanctuary';
+    return handleInstantVoiceInteraction(interaction);
+  }
+  if (cid === 'aion2_lfg_nav_abyss') {
+    const { handleInstantVoiceInteraction } = await import('./instantVoice.js');
+    interaction.customId = 'aion2_lfg_v_abyss';
+    return handleInstantVoiceInteraction(interaction);
+  }
+  if (cid === 'aion2_lfg_nav_world_boss') {
+    const { handleInstantVoiceInteraction } = await import('./instantVoice.js');
+    interaction.customId = 'aion2_lfg_v_world_boss';
+    return handleInstantVoiceInteraction(interaction);
+  }
+
   // Deprecated Class Selection Routing
   if (cid === 'aion2_lfg_class_select') {
     return handleClassSelect(interaction);
