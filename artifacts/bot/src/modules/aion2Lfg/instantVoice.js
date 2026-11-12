@@ -18,33 +18,35 @@ export const VOICE_CATEGORY_ID = "1552456426885087284";            // 🎙️︱
 export const MAIN_GUILD_ID = process.env.MAIN_GUILD_ID || "861355983975874601";
 
 // ── In-Memory Tracking for Active Instant Voice Channels ──
-// Map<voiceChannelId, { groupId, eventsMsgId, capacity, actKey, modeKey, creatorId, channelId, participants: Set<string>, emptyTimer: NodeJS.Timeout | null }>
+// Map<voiceChannelId, { groupId, eventsMsgId, capacity, actKey, modeKey, creatorId, previousVoiceChannelId, participants: Set<string>, emptyTimer: NodeJS.Timeout | null }>
 export const activeDungeonRooms = new Map();
 
 export const DUNGEON_ACTIVITIES = {
   // --- EXPEDITIONS (5 Players) ---
   Fire_Temple: {
-    nameAr: "معبد النار",
+    nameAr: "فاير تمبل",
     typeAr: "إكسبدشن",
     type: "DUNGEON",
     capacity: 5,
     basePoints: 10,
     creatorBonus: 2,
     modes: {
-      EXPLORATION: { labelAr: "استكشاف", minILvl: 500 },
-      CONQUEST: { labelAr: "غزو", minILvl: 2100 },
+      EXPLORATION:     { labelAr: "اكسبلوريشن", roomSuffix: "اكسبلوريشن", minILvl: 500 },
+      CONQUEST_NORMAL: { labelAr: "كونكوست نورمال", roomSuffix: "نورمال", minILvl: 1400 },
+      CONQUEST_HARD:   { labelAr: "كونكوست هارد", roomSuffix: "هارد", minILvl: 2100 },
     },
   },
   Krao: {
-    nameAr: "كهف كراو",
+    nameAr: "كراو كيف",
     typeAr: "إكسبدشن",
     type: "DUNGEON",
     capacity: 5,
     basePoints: 10,
     creatorBonus: 2,
     modes: {
-      EXPLORATION: { labelAr: "استكشاف", minILvl: 200 },
-      CONQUEST: { labelAr: "غزو", minILvl: 700 },
+      EXPLORATION:     { labelAr: "اكسبلوريشن", roomSuffix: "اكسبلوريشن", minILvl: 200 },
+      CONQUEST_NORMAL: { labelAr: "كونكوست نورمال", roomSuffix: "نورمال", minILvl: 500 },
+      CONQUEST_HARD:   { labelAr: "كونكوست هارد", roomSuffix: "هارد", minILvl: 700 },
     },
   },
   Draupnir: {
@@ -55,74 +57,78 @@ export const DUNGEON_ACTIVITIES = {
     basePoints: 10,
     creatorBonus: 2,
     modes: {
-      EXPLORATION: { labelAr: "استكشاف", minILvl: 700 },
-      CONQUEST: { labelAr: "غزو", minILvl: 700 },
+      EXPLORATION:     { labelAr: "اكسبلوريشن", roomSuffix: "اكسبلوريشن", minILvl: 700 },
+      CONQUEST_NORMAL: { labelAr: "كونكوست نورمال", roomSuffix: "نورمال", minILvl: 700 },
+      CONQUEST_HARD:   { labelAr: "كونكوست هارد", roomSuffix: "هارد", minILvl: 1000 },
     },
   },
   Urugugu: {
-    nameAr: "أوروغوغو",
+    nameAr: "اوروغوغو",
     typeAr: "إكسبدشن",
     type: "DUNGEON",
     capacity: 5,
     basePoints: 10,
     creatorBonus: 2,
     modes: {
-      EXPLORATION: { labelAr: "استكشاف", minILvl: 300 },
-      CONQUEST: { labelAr: "غزو", minILvl: 1400 },
+      EXPLORATION:     { labelAr: "اكسبلوريشن", roomSuffix: "اكسبلوريشن", minILvl: 300 },
+      CONQUEST_NORMAL: { labelAr: "كونكوست نورمال", roomSuffix: "نورمال", minILvl: 1000 },
+      CONQUEST_HARD:   { labelAr: "كونكوست هارد", roomSuffix: "هارد", minILvl: 1400 },
     },
   },
   Vakron: {
-    nameAr: "جزيرة فاكرون",
+    nameAr: "فاكرون ايلاند",
     typeAr: "إكسبدشن",
     type: "DUNGEON",
     capacity: 5,
     basePoints: 10,
     creatorBonus: 2,
     modes: {
-      EXPLORATION: { labelAr: "استكشاف", minILvl: 1400 },
-      CONQUEST: { labelAr: "غزو", minILvl: 1400 },
+      EXPLORATION:     { labelAr: "اكسبلوريشن", roomSuffix: "اكسبلوريشن", minILvl: 1400 },
+      CONQUEST_NORMAL: { labelAr: "كونكوست نورمال", roomSuffix: "نورمال", minILvl: 1400 },
+      CONQUEST_HARD:   { labelAr: "كونكوست هارد", roomSuffix: "هارد", minILvl: 1700 },
     },
   },
   Ferocious_Horn_Den: {
-    nameAr: "وكر القرن الشرس",
+    nameAr: "فيروشس هورن",
     typeAr: "إكسبدشن",
     type: "DUNGEON",
     capacity: 5,
     basePoints: 10,
     creatorBonus: 2,
     modes: {
-      EXPLORATION: { labelAr: "استكشاف", minILvl: 2100 },
-      CONQUEST: { labelAr: "غزو", minILvl: 2100 },
+      EXPLORATION:     { labelAr: "اكسبلوريشن", roomSuffix: "اكسبلوريشن", minILvl: 2100 },
+      CONQUEST_NORMAL: { labelAr: "كونكوست نورمال", roomSuffix: "نورمال", minILvl: 2100 },
+      CONQUEST_HARD:   { labelAr: "كونكوست هارد", roomSuffix: "هارد", minILvl: 2400 },
     },
   },
 
   // --- TRANSCENDENCE (5 Players) ---
   Shattered_Arkanis: {
-    nameAr: "صخرة أركانيس",
+    nameAr: "ترانسندنس اركنس",
     typeAr: "ترانسندنس",
     type: "TRANSCENDENCE",
     capacity: 5,
     basePoints: 10,
     creatorBonus: 2,
     modes: {
-      STAGE_1: { labelAr: "المرحلة 1", minILvl: 1600 },
-      STAGE_2: { labelAr: "المرحلة 2", minILvl: 1900 },
-      STAGE_3: { labelAr: "المرحلة 3", minILvl: 2200 },
-      STAGE_4: { labelAr: "المرحلة 4", minILvl: 2500 },
+      STAGE_1: { labelAr: "مرحلة 1", roomSuffix: "مرحلة 1", minILvl: 1600 },
+      STAGE_2: { labelAr: "مرحلة 2", roomSuffix: "مرحلة 2", minILvl: 1900 },
+      STAGE_3: { labelAr: "مرحلة 3", roomSuffix: "مرحلة 3", minILvl: 2200 },
+      STAGE_4: { labelAr: "مرحلة 4", roomSuffix: "مرحلة 4", minILvl: 2500 },
     },
   },
   Deus_Research_Base: {
-    nameAr: "قاعدة ديوس",
+    nameAr: "ترانسندنس ديوس",
     typeAr: "ترانسندنس",
     type: "TRANSCENDENCE",
     capacity: 5,
     basePoints: 10,
     creatorBonus: 2,
     modes: {
-      STAGE_1: { labelAr: "المرحلة 1", minILvl: 1600 },
-      STAGE_2: { labelAr: "المرحلة 2", minILvl: 1900 },
-      STAGE_3: { labelAr: "المرحلة 3", minILvl: 2200 },
-      STAGE_4: { labelAr: "المرحلة 4", minILvl: 2500 },
+      STAGE_1: { labelAr: "مرحلة 1", roomSuffix: "مرحلة 1", minILvl: 1600 },
+      STAGE_2: { labelAr: "مرحلة 2", roomSuffix: "مرحلة 2", minILvl: 1900 },
+      STAGE_3: { labelAr: "مرحلة 3", roomSuffix: "مرحلة 3", minILvl: 2200 },
+      STAGE_4: { labelAr: "مرحلة 4", roomSuffix: "مرحلة 4", minILvl: 2500 },
     },
   },
 
@@ -135,20 +141,20 @@ export const DUNGEON_ACTIVITIES = {
     basePoints: 30,
     creatorBonus: 6,
     modes: {
-      NORMAL: { labelAr: "10 لاعبين", minILvl: null },
+      NORMAL: { labelAr: "10 لاعبين", roomSuffix: "", minILvl: null },
     },
   },
 
   // --- ABYSS (20 Players) ---
   Abyss: {
-    nameAr: "الأبيس",
-    typeAr: "أبيس",
+    nameAr: "ابيس",
+    typeAr: "ابيس",
     type: "ABYSS",
     capacity: 20,
     basePoints: 10,
     creatorBonus: 2,
     modes: {
-      NORMAL: { labelAr: "فارم وريفيل", minILvl: null },
+      NORMAL: { labelAr: "فارم وريفيل", roomSuffix: "", minILvl: null },
     },
   },
 
@@ -161,7 +167,7 @@ export const DUNGEON_ACTIVITIES = {
     basePoints: 10,
     creatorBonus: 2,
     modes: {
-      NORMAL: { labelAr: "غارة عالمية", minILvl: null },
+      NORMAL: { labelAr: "غارة عالمية", roomSuffix: "", minILvl: null },
     },
   },
 };
@@ -178,11 +184,11 @@ export function buildControlPanelPayload() {
       "اختر النشاط الذي ترغب في خوضه، وسيقوم البوت بإنشاء روم صوتي فوري ومفتوح للجميع مباشرة.",
       "",
       "🛡️ **الأنشطة المتاحة:**",
-      "• **🗡️ إكسبدشن (5 لاعبين):** معبد النار، كهف كراو، دراوبنير، أوروغوغو، فاكرون، وكر القرن.",
-      "• **✨ ترانسندنس (5 لاعبين):** صخرة أركانيس، قاعدة ديوس (المراحل 1 إلى 4).",
+      "• **🗡️ إكسبدشن (5 لاعبين):** فاير تمبل، كراو كيف، دراوبنير، اوروغوغو، فاكرون ايلاند، فيروشس هورن *(اكسبلوريشن، نورمال، هارد)*.",
+      "• **✨ ترانسندنس (5 لاعبين):** ترانسندنس اركنس، ترانسندنس ديوس *(المراحل 1 إلى 4)*.",
       "• **⛩️ سانكشوري (10 لاعبين):** غارة الـ 10 لاعبين (فريقين متكاملين).",
-      "• **⚔️ الأبيس (Abyss):** رومات فارم ونقاط وريفيل في الأبيس.",
-      "• **👹 زعماء العالم (World Bosses):** مواجهة بوسات العالم المفتوح.",
+      "• **⚔️ ابيس:** رومات فارم ونقاط وريفيل في الابيس.",
+      "• **👹 زعماء العالم:** مواجهة بوسات العالم المفتوح.",
       "",
       "━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
       "📢 **طريقة الاستخدام:**",
@@ -212,7 +218,7 @@ export function buildControlPanelPayload() {
       .setStyle(ButtonStyle.Success),
     new ButtonBuilder()
       .setCustomId("aion2_lfg_v_abyss")
-      .setLabel("الأبيس")
+      .setLabel("ابيس")
       .setEmoji("⚔️")
       .setStyle(ButtonStyle.Danger),
     new ButtonBuilder()
@@ -226,36 +232,57 @@ export function buildControlPanelPayload() {
 }
 
 /**
+ * Automatically schedule deletion of ephemeral replies after 5 minutes
+ */
+function scheduleEphemeralDismiss(interaction, delayMs = 5 * 60 * 1000) {
+  setTimeout(() => {
+    interaction.deleteReply().catch(() => {});
+  }, delayMs);
+}
+
+/**
  * Handles interactions originating from the Control Panel or Active Cards
  */
 export async function handleInstantVoiceInteraction(interaction) {
   const cid = interaction.customId;
 
-  // 1. Expeditions Menu
+  // 1. Expeditions Menu (18 options: 6 dungeons x [اكسبلوريشن, نورمال, هارد])
   if (cid === "aion2_lfg_v_dungeons") {
     const menu = new StringSelectMenuBuilder()
       .setCustomId("aion2_lfg_v_sel_dungeon")
       .setPlaceholder("اختر دنجن الإكسبدشن والصعوبة...")
       .addOptions([
-        { label: "معبد النار [استكشاف]", value: "Fire_Temple_EXPLORATION", description: "الحد الأدنى للعتاد: 500 iLvl", emoji: "🔥" },
-        { label: "معبد النار [غزو]", value: "Fire_Temple_CONQUEST", description: "الحد الأدنى للعتاد: 2100 iLvl", emoji: "⚔️" },
-        { label: "كهف كراو [استكشاف]", value: "Krao_EXPLORATION", description: "الحد الأدنى للعتاد: 200 iLvl", emoji: "🦇" },
-        { label: "كهف كراو [غزو]", value: "Krao_CONQUEST", description: "الحد الأدنى للعتاد: 700 iLvl", emoji: "⚔️" },
-        { label: "دراوبنير [استكشاف]", value: "Draupnir_EXPLORATION", description: "الحد الأدنى للعتاد: 700 iLvl", emoji: "🏛️" },
-        { label: "دراوبنير [غزو]", value: "Draupnir_CONQUEST", description: "الحد الأدنى للعتاد: 700 iLvl", emoji: "⚔️" },
-        { label: "أوروغوغو [استكشاف]", value: "Urugugu_EXPLORATION", description: "الحد الأدنى للعتاد: 300 iLvl", emoji: "🗿" },
-        { label: "أوروغوغو [غزو]", value: "Urugugu_CONQUEST", description: "الحد الأدنى للعتاد: 1400 iLvl", emoji: "⚔️" },
-        { label: "جزيرة فاكرون [استكشاف]", value: "Vakron_EXPLORATION", description: "الحد الأدنى للعتاد: 1400 iLvl", emoji: "🏝️" },
-        { label: "جزيرة فاكرون [غزو]", value: "Vakron_CONQUEST", description: "الحد الأدنى للعتاد: 1400 iLvl", emoji: "⚔️" },
-        { label: "وكر القرن الشرس [استكشاف]", value: "Ferocious_Horn_Den_EXPLORATION", description: "الحد الأدنى للعتاد: 2100 iLvl", emoji: "🦏" },
-        { label: "وكر القرن الشرس [غزو]", value: "Ferocious_Horn_Den_CONQUEST", description: "الحد الأدنى للعتاد: 2100 iLvl", emoji: "⚔️" },
+        { label: "فاير تمبل [اكسبلوريشن]", value: "Fire_Temple_EXPLORATION", description: "Exploration • 500 iLvl", emoji: "🔥" },
+        { label: "فاير تمبل [نورمال]", value: "Fire_Temple_CONQUEST_NORMAL", description: "Conquest Normal • 1400 iLvl", emoji: "⚔️" },
+        { label: "فاير تمبل [هارد]", value: "Fire_Temple_CONQUEST_HARD", description: "Conquest Hard • 2100 iLvl", emoji: "💀" },
+
+        { label: "كراو كيف [اكسبلوريشن]", value: "Krao_EXPLORATION", description: "Exploration • 200 iLvl", emoji: "🦇" },
+        { label: "كراو كيف [نورمال]", value: "Krao_CONQUEST_NORMAL", description: "Conquest Normal • 500 iLvl", emoji: "⚔️" },
+        { label: "كراو كيف [هارد]", value: "Krao_CONQUEST_HARD", description: "Conquest Hard • 700 iLvl", emoji: "💀" },
+
+        { label: "دراوبنير [اكسبلوريشن]", value: "Draupnir_EXPLORATION", description: "Exploration • 700 iLvl", emoji: "🏛️" },
+        { label: "دراوبنير [نورمال]", value: "Draupnir_CONQUEST_NORMAL", description: "Conquest Normal • 700 iLvl", emoji: "⚔️" },
+        { label: "دراوبنير [هارد]", value: "Draupnir_CONQUEST_HARD", description: "Conquest Hard • 1000 iLvl", emoji: "💀" },
+
+        { label: "اوروغوغو [اكسبلوريشن]", value: "Urugugu_EXPLORATION", description: "Exploration • 300 iLvl", emoji: "🗿" },
+        { label: "اوروغوغو [نورمال]", value: "Urugugu_CONQUEST_NORMAL", description: "Conquest Normal • 1000 iLvl", emoji: "⚔️" },
+        { label: "اوروغوغو [هارد]", value: "Urugugu_CONQUEST_HARD", description: "Conquest Hard • 1400 iLvl", emoji: "💀" },
+
+        { label: "فاكرون ايلاند [اكسبلوريشن]", value: "Vakron_EXPLORATION", description: "Exploration • 1400 iLvl", emoji: "🏝️" },
+        { label: "فاكرون ايلاند [نورمال]", value: "Vakron_CONQUEST_NORMAL", description: "Conquest Normal • 1400 iLvl", emoji: "⚔️" },
+        { label: "فاكرون ايلاند [هارد]", value: "Vakron_CONQUEST_HARD", description: "Conquest Hard • 1700 iLvl", emoji: "💀" },
+
+        { label: "فيروشس هورن [اكسبلوريشن]", value: "Ferocious_Horn_Den_EXPLORATION", description: "Exploration • 2100 iLvl", emoji: "🦏" },
+        { label: "فيروشس هورن [نورمال]", value: "Ferocious_Horn_Den_CONQUEST_NORMAL", description: "Conquest Normal • 2100 iLvl", emoji: "⚔️" },
+        { label: "فيروشس هورن [هارد]", value: "Ferocious_Horn_Den_CONQUEST_HARD", description: "Conquest Hard • 2400 iLvl", emoji: "💀" },
       ]);
 
-    return interaction.reply({
-      content: "🗡️ **اختر دنجن الإكسبدشن المطلوب:**",
+    await interaction.reply({
+      content: "🗡️ **اختر دنجن الإكسبدشن والصعوبة المطلوبة:**",
       components: [new ActionRowBuilder().addComponents(menu)],
       ephemeral: true,
     });
+    return scheduleEphemeralDismiss(interaction);
   }
 
   // 2. Transcendence Menu
@@ -264,21 +291,22 @@ export async function handleInstantVoiceInteraction(interaction) {
       .setCustomId("aion2_lfg_v_sel_trans")
       .setPlaceholder("اختر دنجن ترانسندنس والمرحلة...")
       .addOptions([
-        { label: "صخرة أركانيس [المرحلة 1]", value: "Shattered_Arkanis_STAGE_1", description: "الحد الأدنى للعتاد: 1600 iLvl", emoji: "🔮" },
-        { label: "صخرة أركانيس [المرحلة 2]", value: "Shattered_Arkanis_STAGE_2", description: "الحد الأدنى للعتاد: 1900 iLvl", emoji: "🔮" },
-        { label: "صخرة أركانيس [المرحلة 3]", value: "Shattered_Arkanis_STAGE_3", description: "الحد الأدنى للعتاد: 2200 iLvl", emoji: "🔮" },
-        { label: "صخرة أركانيس [المرحلة 4]", value: "Shattered_Arkanis_STAGE_4", description: "الحد الأدنى للعتاد: 2500 iLvl", emoji: "🔮" },
-        { label: "قاعدة ديوس [المرحلة 1]", value: "Deus_Research_Base_STAGE_1", description: "الحد الأدنى للعتاد: 1600 iLvl", emoji: "🏛️" },
-        { label: "قاعدة ديوس [المرحلة 2]", value: "Deus_Research_Base_STAGE_2", description: "الحد الأدنى للعتاد: 1900 iLvl", emoji: "🏛️" },
-        { label: "قاعدة ديوس [المرحلة 3]", value: "Deus_Research_Base_STAGE_3", description: "الحد الأدنى للعتاد: 2200 iLvl", emoji: "🏛️" },
-        { label: "قاعدة ديوس [المرحلة 4]", value: "Deus_Research_Base_STAGE_4", description: "الحد الأدنى للعتاد: 2500 iLvl", emoji: "🏛️" },
+        { label: "ترانسندنس اركنس [مرحلة 1]", value: "Shattered_Arkanis_STAGE_1", description: "Stage 1 • 1600 iLvl", emoji: "🔮" },
+        { label: "ترانسندنس اركنس [مرحلة 2]", value: "Shattered_Arkanis_STAGE_2", description: "Stage 2 • 1900 iLvl", emoji: "🔮" },
+        { label: "ترانسندنس اركنس [مرحلة 3]", value: "Shattered_Arkanis_STAGE_3", description: "Stage 3 • 2200 iLvl", emoji: "🔮" },
+        { label: "ترانسندنس اركنس [مرحلة 4]", value: "Shattered_Arkanis_STAGE_4", description: "Stage 4 • 2500 iLvl", emoji: "🔮" },
+        { label: "ترانسندنس ديوس [مرحلة 1]", value: "Deus_Research_Base_STAGE_1", description: "Stage 1 • 1600 iLvl", emoji: "🏛️" },
+        { label: "ترانسندنس ديوس [مرحلة 2]", value: "Deus_Research_Base_STAGE_2", description: "Stage 2 • 1900 iLvl", emoji: "🏛️" },
+        { label: "ترانسندنس ديوس [مرحلة 3]", value: "Deus_Research_Base_STAGE_3", description: "Stage 3 • 2200 iLvl", emoji: "🏛️" },
+        { label: "ترانسندنس ديوس [مرحلة 4]", value: "Deus_Research_Base_STAGE_4", description: "Stage 4 • 2500 iLvl", emoji: "🏛️" },
       ]);
 
-    return interaction.reply({
+    await interaction.reply({
       content: "✨ **اختر دنجن ترانسندنس والمرحلة المطلوبة:**",
       components: [new ActionRowBuilder().addComponents(menu)],
       ephemeral: true,
     });
+    return scheduleEphemeralDismiss(interaction);
   }
 
   // 3. Sanctuary Confirm Button
@@ -289,26 +317,28 @@ export async function handleInstantVoiceInteraction(interaction) {
       .setEmoji("⛩️")
       .setStyle(ButtonStyle.Success);
 
-    return interaction.reply({
+    await interaction.reply({
       content: "⛩️ **هل ترغب في إنشاء روم صوتي لغارة سانكشوري (10 لاعبين)؟**",
       components: [new ActionRowBuilder().addComponents(btn)],
       ephemeral: true,
     });
+    return scheduleEphemeralDismiss(interaction);
   }
 
   // 4. Abyss Confirm Button
   if (cid === "aion2_lfg_v_abyss") {
     const btn = new ButtonBuilder()
       .setCustomId("aion2_lfg_v_create_Abyss_NORMAL")
-      .setLabel("تأكيد إنشاء روم أبيس (فارم وريفيل)")
+      .setLabel("تأكيد إنشاء روم ابيس (فارم وريفيل)")
       .setEmoji("⚔️")
       .setStyle(ButtonStyle.Danger);
 
-    return interaction.reply({
-      content: "⚔️ **هل ترغب في إنشاء روم صوتي لعمليات الأبيس (فارم / ريفيل)؟**",
+    await interaction.reply({
+      content: "⚔️ **هل ترغب في إنشاء روم صوتي لعمليات الابيس (فارم / ريفيل)؟**",
       components: [new ActionRowBuilder().addComponents(btn)],
       ephemeral: true,
     });
+    return scheduleEphemeralDismiss(interaction);
   }
 
   // 5. World Boss Confirm Button
@@ -319,28 +349,25 @@ export async function handleInstantVoiceInteraction(interaction) {
       .setEmoji("👹")
       .setStyle(ButtonStyle.Danger);
 
-    return interaction.reply({
+    await interaction.reply({
       content: "👹 **هل ترغب في إنشاء روم صوتي لغارة زعماء العالم (World Bosses)؟**",
       components: [new ActionRowBuilder().addComponents(btn)],
       ephemeral: true,
     });
+    return scheduleEphemeralDismiss(interaction);
   }
 
   // ── Handling Selections & Confirmations ──
   if (cid === "aion2_lfg_v_sel_dungeon" || cid === "aion2_lfg_v_sel_trans") {
     const selected = interaction.values[0];
-    const lastUnderscore = selected.lastIndexOf("_");
-    const actKey = selected.substring(0, lastUnderscore);
-    const modeKey = selected.substring(lastUnderscore + 1);
-    return createInstantVoiceRoom(interaction, actKey, modeKey);
+    const match = parseActivityMode(selected);
+    return createInstantVoiceRoom(interaction, match.actKey, match.modeKey);
   }
 
   if (cid.startsWith("aion2_lfg_v_create_")) {
     const payload = cid.replace("aion2_lfg_v_create_", "");
-    const lastUnderscore = payload.lastIndexOf("_");
-    const actKey = payload.substring(0, lastUnderscore);
-    const modeKey = payload.substring(lastUnderscore + 1);
-    return createInstantVoiceRoom(interaction, actKey, modeKey);
+    const match = parseActivityMode(payload);
+    return createInstantVoiceRoom(interaction, match.actKey, match.modeKey);
   }
 
   // ── Handling Finish & Award Points ──
@@ -357,6 +384,23 @@ export async function handleInstantVoiceInteraction(interaction) {
 }
 
 /**
+ * Robust parser for activityKey and modeKey from compound identifiers
+ */
+function parseActivityMode(payload) {
+  for (const actKey of Object.keys(DUNGEON_ACTIVITIES)) {
+    if (payload.startsWith(actKey + "_")) {
+      const modeKey = payload.substring(actKey.length + 1);
+      return { actKey, modeKey };
+    }
+  }
+  const lastUnderscore = payload.lastIndexOf("_");
+  return {
+    actKey: payload.substring(0, lastUnderscore),
+    modeKey: payload.substring(lastUnderscore + 1),
+  };
+}
+
+/**
  * Creates the Voice Channel & Posts the Announcement Card in OPEN_DUNGEONS_CHANNEL_ID
  */
 export async function createInstantVoiceRoom(interaction, actKey, modeKey) {
@@ -366,17 +410,23 @@ export async function createInstantVoiceRoom(interaction, actKey, modeKey) {
 
   const act = DUNGEON_ACTIVITIES[actKey];
   if (!act) {
-    return interaction.editReply({ content: "❌ نشاط غير صالح أو غير معرف." });
+    await interaction.editReply({ content: "❌ نشاط غير صالح أو غير معرف." });
+    return scheduleEphemeralDismiss(interaction);
   }
 
-  const mode = act.modes[modeKey] || { labelAr: modeKey };
+  const mode = act.modes[modeKey] || { labelAr: modeKey, roomSuffix: modeKey };
   const guild = interaction.guild;
   if (!guild) {
-    return interaction.editReply({ content: "❌ لا يمكن تنفيذ الأمر خارج السيرفر." });
+    await interaction.editReply({ content: "❌ لا يمكن تنفيذ الأمر خارج السيرفر." });
+    return scheduleEphemeralDismiss(interaction);
   }
 
-  const creator = interaction.member || interaction.user;
-  const channelName = `🔊・${act.nameAr} [${mode.labelAr}]`;
+  // Capture original voice room so creator can be returned upon closing
+  const previousVoiceChannelId = interaction.member?.voice?.channelId || null;
+
+  // Build clean room name e.g. "🔊・فاير تمبل هارد" or "🔊・كراو كيف نورمال"
+  const roomTitle = mode.roomSuffix ? `${act.nameAr} ${mode.roomSuffix}` : act.nameAr;
+  const channelName = `🔊・${roomTitle}`;
 
   // 1. Create Temporary Voice Channel in Category
   let voiceChannel;
@@ -396,11 +446,12 @@ export async function createInstantVoiceRoom(interaction, actKey, modeKey) {
           ],
         },
       ],
-      reason: `Instant Dungeon Voice: ${actKey} [${modeKey}] by ${interaction.user.tag}`,
+      reason: `Instant Dungeon Voice: ${roomTitle} by ${interaction.user.tag}`,
     });
   } catch (err) {
     console.error("[InstantVoice] Error creating voice channel:", err);
-    return interaction.editReply({ content: "❌ فشل إنشاء الروم الصوتي. يرجى التأكد من صلاحيات البوت في السيرفر." });
+    await interaction.editReply({ content: "❌ فشل إنشاء الروم الصوتي. يرجى التأكد من صلاحيات البوت في السيرفر." });
+    return scheduleEphemeralDismiss(interaction);
   }
 
   const nowUnix = Math.floor(Date.now() / 1000);
@@ -413,7 +464,7 @@ export async function createInstantVoiceRoom(interaction, actKey, modeKey) {
     if (eventsChannel && eventsChannel.isTextBased()) {
       const cardEmbed = new EmbedBuilder()
         .setColor(0x2ECC71)
-        .setTitle(`⚔️ تم فتح روم دنجن | ${act.nameAr} [${mode.labelAr}]`)
+        .setTitle(`⚔️ تم فتح روم دنجن | ${roomTitle}`)
         .setDescription([
           `👑 **المنشئ:** <@${interaction.user.id}>`,
           `🎯 **النشاط:** ${act.typeAr} • ${mode.labelAr}`,
@@ -476,7 +527,9 @@ export async function createInstantVoiceRoom(interaction, actKey, modeKey) {
     capacity: act.capacity,
     actKey,
     modeKey,
+    roomTitle,
     creatorId: interaction.user.id,
+    previousVoiceChannelId,
     voiceChannelId: voiceChannel.id,
     participants: new Set([interaction.user.id]),
     emptyTimer: null,
@@ -494,7 +547,7 @@ export async function createInstantVoiceRoom(interaction, actKey, modeKey) {
     }
   } catch (_) {}
 
-  // 6. Reply to Creator
+  // 6. Reply to Creator with Auto-Dismiss after 5 minutes
   const replyRow = new ActionRowBuilder().addComponents(
     new ButtonBuilder()
       .setLabel("دخول الروم الصوتي الآن")
@@ -503,9 +556,9 @@ export async function createInstantVoiceRoom(interaction, actKey, modeKey) {
       .setURL(voiceUrl)
   );
 
-  return interaction.editReply({
+  await interaction.editReply({
     content: [
-      `✅ **تم إنشاء الروم الصوتي بنجاح!**`,
+      `✅ **تم إنشاء الروم الصوتي بنجاح: \`${channelName}\`!**`,
       `📍 **الروم الصوتي:** <#${voiceChannel.id}>`,
       `📢 **تم نشر بطاقة الإعلان في:** <#${OPEN_DUNGEONS_CHANNEL_ID}>`,
       "",
@@ -513,6 +566,8 @@ export async function createInstantVoiceRoom(interaction, actKey, modeKey) {
     ].join("\n"),
     components: [replyRow],
   });
+
+  return scheduleEphemeralDismiss(interaction);
 }
 
 /**
@@ -633,7 +688,7 @@ async function updateLiveCardStatus(client, voiceChannelId) {
       .setColor(isFull ? 0xE67E22 : 0x2ECC71)
       .setDescription([
         `👑 **المنشئ:** <@${data.creatorId}>`,
-        `🎯 **النشاط:** ${act?.typeAr || "دنجن"} • ${mode.labelAr}`,
+        `🎯 **النشاط:** ${data.roomTitle || act?.nameAr}`,
         `👥 **السعة:** \`${data.capacity} لاعبين\``,
         `🔊 **الروم الصوتي:** <#${voiceChannelId}>`,
         `📊 **الحالة:** ${statusText}`,
@@ -656,7 +711,10 @@ export async function handleInstantVoiceFinish(interaction, voiceChannelId) {
 
   const data = activeDungeonRooms.get(voiceChannelId);
   const guild = interaction.guild;
-  if (!guild) return interaction.editReply({ content: "❌ خطأ في السيرفر." });
+  if (!guild) {
+    await interaction.editReply({ content: "❌ خطأ في السيرفر." });
+    return scheduleEphemeralDismiss(interaction);
+  }
 
   // Permissions check: Only Creator or Server Admin / Moderator
   const isCreator = data ? data.creatorId === interaction.user.id : false;
@@ -664,13 +722,27 @@ export async function handleInstantVoiceFinish(interaction, voiceChannelId) {
                   interaction.member.permissions.has(PermissionFlagsBits.ManageGuild);
 
   if (!isCreator && !isAdmin) {
-    return interaction.editReply({
+    await interaction.editReply({
       content: "❌ عذراً، فقط منشئ الروم أو المشرف يمكنه إنهاء الدنجن وتوثيق النقاط.",
     });
+    return scheduleEphemeralDismiss(interaction);
   }
 
   const voiceChannel = guild.channels.cache.get(voiceChannelId) || (await guild.channels.fetch(voiceChannelId).catch(() => null));
-  
+
+  // Return creator to their original voice room if available before closing
+  if (data?.previousVoiceChannelId && data?.creatorId) {
+    try {
+      const prevChan = guild.channels.cache.get(data.previousVoiceChannelId) || (await guild.channels.fetch(data.previousVoiceChannelId).catch(() => null));
+      if (prevChan && prevChan.isVoiceBased()) {
+        const creatorMember = guild.members.cache.get(data.creatorId) || (await guild.members.fetch(data.creatorId).catch(() => null));
+        if (creatorMember && creatorMember.voice?.channelId === voiceChannelId) {
+          await creatorMember.voice.setChannel(prevChan).catch(() => {});
+        }
+      }
+    } catch (_) {}
+  }
+
   // Gather participants from current voice members + logged participants
   const participantsSet = new Set(data?.participants || []);
   if (voiceChannel) {
@@ -755,7 +827,7 @@ export async function handleInstantVoiceFinish(interaction, voiceChannelId) {
           .setColor(0xF1C40F)
           .setTitle(`🏆 تم إنهاء الدنجن وتوثيق النقاط بنجاح!`)
           .setDescription([
-            `⚔️ **النشاط:** ${act.nameAr}`,
+            `⚔️ **النشاط:** ${data?.roomTitle || act.nameAr}`,
             `👑 **أنهى النشاط:** <@${interaction.user.id}>`,
             "",
             "📊 **النقاط الموزعة على الأبطال المشاركين:**",
@@ -786,9 +858,11 @@ export async function handleInstantVoiceFinish(interaction, voiceChannelId) {
     } catch (_) {}
   }, 30 * 1000);
 
-  return interaction.editReply({
+  await interaction.editReply({
     content: `✅ **تم توثيق إنهاء الدنجن وتوزيع النقاط على ${participantsSet.size} لاعبين بنجاح!**`,
   });
+
+  return scheduleEphemeralDismiss(interaction);
 }
 
 /**
@@ -799,19 +873,39 @@ export async function handleInstantVoiceClose(interaction, voiceChannelId) {
 
   const data = activeDungeonRooms.get(voiceChannelId);
   const guild = interaction.guild;
-  if (!guild) return interaction.editReply({ content: "❌ خطأ في السيرفر." });
+  if (!guild) {
+    await interaction.editReply({ content: "❌ خطأ في السيرفر." });
+    return scheduleEphemeralDismiss(interaction);
+  }
 
   const isCreator = data ? data.creatorId === interaction.user.id : false;
   const isAdmin = interaction.member.permissions.has(PermissionFlagsBits.Administrator) ||
                   interaction.member.permissions.has(PermissionFlagsBits.ManageGuild);
 
   if (!isCreator && !isAdmin) {
-    return interaction.editReply({
+    await interaction.editReply({
       content: "❌ عذراً، فقط منشئ الروم أو المشرف يمكنه إغلاق الروم يدوياً.",
     });
+    return scheduleEphemeralDismiss(interaction);
   }
 
   const voiceChannel = guild.channels.cache.get(voiceChannelId) || (await guild.channels.fetch(voiceChannelId).catch(() => null));
+
+  // Return creator to their original voice room if available before deleting
+  if (data?.previousVoiceChannelId && data?.creatorId) {
+    try {
+      const prevChan = guild.channels.cache.get(data.previousVoiceChannelId) || (await guild.channels.fetch(data.previousVoiceChannelId).catch(() => null));
+      if (prevChan && prevChan.isVoiceBased()) {
+        const creatorMember = guild.members.cache.get(data.creatorId) || (await guild.members.fetch(data.creatorId).catch(() => null));
+        if (creatorMember && creatorMember.voice?.channelId === voiceChannelId) {
+          await creatorMember.voice.setChannel(prevChan).catch(() => {});
+        }
+      }
+    } catch (moveErr) {
+      console.warn("[InstantVoice] Could not move creator back to original channel:", moveErr.message);
+    }
+  }
+
   if (voiceChannel) {
     await voiceChannel.delete(`Closed by ${interaction.user.tag}`).catch(() => {});
   }
@@ -841,7 +935,10 @@ export async function handleInstantVoiceClose(interaction, voiceChannelId) {
 
   activeDungeonRooms.delete(voiceChannelId);
 
-  return interaction.editReply({
+  await interaction.editReply({
     content: "✅ تم إغلاق الروم الصوتي وحذف بطاقة الدنجن بنجاح.",
   });
+
+  // Auto-dismiss the ephemeral message after 5 minutes
+  return scheduleEphemeralDismiss(interaction);
 }
