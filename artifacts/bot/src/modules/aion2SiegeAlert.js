@@ -14,8 +14,8 @@ export const MAIN_GUILD_ID = process.env.MAIN_GUILD_ID || "861355983975874601";
 export const SIEGE_BANNER_URL =
   "https://raw.githubusercontent.com/SAUDDOJAN/mdarb3_bot/main/artifacts/bot/assets/aion2_siege_banner_v2.jpg";
 
-// 1.5 hours (90 minutes) before Siege start = official gathering & DM alert trigger
-export const GATHERING_LEAD_SECONDS = 90 * 60;
+// 2.5 hours (150 minutes) before Siege start = official gathering & DM alert trigger
+export const GATHERING_LEAD_SECONDS = 150 * 60;
 
 export const CLASS_EMOJIS = {
   Templar:      "<:Templar:1504472027724255414>",
@@ -253,7 +253,7 @@ export async function getEuropeSiegeSchedule(forceNext = false) {
 
   const siegeUtcMs = approxDate.getTime() - offsetMin * 60 * 1000;
   const siegeUnix = Math.floor(siegeUtcMs / 1000);
-  // Gathering time matches the 1.5h (90m) Siege alert timing in system
+  // Gathering time matches the 2.5h (150m) Siege alert timing in system
   const gatheringUnix = siegeUnix - GATHERING_LEAD_SECONDS;
 
   return {
@@ -548,7 +548,7 @@ export function buildSiegeAnnouncementEmbed({
       },
       {
         name: `🔔 مسجلو التنبيه (${remindCount}) :`,
-        value: `**${remindCount}** لاعب *(DM قبل السيج بـ 1.5 ساعة)*`,
+        value: `**${remindCount}** لاعب *(DM قبل السيج بـ 2.5 ساعة)*`,
         inline: true,
       }
     )
@@ -589,16 +589,16 @@ export async function registerActiveSiege({
 }
 
 /**
- * Sends instant confirmation DM or T-1.5h gathering DM alert.
+ * Sends instant confirmation DM or T-2.5h gathering DM alert.
  */
 async function sendSiegeDmToUser(user, { siegeUnix, gatheringUnix, isScheduledAlert = false }) {
   const title = isScheduledAlert
-    ? "🚨 تنبيه الحصار — حان وقت التجمع الآن! (متبقي ساعة ونصف)"
+    ? "🚨 تنبيه الحصار — حان وقت التجمع الآن! (متبقي ساعتين ونصف)"
     : "🔔 تم تفعيل تنبيه السيج بنجاح — تحالف M3RGEEN";
 
   const leadLine = isScheduledAlert
-    ? "**بدأ الآن وقت التجمع للحصار (متبقي ساعة ونصف فقط على انطلاق السيج)!**"
-    : "تم تسجيلك في قائمة التنبيهات الخاصة بالسيج بنجاح، وسيصلك تذكير تلقائي آخر على الخاص **قبل انطلاق السيج بساعة ونصف (وقت التجمع)**.";
+    ? "**بدأ الآن وقت التجمع للحصار (متبقي ساعتين ونصف فقط على انطلاق السيج — سارعوا بالدخول قبل إغلاق الأبيس)!**"
+    : "تم تسجيلك في قائمة التنبيهات الخاصة بالسيج بنجاح، وسيصلك تذكير تلقائي آخر على الخاص **قبل انطلاق السيج بساعتين ونصف (وقت التجمع)**.";
 
   const dmEmbed = new EmbedBuilder()
     .setColor(isScheduledAlert ? 0xE67E22 : 0x3498DB)
@@ -607,7 +607,7 @@ async function sendSiegeDmToUser(user, { siegeUnix, gatheringUnix, isScheduledAl
       leadLine,
       "",
       `📅 **تاريخ الحصار:** ${formatGregorianDate(siegeUnix)}`,
-      `🌀 **وقت التجمع (قبل الحدث بـ 1.5 ساعة):** <t:${gatheringUnix}:t> (<t:${gatheringUnix}:R>)`,
+      `🌀 **وقت التجمع (قبل الحدث بـ 2.5 ساعة):** <t:${gatheringUnix}:t> (<t:${gatheringUnix}:R>)`,
       `⚔️ **انطلاق الحصار:** <t:${siegeUnix}:t> (<t:${siegeUnix}:R>)`,
       `📍 **مكان التجمع:** \`قاعدة الأبيس جانب الكورة المتوهجة\``,
       `🔊 **روم التجمع الصوتي:** <#${VOICE_CHANNEL_ID}> ([دخول مباشر للروم الصوتي](https://discord.com/channels/${MAIN_GUILD_ID}/${VOICE_CHANNEL_ID}))`,
@@ -621,7 +621,7 @@ async function sendSiegeDmToUser(user, { siegeUnix, gatheringUnix, isScheduledAl
 }
 
 /**
- * Sends T-1.5h gathering DMs to every player who pressed "🔔 نبهني".
+ * Sends T-2.5h gathering DMs to every player who pressed "🔔 نبهني".
  */
 async function send1h30mDmReminders(client, siege) {
   const res = await query(
@@ -647,11 +647,11 @@ async function send1h30mDmReminders(client, siege) {
         [siege.message_id, row.user_id]
       );
     } catch (err) {
-      console.warn(`[aion2SiegeAlert] Could not DM user ${row.user_id} at T-1.5h:`, err.message);
+      console.warn(`[aion2SiegeAlert] Could not DM user ${row.user_id} at T-2.5h:`, err.message);
     }
   }
 
-  console.log(`[aion2SiegeAlert] T-1.5h DM reminders processed for message ${siege.message_id}: sent ${sentCount}/${res.rowCount}`);
+  console.log(`[aion2SiegeAlert] T-2.5h DM reminders processed for message ${siege.message_id}: sent ${sentCount}/${res.rowCount}`);
 }
 
 /**
@@ -671,12 +671,12 @@ async function send2HourReminder(client, siege) {
     .setDescription([
       "**نداء إلى جميع الأبطال المشاركين في الحصار اليوم:**",
       `⏰ **موعد انطلاق الحصار:** <t:${siege.siege_unix}:t> (<t:${siege.siege_unix}:R>)`,
-      `🌀 **موعد التجمع (قبل الحدث بـ 1.5 ساعة):** <t:${siege.gathering_unix}:t> (<t:${siege.gathering_unix}:R>)`,
+      `🌀 **موعد التجمع (قبل الحدث بـ 2.5 ساعة):** <t:${siege.gathering_unix}:t> (<t:${siege.gathering_unix}:R>)`,
       `📍 **مكان التجمع:** \`قاعدة الأبيس جانب الكورة المتوهجة\``,
       `🔊 **الروم الصوتي:** <#${VOICE_CHANNEL_ID}> ([دخول مباشر](https://discord.com/channels/${MAIN_GUILD_ID}/${VOICE_CHANNEL_ID}))`,
       "",
       "🛡️ **تذكير بالتعليمات الهامة:**",
-      "• التجمع في الروم الصوتي وقاعدة الأبيس قبل انطلاق الحصار بساعة ونصف.",
+      "• التجمع في الروم الصوتي وقاعدة الأبيس قبل انطلاق الحصار بساعتين ونصف (سارع بالدخول قبل إغلاق الأبيس).",
       "• تجهيز كافة الجرع والأطعمة وبوفات الحرب والعتاد مسبقاً.",
       "",
       `👥 **المشاركون المسجلون (${snap.attending.length} مؤكد • ${snap.maybe.length} محتمل):**`,
@@ -745,7 +745,7 @@ async function send5MinuteReminder(client, siege) {
 }
 
 /**
- * Checks active sieges for T-2h channel, T-1.5h DM alert, and T-5m channel reminders.
+ * Checks active sieges for T-2.5h DM alert, T-2h channel, and T-5m channel reminders.
  */
 export async function checkSiegeReminders(client) {
   await initSiegeAlertDB();
@@ -768,10 +768,10 @@ export async function checkSiegeReminders(client) {
       await query(`UPDATE aion2_siege_events SET reminded_2h = TRUE WHERE message_id = $1`, [siege.message_id]);
     }
 
-    // 2. T - 1.5 Hours (90 min) Gathering Moment DM Alerts for "نبهني" subscribers
+    // 2. T - 2.5 Hours (150 min) Gathering Moment DM Alerts for "نبهني" subscribers
     if (!siege.reminded_1h30m && timeUntilSiege <= GATHERING_LEAD_SECONDS && timeUntilSiege > -1800) {
       await send1h30mDmReminders(client, siege).catch((err) => {
-        console.error("[aion2SiegeAlert] Error sending T-1.5h DM reminders:", err);
+        console.error("[aion2SiegeAlert] Error sending T-2.5h DM reminders:", err);
       });
       await query(`UPDATE aion2_siege_events SET reminded_1h30m = TRUE WHERE message_id = $1`, [siege.message_id]);
     }
@@ -883,7 +883,7 @@ export async function publishSiegeAnnouncement(
 }
 
 /**
- * Daily Cron running every 30s (10:00 AM KSA Siege announcement + T-2h / T-1.5h DM / T-5m checks)
+ * Daily Cron running every 30s (10:00 AM KSA Siege announcement + T-2.5h DM / T-2h / T-5m checks)
  */
 export function startDailySiegeCron(client) {
   console.log("[aion2SiegeAlert] Initializing Siege Checker & Participant Reminder Cron (Runs every 30s)...");
@@ -931,7 +931,7 @@ export function startDailySiegeCron(client) {
         }
       }
 
-      // 2. Active Reminders Check (T-2h channel, T-1.5h DM alerts, T-5m urgent channel)
+      // 2. Active Reminders Check (T-2.5h DM alerts, T-2h channel, T-5m urgent channel)
       await checkSiegeReminders(client);
     } catch (err) {
       console.error("[aion2SiegeAlert] Error in Siege Cron ticker:", err);
@@ -1092,8 +1092,8 @@ export async function handleInteraction(interaction) {
       } catch (_) {}
 
       replyText = dmDelivered
-        ? "🔔 **تم تفعيل زر التنبيه وأرسلت لك التفاصيل فوراً على الخاص (DM)!**\nسيصلك تذكير تلقائي آخر قبل السيج بساعة ونصف (وقت التجمع)."
-        : "🔔 **تم تفعيل التنبيه لك!** لكن الخاص (DMs) لديك مغلق حالياً؛ يرجى فتح الرسائل الخاصة من السيرفر لتستلم تنبيه التجمع قبل السيج بساعة ونصف.";
+        ? "🔔 **تم تفعيل زر التنبيه وأرسلت لك التفاصيل فوراً على الخاص (DM)!**\nسيصلك تذكير تلقائي آخر قبل السيج بساعتين ونصف (وقت التجمع)."
+        : "🔔 **تم تفعيل التنبيه لك!** لكن الخاص (DMs) لديك مغلق حالياً؛ يرجى فتح الرسائل الخاصة من السيرفر لتستلم تنبيه التجمع قبل السيج بساعتين ونصف.";
     } else {
       replyText = "🔕 **تم إلغاء تفعيل تنبيه الخاص للسيج.** يمكنك الضغط على الزر مجدداً في أي وقت.";
     }
