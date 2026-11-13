@@ -520,6 +520,11 @@ export async function createInstantVoiceRoom(interaction, actKey, modeKey) {
   }
 
   // 4. Track in Memory
+  const memberPreviousChannels = new Map();
+  if (previousVoiceChannelId) {
+    memberPreviousChannels.set(interaction.user.id, previousVoiceChannelId);
+  }
+
   const roomData = {
     groupId,
     eventsMsgId: eventsMsg?.id || null,
@@ -530,6 +535,7 @@ export async function createInstantVoiceRoom(interaction, actKey, modeKey) {
     roomTitle,
     creatorId: interaction.user.id,
     previousVoiceChannelId,
+    memberPreviousChannels,
     voiceChannelId: voiceChannel.id,
     participants: new Set([interaction.user.id]),
     emptyTimer: null,
@@ -582,6 +588,12 @@ export async function handleInstantVoiceState(oldState, newState, client) {
     const data = activeDungeonRooms.get(joinedChannelId);
     if (!newState.member.user.bot) {
       data.participants.add(newState.member.id);
+
+      // Record member's previous channel if they hopped in from another voice room
+      if (leftChannelId && leftChannelId !== joinedChannelId) {
+        if (!data.memberPreviousChannels) data.memberPreviousChannels = new Map();
+        data.memberPreviousChannels.set(newState.member.id, leftChannelId);
+      }
     }
 
     // Cancel empty timer if anyone is present
@@ -849,7 +861,10 @@ export async function handleInstantVoiceFinish(interaction, voiceChannelId) {
   // Schedule deletion of voice room and announcement card after 30 seconds
   setTimeout(async () => {
     try {
-      if (voiceChannel) await voiceChannel.delete("Dungeon completed & points awarded").catch(() => {});
+      if (voiceChannel) {
+        await evacuateAllMembers(guild, voiceChannel, data);
+        await voiceChannel.delete("Dungeon completed & points awarded").catch(() => {});
+      }
       if (data?.eventsMsgId) {
         const eventsChannel = guild.channels.cache.get(OPEN_DUNGEONS_CHANNEL_ID);
         if (eventsChannel) await eventsChannel.messages.delete(data.eventsMsgId).catch(() => {});
@@ -863,6 +878,46 @@ export async function handleInstantVoiceFinish(interaction, voiceChannelId) {
   });
 
   return scheduleEphemeralDismiss(interaction);
+}
+
+/**
+ * Evacuates all members from a dungeon voice room to their respective previous voice channels
+ * (or fallback to creator's original room or the main alliance voice room) before channel deletion.
+ */
+async function evacuateAllMembers(guild, voiceChannel, data) {
+  if (!voiceChannel || !guild) return;
+
+  const membersToEvacuate = voiceChannel.members?.filter((m) => !m.user.bot);
+  if (!membersToEvacuate || membersToEvacuate.size === 0) return;
+
+  const fallbackChannelId = data?.previousVoiceChannelId || "1558947326704226424"; // Main alliance voice channel
+
+  console.log(`[InstantVoice] Evacuating ${membersToEvacuate.size} members from dungeon voice room ${voiceChannel.id}...`);
+
+  const movePromises = [];
+  for (const [memberId, member] of membersToEvacuate) {
+    const targetChannelId = data?.memberPreviousChannels?.get(memberId) || fallbackChannelId;
+
+    if (targetChannelId && targetChannelId !== voiceChannel.id) {
+      const targetChannel =
+        guild.channels.cache.get(targetChannelId) ||
+        (await guild.channels.fetch(targetChannelId).catch(() => null));
+
+      if (targetChannel && targetChannel.isVoiceBased()) {
+        movePromises.push(
+          member.voice.setChannel(targetChannel).catch((err) => {
+            console.warn(`[InstantVoice] Could not move member ${memberId} back to ${targetChannelId}:`, err.message);
+          })
+        );
+      }
+    }
+  }
+
+  if (movePromises.length > 0) {
+    await Promise.allSettled(movePromises);
+    // Give Discord voice gateway 800ms to complete handoffs cleanly
+    await new Promise((resolve) => setTimeout(resolve, 800));
+  }
 }
 
 /**
@@ -891,20 +946,8 @@ export async function handleInstantVoiceClose(interaction, voiceChannelId) {
 
   const voiceChannel = guild.channels.cache.get(voiceChannelId) || (await guild.channels.fetch(voiceChannelId).catch(() => null));
 
-  // Return creator to their original voice room if available before deleting
-  if (data?.previousVoiceChannelId && data?.creatorId) {
-    try {
-      const prevChan = guild.channels.cache.get(data.previousVoiceChannelId) || (await guild.channels.fetch(data.previousVoiceChannelId).catch(() => null));
-      if (prevChan && prevChan.isVoiceBased()) {
-        const creatorMember = guild.members.cache.get(data.creatorId) || (await guild.members.fetch(data.creatorId).catch(() => null));
-        if (creatorMember && creatorMember.voice?.channelId === voiceChannelId) {
-          await creatorMember.voice.setChannel(prevChan).catch(() => {});
-        }
-      }
-    } catch (moveErr) {
-      console.warn("[InstantVoice] Could not move creator back to original channel:", moveErr.message);
-    }
-  }
+  // Evacuate all players to their original rooms before deleting
+  await evacuateAllMembers(guild, voiceChannel, data);
 
   if (voiceChannel) {
     await voiceChannel.delete(`Closed by ${interaction.user.tag}`).catch(() => {});
