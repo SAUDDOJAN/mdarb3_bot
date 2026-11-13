@@ -17,8 +17,12 @@ export const OPEN_DUNGEONS_CHANNEL_ID = "1548359577307717683";     // 📅┊ᴇ
 export const VOICE_CATEGORY_ID = "1552456426885087284";            // 🎙️︱Team Voice・رومات الفرق
 export const MAIN_GUILD_ID = process.env.MAIN_GUILD_ID || "861355983975874601";
 
+// ── Duration Boundaries for Activity Points Calculation ──
+export const MIN_POINTS_DURATION_MINUTES = 5;  // أقل من 5 دقائق: لا تُحتسب نقاط (إلغاء مبكر)
+export const MAX_POINTS_DURATION_MINUTES = 50; // أكثر من 50 دقيقة: لا تُحتسب نقاط (تجاوز الحد الأقصى للجلسة)
+
 // ── In-Memory Tracking for Active Instant Voice Channels ──
-// Map<voiceChannelId, { groupId, eventsMsgId, capacity, actKey, modeKey, creatorId, previousVoiceChannelId, participants: Set<string>, emptyTimer: NodeJS.Timeout | null }>
+// Map<voiceChannelId, { groupId, eventsMsgId, capacity, actKey, modeKey, creatorId, previousVoiceChannelId, memberPreviousChannels: Map, participants: Set<string>, emptyTimer: NodeJS.Timeout | null, createdAt: number }>
 export const activeDungeonRooms = new Map();
 
 export const DUNGEON_ACTIVITIES = {
@@ -191,11 +195,12 @@ export function buildControlPanelPayload() {
       "• **👹 زعماء العالم:** مواجهة بوسات العالم المفتوح.",
       "",
       "━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
-      "📢 **طريقة الاستخدام:**",
+      "📢 **طريقة الاستخدام والقواعد:**",
       "1️⃣ اضغط على نوع النشاط بالأسفل واختر الدنجن والصعوبة المطلوبة.",
       `2️⃣ يُنشأ الروم الصوتي فوراً، وتُنشر بطاقة بالرابط المباشر في <#${OPEN_DUNGEONS_CHANNEL_ID}>.`,
-      "3️⃣ الروم مفتوح للجميع بدون قيود، ويُحذف تلقائياً عند فراغه من اللاعبين.",
-      "🏆 **يتم توثيق نقاط النشاط لجميع المتواجدين بالصوت عند الضغط على زر إنهاء الدنجن!**",
+      "3️⃣ الروم مفتوح للجميع بدون قيود، ولا يمكن للمنشئ فتح دنجن جديد حتى يغلق السابق لمنع ترك الأعضاء معلقين.",
+      "⏱️ **توثيق النقاط:** تُحتسب النقاط عند إكمال الدنجن بين **5 دقائق إلى 50 دقيقة كحد أقصى**.",
+      "🚪 **إعادة الأعضاء:** عند إغلاق الروم، تتم إعادة جميع اللاعبين المتواجدين تلقائياً إلى روماتهم الصوتية السابقة.",
     ].join("\n"))
     .setFooter({ text: "تحالف M3RGEEN • رومات الدنجنات الفورية" })
     .setTimestamp();
@@ -241,10 +246,126 @@ function scheduleEphemeralDismiss(interaction, delayMs = 5 * 60 * 1000) {
 }
 
 /**
+ * Finds if a user currently has an active instant voice dungeon room.
+ * Checks in-memory map first, then falls back to database lookup.
+ */
+export async function findActiveDungeonRoomForUser(guild, userId) {
+  if (!guild || !userId) return null;
+
+  // 1. Check in-memory map
+  for (const [voiceId, data] of activeDungeonRooms.entries()) {
+    if (data.creatorId === userId) {
+      const voiceChan = guild.channels.cache.get(voiceId) || (await guild.channels.fetch(voiceId).catch(() => null));
+      if (voiceChan) {
+        return { voiceChannelId: voiceId, roomData: data, voiceChannel: voiceChan };
+      } else {
+        // Voice channel was deleted outside
+        activeDungeonRooms.delete(voiceId);
+      }
+    }
+  }
+
+  // 2. Check Database in case of bot restart
+  try {
+    const res = await query(
+      `SELECT id, voice_channel_id, activity_name, events_message_id, created_at 
+       FROM aion2_lfg_groups 
+       WHERE creator_id = $1 AND state = 'ACTIVE' 
+       ORDER BY id DESC LIMIT 1`,
+      [userId]
+    );
+    if (res.rows.length > 0) {
+      const row = res.rows[0];
+      if (row.voice_channel_id) {
+        const voiceChan = guild.channels.cache.get(row.voice_channel_id) || (await guild.channels.fetch(row.voice_channel_id).catch(() => null));
+        if (voiceChan) {
+          const roomData = {
+            groupId: row.id,
+            eventsMsgId: row.events_message_id,
+            eventsChannelId: OPEN_DUNGEONS_CHANNEL_ID,
+            voiceChannelId: row.voice_channel_id,
+            creatorId: userId,
+            roomTitle: row.activity_name || "دنجن سابق",
+            participants: new Set([userId]),
+            memberPreviousChannels: new Map(),
+            emptyTimer: null,
+            createdAt: new Date(row.created_at).getTime(),
+          };
+          activeDungeonRooms.set(row.voice_channel_id, roomData);
+          return { voiceChannelId: row.voice_channel_id, roomData, voiceChannel: voiceChan };
+        } else {
+          await query(`UPDATE aion2_lfg_groups SET state = 'EXPIRED' WHERE id = $1`, [row.id]).catch(() => {});
+        }
+      }
+    }
+  } catch (err) {
+    console.error("[InstantVoice] Error checking DB for active room:", err);
+  }
+
+  return null;
+}
+
+/**
  * Handles interactions originating from the Control Panel or Active Cards
  */
 export async function handleInstantVoiceInteraction(interaction) {
   const cid = interaction.customId;
+
+  // ── Safeguard: Prevent creating a new dungeon if user already has an active room ──
+  const creationCids = [
+    "aion2_lfg_v_dungeons",
+    "aion2_lfg_v_transcendence",
+    "aion2_lfg_v_sanctuary",
+    "aion2_lfg_v_abyss",
+    "aion2_lfg_v_world_boss",
+    "aion2_lfg_v_sel_dungeon",
+    "aion2_lfg_v_sel_trans",
+  ];
+  const isCreationAction = creationCids.includes(cid) || cid.startsWith("aion2_lfg_v_create_");
+
+  if (isCreationAction) {
+    const guild = interaction.guild;
+    if (guild) {
+      const activeRoom = await findActiveDungeonRoomForUser(guild, interaction.user.id);
+      if (activeRoom) {
+        const closeButton = new ButtonBuilder()
+          .setCustomId(`aion2_lfg_v_close_${activeRoom.voiceChannelId}`)
+          .setLabel("🛑 إغلاق الروم السابق ونقل الأعضاء")
+          .setStyle(ButtonStyle.Danger);
+
+        const voiceLink = new ButtonBuilder()
+          .setLabel("الانتقال للروم السابق")
+          .setEmoji("🔊")
+          .setStyle(ButtonStyle.Link)
+          .setURL(`https://discord.com/channels/${guild.id}/${activeRoom.voiceChannelId}`);
+
+        const warnEmbed = new EmbedBuilder()
+          .setColor(0xE74C3C)
+          .setTitle("⚠️ لديك روم دنجن نشط حالياً!")
+          .setDescription([
+            `لا يمكنك فتح دنجن جديد حتى تقوم بإغلاق الروم السابق أولاً:`,
+            `🔊 **الروم النشط:** <#${activeRoom.voiceChannelId}> (\`${activeRoom.roomData.roomTitle}\`)`,
+            "",
+            "📌 **السبب:** لمنع بقاء اللاعبين في الروم السابق معلقين؛ عند إغلاق الروم سيتم نقل جميع المتواجدين فيه فوراً إلى روماتهم السابقة تلقائياً.",
+            "",
+            "👇 **اضغط على الزر أدناه لإغلاق الروم السابق ونقل الأعضاء والبدء بالدنجن الجديد:**",
+          ].join("\n"));
+
+        const payload = {
+          embeds: [warnEmbed],
+          components: [new ActionRowBuilder().addComponents(voiceLink, closeButton)],
+          ephemeral: true,
+        };
+
+        if (interaction.deferred || interaction.replied) {
+          await interaction.editReply(payload);
+        } else {
+          await interaction.reply(payload);
+        }
+        return scheduleEphemeralDismiss(interaction);
+      }
+    }
+  }
 
   // 1. Expeditions Menu (18 options: 6 dungeons x [اكسبلوريشن, نورمال, هارد])
   if (cid === "aion2_lfg_v_dungeons") {
@@ -370,16 +491,15 @@ export async function handleInstantVoiceInteraction(interaction) {
     return createInstantVoiceRoom(interaction, match.actKey, match.modeKey);
   }
 
-  // ── Handling Finish & Award Points ──
+  // ── Handling Finish & Manual Close (Unified into handleInstantVoiceEnd) ──
   if (cid.startsWith("aion2_lfg_v_finish_")) {
     const voiceChannelId = cid.replace("aion2_lfg_v_finish_", "");
-    return handleInstantVoiceFinish(interaction, voiceChannelId);
+    return handleInstantVoiceEnd(interaction, voiceChannelId);
   }
 
-  // ── Handling Manual Close ──
   if (cid.startsWith("aion2_lfg_v_close_")) {
     const voiceChannelId = cid.replace("aion2_lfg_v_close_", "");
-    return handleInstantVoiceClose(interaction, voiceChannelId);
+    return handleInstantVoiceEnd(interaction, voiceChannelId);
   }
 }
 
@@ -418,6 +538,30 @@ export async function createInstantVoiceRoom(interaction, actKey, modeKey) {
   const guild = interaction.guild;
   if (!guild) {
     await interaction.editReply({ content: "❌ لا يمكن تنفيذ الأمر خارج السيرفر." });
+    return scheduleEphemeralDismiss(interaction);
+  }
+
+  // Double check if user has an active room before creating
+  const existingActiveRoom = await findActiveDungeonRoomForUser(guild, interaction.user.id);
+  if (existingActiveRoom) {
+    const closeButton = new ButtonBuilder()
+      .setCustomId(`aion2_lfg_v_close_${existingActiveRoom.voiceChannelId}`)
+      .setLabel("🛑 إغلاق الروم السابق ونقل الأعضاء")
+      .setStyle(ButtonStyle.Danger);
+
+    const warnEmbed = new EmbedBuilder()
+      .setColor(0xE74C3C)
+      .setTitle("⚠️ لديك روم دنجن نشط حالياً!")
+      .setDescription([
+        `لا يمكنك فتح دنجن جديد حتى تقوم بإغلاق الروم السابق: **${existingActiveRoom.roomData.roomTitle}** (<#${existingActiveRoom.voiceChannelId}>).`,
+        "",
+        "📌 سيتم نقل جميع الأعضاء المتواجدين فيه فوراً إلى روماتهم السابقة تلقائياً بمجرد إغلاقه.",
+      ].join("\n"));
+
+    await interaction.editReply({
+      embeds: [warnEmbed],
+      components: [new ActionRowBuilder().addComponents(closeButton)],
+    });
     return scheduleEphemeralDismiss(interaction);
   }
 
@@ -473,7 +617,11 @@ export async function createInstantVoiceRoom(interaction, actKey, modeKey) {
           `📊 **الحالة:** 🟢 **مفتوح للجميع (0/${act.capacity} متواجدين بالصوت)**`,
           `⏰ **وقت البدء:** <t:${nowUnix}:R>`,
           "",
-          "🏆 *اضغط على زر الإنهاء بالأسفل عند إكمال الدنجن لتوثيق نقاط النشاط.*",
+          "⏱️ **قواعد احتساب النقاط:**",
+          `• الحد الأدنى للاحتساب: **${MIN_POINTS_DURATION_MINUTES} دقائق** (أقل من ذلك يُعتبر إلغاء مبكر).`,
+          `• الحد الأقصى للاحتساب: **${MAX_POINTS_DURATION_MINUTES} دقيقة** (بعد الـ 50 دقيقة لا تُحتسب نقاط).`,
+          "",
+          "🏆 *اضغط على زر الإنهاء أدناه عند إكمال الدنجن لتوثيق نقاط النشاط ونقل الأعضاء تلقائياً.*",
         ].join("\n"))
         .setFooter({ text: "تحالف M3RGEEN • رومات الدنجنات المفتوحة" })
         .setTimestamp();
@@ -485,14 +633,9 @@ export async function createInstantVoiceRoom(interaction, actKey, modeKey) {
           .setStyle(ButtonStyle.Link)
           .setURL(voiceUrl),
         new ButtonBuilder()
-          .setCustomId(`aion2_lfg_v_finish_${voiceChannel.id}`)
-          .setLabel("إنهاء وتوزيع النقاط")
-          .setEmoji("🏁")
-          .setStyle(ButtonStyle.Success),
-        new ButtonBuilder()
           .setCustomId(`aion2_lfg_v_close_${voiceChannel.id}`)
-          .setLabel("إغلاق الروم")
-          .setEmoji("❌")
+          .setLabel("إنهاء وإغلاق الدنجن")
+          .setEmoji("🛑")
           .setStyle(ButtonStyle.Danger)
       );
 
@@ -568,7 +711,7 @@ export async function createInstantVoiceRoom(interaction, actKey, modeKey) {
       `📍 **الروم الصوتي:** <#${voiceChannel.id}>`,
       `📢 **تم نشر بطاقة الإعلان في:** <#${OPEN_DUNGEONS_CHANNEL_ID}>`,
       "",
-      `*الروم مفتوح للجميع بسعة \`${act.capacity} لاعبين\`، وسيتم حذفه تلقائياً عند انتهاء الدنجن وفراغه من الأعضاء.*`,
+      `*الروم مفتوح للجميع بسعة \`${act.capacity} لاعبين\`، ومحدد بمدة احتساب حتى ${MAX_POINTS_DURATION_MINUTES} دقيقة.*`,
     ].join("\n"),
     components: [replyRow],
   });
@@ -613,7 +756,7 @@ export async function handleInstantVoiceState(oldState, newState, client) {
 
     await updateLiveCardStatus(client, leftChannelId);
 
-    // If room is empty, start 2-minute countdown to delete
+    // If room is empty, start 2-minute countdown to delete and auto-award points if eligible
     if (currentCount === 0) {
       scheduleEmptyVoiceCleanup(client, leftChannelId, 2 * 60 * 1000);
     }
@@ -621,7 +764,89 @@ export async function handleInstantVoiceState(oldState, newState, client) {
 }
 
 /**
- * Schedules auto-deletion for empty dungeon voice channels
+ * Core helper: Awards points to dungeon participants in aion2_lfg_ledger and points table.
+ * Feeds directly into /dungeon_points monthly leaderboard.
+ */
+export async function awardDungeonPoints({ guild, data, voiceChannel, durationMinutes, closedByUserId }) {
+  const participantsSet = new Set(data?.participants || []);
+  if (voiceChannel) {
+    for (const [id, m] of voiceChannel.members) {
+      if (!m.user.bot) participantsSet.add(id);
+    }
+  }
+
+  if (participantsSet.size === 0 && data?.creatorId) {
+    participantsSet.add(data.creatorId);
+  }
+
+  const act = DUNGEON_ACTIVITIES[data?.actKey] || {
+    basePoints: 10,
+    creatorBonus: 2,
+    type: "DUNGEON",
+    nameAr: "دنجن",
+  };
+
+  const { cycleId } = getCurrentMonthlyCycle();
+  const rewardedList = [];
+
+  for (const userId of participantsSet) {
+    const isMemberCreator = userId === data?.creatorId;
+    const finalPoints = act.basePoints + (isMemberCreator ? act.creatorBonus : 0);
+
+    // 1. Insert into aion2_lfg_ledger for /dungeon_points
+    if (data?.groupId) {
+      await insertLedgerRow({
+        groupId: data.groupId,
+        discordId: userId,
+        activityType: act.type,
+        activityName: `${data?.actKey || "Dungeon"}_${data?.modeKey || "NORMAL"}`,
+        basePoints: act.basePoints,
+        creatorBonus: isMemberCreator ? act.creatorBonus : 0,
+        antiFarmMultiplier: 1.0,
+        finalPoints,
+        monthlyCycleId: cycleId,
+        qualificationStatus: "QUALIFIED",
+        cumulativeVoiceSeconds: durationMinutes * 60,
+        antiFarmNValue: 1,
+        antiFarmCoreLineage: null,
+        eligibilityCycleId: `MONTHLY_${cycleId}`,
+        voiceRequiredSeconds: 0,
+        isCreator: isMemberCreator,
+      }).catch((e) => console.warn("[InstantVoice] Error recording ledger:", e.message));
+    }
+
+    // 2. Increment general points table
+    await query(
+      `INSERT INTO points (guild_id, user_id, total_points, weekly_points, monthly_points, updated_at)
+       VALUES ($1, $2, $3, $3, $3, NOW())
+       ON CONFLICT (guild_id, user_id) DO UPDATE SET
+         total_points = points.total_points + EXCLUDED.total_points,
+         weekly_points = points.weekly_points + EXCLUDED.weekly_points,
+         monthly_points = points.monthly_points + EXCLUDED.monthly_points,
+         updated_at = NOW()`,
+      [guild.id, userId, finalPoints]
+    ).catch(() => {});
+
+    rewardedList.push(`• <@${userId}>: **+${finalPoints} نقطة** ${isMemberCreator ? "*(منشئ الفريق 👑)*" : ""}`);
+  }
+
+  // Refresh leaderboard cache
+  await setLeaderboardDirty().catch(() => {});
+
+  // Update DB Group State
+  if (data?.groupId) {
+    await query(
+      `UPDATE aion2_lfg_groups SET state = 'COMPLETED', completed_at = NOW() WHERE id = $1`,
+      [data.groupId]
+    ).catch(() => {});
+  }
+
+  return { rewardedList, totalPlayers: participantsSet.size };
+}
+
+/**
+ * Schedules auto-deletion for empty dungeon voice channels.
+ * If the run met the 5 to 50 minutes duration criteria, points are automatically awarded!
  */
 function scheduleEmptyVoiceCleanup(client, voiceChannelId, delayMs) {
   const data = activeDungeonRooms.get(voiceChannelId);
@@ -637,12 +862,36 @@ function scheduleEmptyVoiceCleanup(client, voiceChannelId, delayMs) {
       const voiceChannel = guild.channels.cache.get(voiceChannelId) || (await guild.channels.fetch(voiceChannelId).catch(() => null));
       if (voiceChannel) {
         const humanMembers = voiceChannel.members.filter((m) => !m.user.bot);
-        if (humanMembers.size === 0) {
-          console.log(`[InstantVoice] Voice channel ${voiceChannelId} empty after grace period. Deleting...`);
-          await voiceChannel.delete("Auto-deleted empty dungeon room").catch(() => {});
-        } else {
-          return; // Still has members
+        if (humanMembers.size > 0) {
+          return; // Still has active members
         }
+      }
+
+      console.log(`[InstantVoice] Voice channel ${voiceChannelId} empty after grace period. Checking points criteria...`);
+
+      const durationMs = Date.now() - (data.createdAt || Date.now());
+      const durationMinutes = Math.floor(durationMs / 60000);
+
+      const isEligibleForPoints = durationMinutes >= MIN_POINTS_DURATION_MINUTES && durationMinutes <= MAX_POINTS_DURATION_MINUTES;
+
+      if (isEligibleForPoints && data.participants && data.participants.size > 0) {
+        console.log(`[InstantVoice] Auto-awarding points for completed empty run (${durationMinutes} min)...`);
+        await awardDungeonPoints({
+          guild,
+          data,
+          voiceChannel,
+          durationMinutes,
+          closedByUserId: null,
+        });
+      } else {
+        if (data.groupId) {
+          const newState = durationMinutes > MAX_POINTS_DURATION_MINUTES ? 'EXPIRED' : 'CANCELLED';
+          await query(`UPDATE aion2_lfg_groups SET state = $1, expired_at = NOW() WHERE id = $2`, [newState, data.groupId]).catch(() => {});
+        }
+      }
+
+      if (voiceChannel) {
+        await voiceChannel.delete("Auto-deleted empty dungeon room").catch(() => {});
       }
 
       // Delete announcement card from OPEN_DUNGEONS_CHANNEL_ID
@@ -651,14 +900,6 @@ function scheduleEmptyVoiceCleanup(client, voiceChannelId, delayMs) {
         if (eventsChannel) {
           await eventsChannel.messages.delete(data.eventsMsgId).catch(() => {});
         }
-      }
-
-      // Update DB
-      if (data.groupId) {
-        await query(
-          `UPDATE aion2_lfg_groups SET state = 'EXPIRED', expired_at = NOW() WHERE id = $1`,
-          [data.groupId]
-        ).catch(() => {});
       }
 
       activeDungeonRooms.delete(voiceChannelId);
@@ -706,178 +947,17 @@ async function updateLiveCardStatus(client, voiceChannelId) {
         `📊 **الحالة:** ${statusText}`,
         `⏰ **وقت البدء:** <t:${Math.floor(data.createdAt / 1000)}:R>`,
         "",
-        "🏆 *اضغط على زر الإنهاء بالأسفل عند إكمال الدنجن لتوثيق نقاط النشاط.*",
+        "⏱️ **قواعد احتساب النقاط:**",
+        `• الحد الأدنى للاحتساب: **${MIN_POINTS_DURATION_MINUTES} دقائق**.`,
+        `• الحد الأقصى للاحتساب: **${MAX_POINTS_DURATION_MINUTES} دقيقة**.`,
+        "",
+        "🏆 *اضغط على زر الإنهاء أدناه عند إكمال الدنجن لتوثيق نقاط النشاط ونقل الأعضاء تلقائياً.*",
       ].join("\n"));
 
     await msg.edit({ embeds: [embed] }).catch(() => {});
   } catch (err) {
     console.error("[InstantVoice] Error updating live card status:", err.message);
   }
-}
-
-/**
- * Handles "🏁 إنهاء وتوزيع النقاط" button click
- */
-export async function handleInstantVoiceFinish(interaction, voiceChannelId) {
-  await interaction.deferReply({ ephemeral: true });
-
-  const data = activeDungeonRooms.get(voiceChannelId);
-  const guild = interaction.guild;
-  if (!guild) {
-    await interaction.editReply({ content: "❌ خطأ في السيرفر." });
-    return scheduleEphemeralDismiss(interaction);
-  }
-
-  // Permissions check: Only Creator or Server Admin / Moderator
-  const isCreator = data ? data.creatorId === interaction.user.id : false;
-  const isAdmin = interaction.member.permissions.has(PermissionFlagsBits.Administrator) ||
-                  interaction.member.permissions.has(PermissionFlagsBits.ManageGuild);
-
-  if (!isCreator && !isAdmin) {
-    await interaction.editReply({
-      content: "❌ عذراً، فقط منشئ الروم أو المشرف يمكنه إنهاء الدنجن وتوثيق النقاط.",
-    });
-    return scheduleEphemeralDismiss(interaction);
-  }
-
-  const voiceChannel = guild.channels.cache.get(voiceChannelId) || (await guild.channels.fetch(voiceChannelId).catch(() => null));
-
-  // Return creator to their original voice room if available before closing
-  if (data?.previousVoiceChannelId && data?.creatorId) {
-    try {
-      const prevChan = guild.channels.cache.get(data.previousVoiceChannelId) || (await guild.channels.fetch(data.previousVoiceChannelId).catch(() => null));
-      if (prevChan && prevChan.isVoiceBased()) {
-        const creatorMember = guild.members.cache.get(data.creatorId) || (await guild.members.fetch(data.creatorId).catch(() => null));
-        if (creatorMember && creatorMember.voice?.channelId === voiceChannelId) {
-          await creatorMember.voice.setChannel(prevChan).catch(() => {});
-        }
-      }
-    } catch (_) {}
-  }
-
-  // Gather participants from current voice members + logged participants
-  const participantsSet = new Set(data?.participants || []);
-  if (voiceChannel) {
-    for (const [id, m] of voiceChannel.members) {
-      if (!m.user.bot) participantsSet.add(id);
-    }
-  }
-
-  if (participantsSet.size === 0) {
-    participantsSet.add(interaction.user.id);
-  }
-
-  const act = DUNGEON_ACTIVITIES[data?.actKey] || {
-    basePoints: 10,
-    creatorBonus: 2,
-    type: "DUNGEON",
-    nameAr: "دنجن",
-  };
-
-  const { cycleId } = getCurrentMonthlyCycle();
-  const rewardedList = [];
-
-  for (const userId of participantsSet) {
-    const isMemberCreator = userId === (data?.creatorId || interaction.user.id);
-    const finalPoints = act.basePoints + (isMemberCreator ? act.creatorBonus : 0);
-
-    // 1. Insert into aion2_lfg_ledger for /dungeon_points
-    if (data?.groupId) {
-      await insertLedgerRow({
-        groupId: data.groupId,
-        discordId: userId,
-        activityType: act.type,
-        activityName: `${data?.actKey || "Dungeon"}_${data?.modeKey || "NORMAL"}`,
-        basePoints: act.basePoints,
-        creatorBonus: isMemberCreator ? act.creatorBonus : 0,
-        antiFarmMultiplier: 1.0,
-        finalPoints,
-        monthlyCycleId: cycleId,
-        qualificationStatus: "QUALIFIED",
-        cumulativeVoiceSeconds: 600,
-        antiFarmNValue: 1,
-        antiFarmCoreLineage: null,
-        eligibilityCycleId: `MONTHLY_${cycleId}`,
-        voiceRequiredSeconds: 0,
-        isCreator: isMemberCreator,
-      }).catch((e) => console.warn("[InstantVoice] Error recording ledger:", e.message));
-    }
-
-    // 2. Increment general points table
-    await query(
-      `INSERT INTO points (guild_id, user_id, total_points, weekly_points, monthly_points, updated_at)
-       VALUES ($1, $2, $3, $3, $3, NOW())
-       ON CONFLICT (guild_id, user_id) DO UPDATE SET
-         total_points = points.total_points + EXCLUDED.total_points,
-         weekly_points = points.weekly_points + EXCLUDED.weekly_points,
-         monthly_points = points.monthly_points + EXCLUDED.monthly_points,
-         updated_at = NOW()`,
-      [guild.id, userId, finalPoints]
-    ).catch(() => {});
-
-    rewardedList.push(`• <@${userId}>: **+${finalPoints} نقطة** ${isMemberCreator ? "*(منشئ الفريق 👑)*" : ""}`);
-  }
-
-  // Refresh leaderboard cache
-  await setLeaderboardDirty().catch(() => {});
-
-  // Update DB Group State
-  if (data?.groupId) {
-    await query(
-      `UPDATE aion2_lfg_groups SET state = 'COMPLETED', completed_at = NOW() WHERE id = $1`,
-      [data.groupId]
-    ).catch(() => {});
-  }
-
-  // Update Announcement Card
-  try {
-    const eventsChannel = guild.channels.cache.get(OPEN_DUNGEONS_CHANNEL_ID) || (await guild.channels.fetch(OPEN_DUNGEONS_CHANNEL_ID).catch(() => null));
-    if (eventsChannel && data?.eventsMsgId) {
-      const msg = await eventsChannel.messages.fetch(data.eventsMsgId).catch(() => null);
-      if (msg) {
-        const finishEmbed = new EmbedBuilder()
-          .setColor(0xF1C40F)
-          .setTitle(`🏆 تم إنهاء الدنجن وتوثيق النقاط بنجاح!`)
-          .setDescription([
-            `⚔️ **النشاط:** ${data?.roomTitle || act.nameAr}`,
-            `👑 **أنهى النشاط:** <@${interaction.user.id}>`,
-            "",
-            "📊 **النقاط الموزعة على الأبطال المشاركين:**",
-            ...rewardedList,
-            "",
-            "✨ *تم تحديث متصدري الدنجنات بأمر `/dungeon_points` بنجاح!*",
-            "⏳ *سيتم إغلاق الروم وحذف البطاقة تلقائياً بعد 30 ثانية.*",
-          ].join("\n"))
-          .setFooter({ text: "تحالف M3RGEEN • تم توثيق النقاط" })
-          .setTimestamp();
-
-        await msg.edit({ embeds: [finishEmbed], components: [] }).catch(() => {});
-      }
-    }
-  } catch (err) {
-    console.error("[InstantVoice] Error updating finish card:", err);
-  }
-
-  // Schedule deletion of voice room and announcement card after 30 seconds
-  setTimeout(async () => {
-    try {
-      if (voiceChannel) {
-        await evacuateAllMembers(guild, voiceChannel, data);
-        await voiceChannel.delete("Dungeon completed & points awarded").catch(() => {});
-      }
-      if (data?.eventsMsgId) {
-        const eventsChannel = guild.channels.cache.get(OPEN_DUNGEONS_CHANNEL_ID);
-        if (eventsChannel) await eventsChannel.messages.delete(data.eventsMsgId).catch(() => {});
-      }
-      activeDungeonRooms.delete(voiceChannelId);
-    } catch (_) {}
-  }, 30 * 1000);
-
-  await interaction.editReply({
-    content: `✅ **تم توثيق إنهاء الدنجن وتوزيع النقاط على ${participantsSet.size} لاعبين بنجاح!**`,
-  });
-
-  return scheduleEphemeralDismiss(interaction);
 }
 
 /**
@@ -921,9 +1001,15 @@ async function evacuateAllMembers(guild, voiceChannel, data) {
 }
 
 /**
- * Handles "❌ إغلاق الروم" button click
+ * Unified Handler for Finishing / Closing a Dungeon Voice Room:
+ * 1. Checks 50-minute max cap and 5-minute min cap:
+ *    - < 5 min: No points (too short / early cancellation).
+ *    - 5 to 50 min: Points awarded to all participants in aion2_lfg_ledger and points table!
+ *    - > 50 min: No points (exceeded 50-min cap / AFK hangout).
+ * 2. Evacuates all members back to their respective previous voice channels.
+ * 3. Updates card embed and deletes voice channel.
  */
-export async function handleInstantVoiceClose(interaction, voiceChannelId) {
+export async function handleInstantVoiceEnd(interaction, voiceChannelId) {
   await interaction.deferReply({ ephemeral: true });
 
   const data = activeDungeonRooms.get(voiceChannelId);
@@ -939,49 +1025,101 @@ export async function handleInstantVoiceClose(interaction, voiceChannelId) {
 
   if (!isCreator && !isAdmin) {
     await interaction.editReply({
-      content: "❌ عذراً، فقط منشئ الروم أو المشرف يمكنه إغلاق الروم يدوياً.",
+      content: "❌ عذراً، فقط منشئ الروم أو المشرف يمكنه إنهاء وإغلاق الدنجن.",
     });
     return scheduleEphemeralDismiss(interaction);
   }
 
   const voiceChannel = guild.channels.cache.get(voiceChannelId) || (await guild.channels.fetch(voiceChannelId).catch(() => null));
 
-  // Evacuate all players to their original rooms before deleting
-  await evacuateAllMembers(guild, voiceChannel, data);
+  const durationMs = Date.now() - (data?.createdAt || Date.now());
+  const durationMinutes = Math.floor(durationMs / 60000);
 
-  if (voiceChannel) {
-    await voiceChannel.delete(`Closed by ${interaction.user.tag}`).catch(() => {});
+  let statusMsg = "";
+  let awarded = false;
+  let rewardedSummary = [];
+
+  if (durationMinutes < MIN_POINTS_DURATION_MINUTES) {
+    // Under 5 minutes: No points
+    statusMsg = `⚠️ **تم إغلاق الروم في أقل من 5 دقائق (${durationMinutes} دقيقة) — لم تُحتسب أي نقاط لعدم استيفاء الحد الأدنى للنشاط (5 دقائق).**`;
+    if (data?.groupId) {
+      await query(`UPDATE aion2_lfg_groups SET state = 'CANCELLED', cancelled_at = NOW() WHERE id = $1`, [data.groupId]).catch(() => {});
+    }
+  } else if (durationMinutes > MAX_POINTS_DURATION_MINUTES) {
+    // Over 50 minutes: No points
+    statusMsg = `⚠️ **تم إغلاق الروم بعد ${durationMinutes} دقيقة (تجاوز الحد الأقصى 50 دقيقة) — لم تُحتسب أي نقاط للجلسة لتجاوز وقت النشاط المسموح.**`;
+    if (data?.groupId) {
+      await query(`UPDATE aion2_lfg_groups SET state = 'EXPIRED', expired_at = NOW() WHERE id = $1`, [data.groupId]).catch(() => {});
+    }
+  } else {
+    // 5 to 50 minutes: AWARD POINTS!
+    awarded = true;
+    const res = await awardDungeonPoints({
+      guild,
+      data,
+      voiceChannel,
+      durationMinutes,
+      closedByUserId: interaction.user.id,
+    });
+    rewardedSummary = res.rewardedList;
+    statusMsg = `🏆 **تم إنهاء الدنجن واحتساب النقاط بنجاح (${durationMinutes} دقيقة) لـ ${res.totalPlayers} لاعبين!**`;
   }
 
+  // Update card in OPEN_DUNGEONS_CHANNEL_ID
   try {
     const eventsChannel = guild.channels.cache.get(OPEN_DUNGEONS_CHANNEL_ID) || (await guild.channels.fetch(OPEN_DUNGEONS_CHANNEL_ID).catch(() => null));
     if (eventsChannel && data?.eventsMsgId) {
       const msg = await eventsChannel.messages.fetch(data.eventsMsgId).catch(() => null);
       if (msg) {
-        const closeEmbed = new EmbedBuilder()
-          .setColor(0xE74C3C)
-          .setTitle("🛑 تم إغلاق الدنجن")
-          .setDescription(`تم إغلاق هذا الروم الصوتي بواسطة <@${interaction.user.id}>.`)
+        const act = DUNGEON_ACTIVITIES[data?.actKey] || { nameAr: "دنجن" };
+        const endEmbed = new EmbedBuilder()
+          .setColor(awarded ? 0xF1C40F : 0xE74C3C)
+          .setTitle(awarded ? `🏆 تم إنهاء الدنجن وتوثيق النقاط!` : `🛑 تم إغلاق الدنجن`)
+          .setDescription([
+            `⚔️ **النشاط:** ${data?.roomTitle || act.nameAr}`,
+            `👑 **أنهى النشاط:** <@${interaction.user.id}>`,
+            `⏱️ **مدة الجلسة:** \`${durationMinutes} دقيقة\``,
+            "",
+            awarded
+              ? [
+                  "📊 **النقاط الموزعة على الأبطال المشاركين:**",
+                  ...rewardedSummary,
+                  "",
+                  "✨ *تم تحديث متصدري الدنجنات بأمر `/dungeon_points` بنجاح!*",
+                ].join("\n")
+              : statusMsg,
+            "",
+            "🚪 *تمت إعادة جميع الأعضاء المتواجدين إلى روماتهم السابقة تلقائياً.*",
+          ].join("\n"))
+          .setFooter({ text: "تحالف M3RGEEN • رومات الدنجنات" })
           .setTimestamp();
-        await msg.edit({ embeds: [closeEmbed], components: [] }).catch(() => {});
-        setTimeout(() => msg.delete().catch(() => {}), 10 * 1000);
+
+        await msg.edit({ embeds: [endEmbed], components: [] }).catch(() => {});
+        // Auto-delete the card after 20 seconds so channel stays clean
+        setTimeout(() => msg.delete().catch(() => {}), 20 * 1000);
       }
     }
-  } catch (_) {}
+  } catch (err) {
+    console.error("[InstantVoice] Error updating end card:", err);
+  }
 
-  if (data?.groupId) {
-    await query(
-      `UPDATE aion2_lfg_groups SET state = 'CANCELLED', cancelled_at = NOW() WHERE id = $1`,
-      [data.groupId]
-    ).catch(() => {});
+  // Evacuate all members back to their original channels
+  await evacuateAllMembers(guild, voiceChannel, data);
+
+  // Delete voice channel
+  if (voiceChannel) {
+    await voiceChannel.delete(`Ended by ${interaction.user.tag}`).catch(() => {});
   }
 
   activeDungeonRooms.delete(voiceChannelId);
 
   await interaction.editReply({
-    content: "✅ تم إغلاق الروم الصوتي وحذف بطاقة الدنجن بنجاح.",
+    content: `${statusMsg}\n🚪 **تمت إعادة جميع الأعضاء المتواجدين في الروم إلى قنواتهم الصوتية السابقة بنجاح.**`,
   });
 
-  // Auto-dismiss the ephemeral message after 5 minutes
   return scheduleEphemeralDismiss(interaction);
 }
+
+// Backward compatible aliases
+export const handleInstantVoiceClose = handleInstantVoiceEnd;
+export const handleInstantVoiceFinish = handleInstantVoiceEnd;
