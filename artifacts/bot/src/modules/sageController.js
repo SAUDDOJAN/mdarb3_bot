@@ -23,6 +23,7 @@ import { updateGuildStatCard } from "../tasks/sageGuildStats.js";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const SAGE_GUILD_ID = "1507696012410749030";
+const LEADER_USER_ID = "136371223209836544"; // Alliance Leader Discord ID (حساب القائد الأساسي)
 
 // The role that marks guild roles in Sage server (roles containing ⚔️)
 const GUILD_ROLE_SYMBOL = "⚔️";
@@ -39,6 +40,20 @@ const SAGE_ADMIN_CHANNEL_ID = process.env.SAGE_ADMIN_CHANNEL_ID ?? null;
 // ─── Isolation Guard Helper ────────────────────────────────────────────────────
 function isSageGuild(guildId) {
   return guildId === SAGE_GUILD_ID;
+}
+
+function isSoloPlayerApp(app) {
+  if (!app) return false;
+  return (
+    app.guild_role_id === "1519397169897935019" ||
+    app.guild_name === "Solo Player" ||
+    String(app.guild_name || "").includes("لاعب فردي")
+  );
+}
+
+function canManageApplicant(interaction, app) {
+  if (!isSoloPlayerApp(app)) return true;
+  return interaction.user.id === LEADER_USER_ID || interaction.user.id === interaction.guild?.ownerId;
 }
 
 const numFmt = (n) => Number(n).toLocaleString("en-US");
@@ -87,76 +102,83 @@ export async function handleSageJoinCommand(interaction) {
   }
 }
 
-// ─── Button: sage:join_start → Show Guild Select Menu ─────────────────────────
-async function handleJoinStart(interaction) {
-  await interaction.deferReply({ flags: 64 });
+// ─── Guild Select Menu Builder (Dynamic & Auto-Updating) ───────────────────────
+async function buildGuildSelectMenuData(guild, newlyAddedRoleId = null, newlyAddedGuildName = null) {
+  await guild.roles.fetch();
+  const guildRoles = guild.roles.cache.filter((r) => r.name.includes(GUILD_ROLE_SYMBOL));
 
-  // Fetch all roles containing ⚔️ from the guild, plus the Solo Player role
-  await interaction.guild.roles.fetch();
-  const guildRoles = interaction.guild.roles.cache.filter(
-    (r) => r.name.includes(GUILD_ROLE_SYMBOL) || r.id === "1519397169897935019"
-  );
-
-  let options = [];
-  if (guildRoles.size > 0) {
-    options = guildRoles.map((role) => {
-      const isSolo = role.id === "1519397169897935019";
-      let cleanName = role.name.replace(GUILD_ROLE_SYMBOL, "").trim();
-      if (isSolo) {
-        cleanName = "لاعب فردي (Solo Player)";
-      } else {
-        cleanName = "قيلد " + cleanName;
-      }
-      return {
-        label: cleanName,
-        value: role.id,
-        emoji: isSolo ? "🙎‍♂️" : "⚔️",
-        isSolo: isSolo,
-      };
+  let guildOptions = [];
+  guildRoles.forEach((role) => {
+    const cleanName = role.name.replace(GUILD_ROLE_SYMBOL, "").trim();
+    guildOptions.push({
+      label: `قيلد ${cleanName}`,
+      value: role.id,
+      emoji: "⚔️",
+      isNew: role.id === newlyAddedRoleId,
     });
+  });
 
-    options.sort((a, b) => {
-      if (a.isSolo) return -1;
-      if (b.isSolo) return 1;
-      return a.label.localeCompare(b.label, "ar");
-    });
+  // Sort guilds alphabetically, placing newly added guild at the very top
+  guildOptions.sort((a, b) => {
+    if (a.isNew) return -1;
+    if (b.isNew) return 1;
+    return a.label.localeCompare(b.label, "ar");
+  });
 
-    options = options.slice(0, 24);
-  }
+  // Solo Player option placed at the bottom with strict security warning
+  const soloOption = {
+    label: "لاعب فردي (Solo Player — تدقيق أمني مشدد)",
+    description: "تخضع حسابات اللاعبين الفرديين لتدقيق أمني صارم من قائد التحالف",
+    value: "1519397169897935019",
+    emoji: "⚠️",
+  };
 
-  // Always add Solo Player if not present
-  if (!options.some((o) => o.value === "1519397169897935019")) {
-    options.unshift({
-      label: "لاعب فردي (Solo Player)",
-      value: "1519397169897935019",
-      emoji: "🙎‍♂️",
-    });
-  }
+  const finalOptions = [...guildOptions.slice(0, 23), soloOption];
 
   const selectRow = new ActionRowBuilder().addComponents(
     new StringSelectMenuBuilder()
       .setCustomId("sage:select_guild")
       .setPlaceholder("اختر القيلد الذي تنتمي إليه...")
-      .addOptions(options)
+      .addOptions(finalOptions)
   );
 
-  const addGuildRow = new ActionRowBuilder().addComponents(
+  const addGuildButtons = [];
+
+  if (newlyAddedRoleId && newlyAddedGuildName) {
+    addGuildButtons.push(
+      new ButtonBuilder()
+        .setCustomId(`sage:fast_select:${newlyAddedRoleId}`)
+        .setLabel(`⚡ متابعة التسجيل بقيلد ${newlyAddedGuildName}`)
+        .setStyle(ButtonStyle.Primary)
+    );
+  }
+
+  addGuildButtons.push(
     new ButtonBuilder()
       .setCustomId("sage:add_guild_start")
       .setLabel("➕ إضافة قيلد جديد")
       .setStyle(ButtonStyle.Success)
   );
 
+  const addGuildRow = new ActionRowBuilder().addComponents(addGuildButtons);
+
   const selectEmbed = new EmbedBuilder()
-    .setColor(0xd4af37)
+    .setColor(newlyAddedGuildName ? 0x57f287 : 0xd4af37)
     .setTitle("⚔️ اختيار القيلد — تحالف الحصارات")
     .setDescription(
-      "اختر القيلد الذي تنتمي إليه في AION 2 من القائمة بالأسفل.\n*(إذا لم تجد قيلدك بالقائمة، اضغط على زر 'إضافة قيلد جديد' لإضافته فوراً).* "
+      newlyAddedGuildName
+        ? `✅ **تمت إضافة قيلد "${newlyAddedGuildName}" بنجاح!**\nتم تحديث القائمة بالأسفل تلقائياً، يمكنك الآن اختياره مباشرة من القائمة أو الضغط على زر المتابعة السريعة أدناه.`
+        : "اختر القيلد الذي تنتمي إليه في AION 2 من القائمة بالأسفل.\n*(إذا لم تجد قيلدك بالقائمة، اضغط على زر '➕ إضافة قيلد جديد' لإضافته فوراً وتحديث القائمة تلقائياً دون الحاجة لإعادة فتح الرسائل).* "
     );
 
-  const components = [selectRow, addGuildRow];
+  return { selectRow, addGuildRow, selectEmbed };
+}
 
-  await interaction.editReply({ embeds: [selectEmbed], components: components });
+// ─── Button: sage:join_start → Show Guild Select Menu ─────────────────────────
+async function handleJoinStart(interaction) {
+  await interaction.deferReply({ flags: 64 });
+  const { selectRow, addGuildRow, selectEmbed } = await buildGuildSelectMenuData(interaction.guild);
+  await interaction.editReply({ embeds: [selectEmbed], components: [selectRow, addGuildRow] });
 }
 
 // ─── Button: sage:add_guild_start → Show Add Guild Modal ──────────────────────
@@ -178,27 +200,63 @@ async function handleAddGuildStart(interaction) {
   await interaction.showModal(modal);
 }
 
-// ─── Modal Submit: sage:add_guild_modal ───────────────────────────────────────
+// ─── Modal Submit: sage:add_guild_modal (Auto-Update Message Live) ─────────────
 async function handleAddGuildModal(interaction) {
   const guildName = interaction.fields.getTextInputValue("guild_name").trim();
 
   try {
-    const newRole = await interaction.guild.roles.create({
-      name: `${GUILD_ROLE_SYMBOL} ${guildName}`,
-      reason: `Sage Recruitment - New Guild added by ${interaction.user.tag}`,
-    });
+    await interaction.guild.roles.fetch();
+    let targetRole = interaction.guild.roles.cache.find(
+      (r) =>
+        r.name.toLowerCase() === `${GUILD_ROLE_SYMBOL} ${guildName}`.toLowerCase() ||
+        r.name.replace(GUILD_ROLE_SYMBOL, "").trim().toLowerCase() === guildName.toLowerCase()
+    );
 
-    await interaction.reply({
-      content: `✅ تم إنشاء وإضافة قيلد **${guildName}** بنجاح! يرجى إعادة الضغط على زر 'الانضمام الآن' لاختياره من القائمة.`,
-      flags: 64,
+    if (!targetRole) {
+      targetRole = await interaction.guild.roles.create({
+        name: `${GUILD_ROLE_SYMBOL} ${guildName}`,
+        reason: `Sage Recruitment - New Guild added by ${interaction.user.tag}`,
+      });
+    }
+
+    const { selectRow, addGuildRow, selectEmbed } = await buildGuildSelectMenuData(
+      interaction.guild,
+      targetRole.id,
+      guildName
+    );
+
+    await interaction.update({
+      embeds: [selectEmbed],
+      components: [selectRow, addGuildRow],
     });
   } catch (error) {
-    console.error("Error creating guild role:", error);
-    await interaction.reply({
-      content: "❌ حدث خطأ أثناء إضافة القيلد. يرجى التواصل مع إدارة السيرفر.",
-      flags: 64,
-    });
+    console.error("Error creating/updating guild role:", error);
+    if (!interaction.replied && !interaction.deferred) {
+      await interaction.reply({
+        content: `❌ حدث خطأ أثناء إضافة القيلد: ${error.message}`,
+        flags: 64,
+      }).catch(() => {});
+    }
   }
+}
+
+// ─── Fast Select for Newly Added Guild ─────────────────────────────────────────
+async function handleFastSelect(interaction, selectedRoleId) {
+  const modal = new ModalBuilder()
+    .setCustomId(`sage:profile_modal:${selectedRoleId}`)
+    .setTitle("توثيق الشخصية عبر Shugo.gg");
+
+  const urlInput = new TextInputBuilder()
+    .setCustomId("sage_shugo_url")
+    .setLabel("رابط ملفك على Shugo.gg")
+    .setStyle(TextInputStyle.Short)
+    .setPlaceholder("https://shugo.gg/character/global/eu-ludra/اسم_الشخصية")
+    .setRequired(true)
+    .setMinLength(15)
+    .setMaxLength(300);
+
+  modal.addComponents(new ActionRowBuilder().addComponents(urlInput));
+  await interaction.showModal(modal);
 }
 
 // ─── Select Menu: sage:select_guild → Open Shugo Profile Modal ────────────────
@@ -435,17 +493,21 @@ async function handleProfileModal(interaction, selectedRoleId) {
     return;
   }
 
+  const isSoloPlayer = selectedRoleId === "1519397169897935019";
   const selectedRole = interaction.guild.roles.cache.get(selectedRoleId);
   let guildName = selectedRole?.name?.replace(GUILD_ROLE_SYMBOL, "").trim() ?? "Unknown";
-  if (selectedRoleId === "1519397169897935019") guildName = "Solo Player";
+  if (isSoloPlayer) guildName = "لاعب فردي (Solo Player)";
 
   // Get source server if they joined via tracked invite
   const sourceRes = await query("SELECT source_server_name FROM sage_pending_source WHERE user_id = $1", [interaction.user.id]);
   const sourceDiscordServer = sourceRes.rows[0]?.source_server_name ?? null;
 
-  // Check if this is the first person in the guild (Leader)
-  const countRes = await query("SELECT COUNT(*) FROM sage_recruitment WHERE guild_role_id = $1 AND user_id != $2", [selectedRoleId, interaction.user.id]);
-  const isLeader = parseInt(countRes.rows[0].count, 10) === 0;
+  // Check if this is the first person in the guild (Leader) — Solo Player is NEVER leader!
+  let isLeader = false;
+  if (!isSoloPlayer) {
+    const countRes = await query("SELECT COUNT(*) FROM sage_recruitment WHERE guild_role_id = $1 AND user_id != $2", [selectedRoleId, interaction.user.id]);
+    isLeader = parseInt(countRes.rows[0].count, 10) === 0;
+  }
 
   // Upsert into sage_recruitment
   const appRes = await query(
@@ -482,7 +544,14 @@ async function handleProfileModal(interaction, selectedRoleId) {
   const app = appRes.rows[0];
 
   // ─── Double Verification Routing ───────────────────────────────────
-  if (isLeader) {
+  if (isSoloPlayer) {
+    // Solo player applications land strictly in #all-application with security warning
+    const ALL_APP_CHANNEL_ID = "1508451380560531586";
+    const targetChannel = interaction.guild.channels.cache.get(ALL_APP_CHANNEL_ID) ?? await interaction.guild.channels.fetch(ALL_APP_CHANNEL_ID).catch(() => null);
+    if (targetChannel) {
+      await sendSoloPlayerReview(interaction, app, targetChannel);
+    }
+  } else if (isLeader) {
     const LEADER_APP_CHANNEL_ID = "1508469394873913549";
     const targetChannel = interaction.guild.channels.cache.get(LEADER_APP_CHANNEL_ID) ?? await interaction.guild.channels.fetch(LEADER_APP_CHANNEL_ID).catch(() => null);
 
@@ -521,6 +590,65 @@ async function handleProfileModal(interaction, selectedRoleId) {
       `✅ **تم استلام طلبك وتوثيق شخصيتك بنجاح!**\n` +
       `الشخصية: **${characterName}** | القيلد: **${guildName}** | السيرفر: **${serverName}**\n` +
       `طلبك الآن قيد المراجعة والتحقق، وستصلك رسالة في الخاص فور قبوله.`,
+  });
+}
+
+// ─── Solo Player Review Embed (Strict Security Review) ────────────────────────
+async function sendSoloPlayerReview(interaction, app, targetChannel) {
+  const cpDisplay = app.combat_power > 0 ? numFmt(app.combat_power) : "—";
+
+  const description = [
+    `🚨 **تدقيق أمني مشدد: طلب انضمام لاعب فردي (احتمال اشتباه / تجسس)** 🚨`,
+    `⚠️ **تنبيه الإدارة:** هذا اللاعب تقدم كـ **"لاعب فردي (Solo Player)"** بدون قيلد، ويخضع للرقابة والتدقيق الأمني المباشر.`,
+    `🔒 **صلاحية القرار:** محصورة حصراً بقائد التحالف (<@${LEADER_USER_ID}>). لا يمكن لأي مشرف آخر البت في هذا الطلب.`,
+    "",
+    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+    `👤 **مقدم الطلب:** <@${app.user_id}> (${app.discord_tag ?? interaction.user.tag})`,
+    `🏰 **القيلد المختار:** \`لاعب فردي (Solo Player)\``,
+    "",
+    "📋 **بيانات الشخصية والتوثيق:**",
+    `👤 **اسم الشخصية:** \`${app.character_name ?? "—"}\``,
+    `📊 **المستوى:** \`${app.character_level ?? "—"}\``,
+    `🎮 **التخصص (Class):** \`${app.class_name ?? "—"}\``,
+    `🧬 **الشعب (Race):** \`${app.race_name ?? "—"}\``,
+    `🌍 **سيرفر اللعبة:** \`${app.server_name ?? "—"}\``,
+    `⚡ **قوة القتال (CP):** ★ **${cpDisplay}** ★`,
+    "",
+    `🔗 **[عرض وتدقيق البروفايل على Shugo.gg](${app.shugo_url})**`,
+    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+  ].join("\n");
+
+  const soloEmbed = new EmbedBuilder()
+    .setColor(0xed4245)
+    .setTitle("🚨 تدقيق أمني مشدد: طلب انضمام لاعب فردي")
+    .setDescription(description)
+    .setThumbnail(app.profile_image || classIconUrl(app.class_name))
+    .setFooter({ text: `Discord ID: ${app.user_id}  •  معرف الطلب: ${app.id}  •  تدقيق لاعب فردي` })
+    .setTimestamp();
+
+  const actionRow = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`sage:accept:${app.user_id}:${app.id}`)
+      .setLabel("✅ قبول واعتماد اللاعب الفردي")
+      .setStyle(ButtonStyle.Success),
+    new ButtonBuilder()
+      .setCustomId(`sage:reject:${app.user_id}:${app.id}`)
+      .setLabel("❌ رفض الطلب")
+      .setStyle(ButtonStyle.Danger),
+    new ButtonBuilder()
+      .setLabel("💬 مراسلة العضو (DM)")
+      .setStyle(ButtonStyle.Link)
+      .setURL(`https://discord.com/users/${app.user_id}`),
+    new ButtonBuilder()
+      .setCustomId(`sage:ban:${app.user_id}:${app.id}`)
+      .setLabel("🔨 حظر فوري (سياسة الحزم)")
+      .setStyle(ButtonStyle.Danger)
+  );
+
+  await targetChannel.send({
+    content: `⚠️ <@${LEADER_USER_ID}> **إشعار أمني: طلب انضمام لاعب فردي جديد في <#1508451380560531586> يتطلب قرارك الشخصي حصراً.**`,
+    embeds: [soloEmbed],
+    components: [actionRow],
   });
 }
 
@@ -604,6 +732,14 @@ async function handleSageAccept(interaction, targetUserId, appId) {
 
   if (app.status !== "pending") {
     await interaction.editReply({ content: `⚠️ تمت مراجعة هذا الطلب مسبقاً (الحالة: ${app.status}).` });
+    return;
+  }
+
+  // Security guard for Solo Player
+  if (!canManageApplicant(interaction, app)) {
+    await interaction.editReply({
+      content: `⛔ **صلاحية محظورة (تدقيق أمني مشدد):**\nهذا الطلب يخص "لاعب فردي" (Solo Player)، والبت فيه محصور حصراً بقائد التحالف (<@${LEADER_USER_ID}>) لحماية التحالف من التجسس والاختراق.`,
+    });
     return;
   }
 
@@ -716,6 +852,14 @@ async function handleSageReject(interaction, targetUserId, appId) {
     return;
   }
 
+  // Security guard for Solo Player
+  if (!canManageApplicant(interaction, app)) {
+    await interaction.editReply({
+      content: `⛔ **صلاحية محظورة (تدقيق أمني مشدد):**\nهذا الطلب يخص "لاعب فردي" (Solo Player)، والبت فيه محصور حصراً بقائد التحالف (<@${LEADER_USER_ID}>).`,
+    });
+    return;
+  }
+
   await query(
     "UPDATE sage_recruitment SET status='rejected', reviewed_by=$1, updated_at=NOW() WHERE id=$2",
     [interaction.user.id, appId]
@@ -763,6 +907,14 @@ async function handleSageBan(interaction, targetUserId, appId) {
 
   const appRes = await query("SELECT * FROM sage_recruitment WHERE id=$1 AND user_id=$2", [appId, targetUserId]);
   const app = appRes.rows[0];
+
+  // Security guard for Solo Player
+  if (!canManageApplicant(interaction, app)) {
+    await interaction.editReply({
+      content: `⛔ **صلاحية محظورة (تدقيق أمني مشدد):**\nهذا الطلب يخص "لاعب فردي" (Solo Player)، والبت فيه محصور حصراً بقائد التحالف (<@${LEADER_USER_ID}>).`,
+    });
+    return;
+  }
 
   try {
     await interaction.guild.members.ban(targetUserId, {
@@ -1103,6 +1255,9 @@ export async function handleInteraction(interaction) {
 
       case "add_guild_modal":
         return await handleAddGuildModal(interaction);
+
+      case "fast_select":
+        return await handleFastSelect(interaction, rest[0]);
 
       case "select_guild":
         return await handleGuildSelect(interaction);
