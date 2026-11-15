@@ -35,7 +35,7 @@ export const CHANNEL_IDS = {
 
   // 🔊 ┃ صوت التحالف
   CAT_VOICE: "1507707354626527232",
-  WAR_STAGE: "1571540894061039788",    // 🏟️┊منصة-نداءات-الحرب
+  WAR_STAGE: "1571540894061039788",    // 🏟️┊سيج-الحلف
   COMMAND_VC: "1507696013551472683",   // 🎙️┊غرفة-القيادة
   GENERAL_VC: "1507708086171992125",   // 🔊┊الكول-العام
   GENERAL_VC2: "1571540896401326090",  // 🔊┊الكول-العام-2
@@ -609,7 +609,7 @@ export async function syncAllSagePermissions(guild) {
     },
   ]);
 
-  // 🏟️┊منصة-نداءات-الحرب (War Stage Channel - Unlimited listeners, zero noise)
+  // 🏟️┊سيج-الحلف (War Stage Channel - Unlimited listeners, zero noise)
   await applyOverwrites(CHANNEL_IDS.WAR_STAGE, [
     {
       id: roles.everyone.id,
