@@ -1,5 +1,6 @@
 import * as leveling from "../modules/leveling.js";
 import { trackRecentUserMessage, purgeTimedOutMemberMessages } from "../modules/timeoutCleaner.js";
+import { handleSageDmProof } from "../modules/sageController.js";
 
 // روم التايم اوت التلقائي (أسبوع كامل)
 const AUTO_TIMEOUT_CHANNEL_ID = "1564210919053983834";
@@ -9,7 +10,15 @@ export default {
   name: "messageCreate",
   once: false,
   async execute(message, client) {
-    if (message.author.bot || !message.guild || message.webhookId) return;
+    if (message.author.bot || message.webhookId) return;
+
+    // ─── التقاط رسائل الخاص (DMs) لإثباتات قيادة القيلد في تحالف الحصارات ───
+    if (!message.guild) {
+      await handleSageDmProof(message, client).catch((err) => {
+        console.error("[SageDM] Error handling DM proof:", err);
+      });
+      return;
+    }
 
     // ─── تايم اوت أسبوع تلقائياً لأي شخص يرسل في الروم 1564210919053983834 ───
     if (message.channel.id === AUTO_TIMEOUT_CHANNEL_ID) {

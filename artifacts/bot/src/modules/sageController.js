@@ -1166,3 +1166,121 @@ export async function handleInteraction(interaction) {
     }
   }
 }
+
+// ─── DM Proof Receiver for Guild Leaders ───────────────────────────────────────
+export async function handleSageDmProof(message, client) {
+  if (message.author?.bot || message.guild) return;
+
+  if (message.partial) {
+    await message.fetch().catch(() => {});
+  }
+
+  const userId = message.author.id;
+
+  // Check if this user has an active pending application
+  const appRes = await query(
+    "SELECT * FROM sage_recruitment WHERE user_id = $1 AND status = 'pending' ORDER BY id DESC LIMIT 1",
+    [userId]
+  );
+
+  if (appRes.rowCount === 0) return;
+  const app = appRes.rows[0];
+
+  const attachments = Array.from(message.attachments?.values() || []);
+  const imageAttachments = attachments.filter(
+    (att) => att.contentType?.startsWith("image/") || /\.(png|jpe?g|webp|gif)$/i.test(att.name || "")
+  );
+
+  const LEADER_APP_CHANNEL_ID = "1508469394873913549";
+  const guild = client.guilds.cache.get(SAGE_GUILD_ID) ?? await client.guilds.fetch(SAGE_GUILD_ID).catch(() => null);
+  if (!guild) return;
+
+  const targetChannel = guild.channels.cache.get(LEADER_APP_CHANNEL_ID) ?? await guild.channels.fetch(LEADER_APP_CHANNEL_ID).catch(() => null);
+  if (!targetChannel) return;
+
+  if (imageAttachments.length > 0) {
+    const proofImageUrl = imageAttachments[0].url;
+    const cpDisplay = app.combat_power > 0 ? numFmt(app.combat_power) : "—";
+
+    const description = [
+      `📸 **وصلت صورة إثبات قيادة جديدة من مقدم الطلب عبر الخاص (DM):**\n`,
+      `👑 **مقدم الإثبات:** <@${app.user_id}> (${message.author.tag})`,
+      `🏰 **القيلد:** **${app.guild_name ?? "—"}**`,
+      `👤 **اسم الشخصية:** \`${app.character_name ?? "—"}\``,
+      `🎮 **التخصص:** \`${app.class_name ?? "—"}\` | 📊 **المستوى:** \`${app.character_level ?? "—"}\``,
+      `⚡ **قوة القتال (CP):** ★ **${cpDisplay}** ★`,
+      app.shugo_url ? `🔗 **[عرض وتدقيق البروفايل على Shugo.gg](${app.shugo_url})**` : "",
+      message.content?.trim() ? `\n💬 **ملاحظة مقدم الطلب:**\n> ${message.content.trim()}` : "",
+    ].filter(Boolean).join("\n");
+
+    const proofEmbed = new EmbedBuilder()
+      .setColor(0xd4af37)
+      .setTitle(`📸 وصل إثبات قيادة القيلد — ${app.guild_name}`)
+      .setDescription(description)
+      .setImage(proofImageUrl)
+      .setThumbnail(app.profile_image || classIconUrl(app.class_name))
+      .setFooter({ text: `Discord ID: ${app.user_id}  •  معرف الطلب: ${app.id}  •  إثبات قيادة القيلد` })
+      .setTimestamp();
+
+    const actionRow = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`sage:accept:${app.user_id}:${app.id}`)
+        .setLabel("✅ قبول واعتماد القيلد")
+        .setStyle(ButtonStyle.Success),
+      new ButtonBuilder()
+        .setCustomId(`sage:reject:${app.user_id}:${app.id}`)
+        .setLabel("❌ رفض الطلب")
+        .setStyle(ButtonStyle.Danger),
+      new ButtonBuilder()
+        .setLabel("💬 مراسلة العضو (DM)")
+        .setStyle(ButtonStyle.Link)
+        .setURL(`https://discord.com/users/${app.user_id}`),
+      new ButtonBuilder()
+        .setCustomId(`sage:ban:${app.user_id}:${app.id}`)
+        .setLabel("🔨 حظر فوري")
+        .setStyle(ButtonStyle.Danger)
+    );
+
+    const extraFiles = imageAttachments.slice(1).map((a) => a.url);
+
+    await targetChannel.send({
+      content: `🔔 **إشعار وصول إثبات قيادة جديد من <@${app.user_id}>:**`,
+      embeds: [proofEmbed],
+      components: [actionRow],
+      files: extraFiles,
+    });
+
+    try {
+      const currentData = typeof app.character_data === "object" && app.character_data !== null ? app.character_data : {};
+      currentData.proof_image_url = proofImageUrl;
+      await query("UPDATE sage_recruitment SET character_data = $1, updated_at = NOW() WHERE id = $2", [JSON.stringify(currentData), app.id]);
+    } catch (dbErr) {
+      console.warn("[SageDM] Could not update character_data with proof url:", dbErr.message);
+    }
+
+    await message.reply({
+      embeds: [
+        new EmbedBuilder()
+          .setColor(0x57f287)
+          .setTitle("✅ تم استلام صورة الإثبات بنجاح!")
+          .setDescription(
+            `شكراً لك يا بطل **${app.character_name}**! 🛡️\n\n` +
+            `تم استلام صورة إثبات قيادة قيلد **${app.guild_name}** بنجاح وتم إرسالها فوراً إلى إدارة تحالف الحصارات لمطابقتها واعتمادك.\n\n` +
+            `⏳ ستصلك رسالة هنا فور إتمام التدقيق وقبول طلبك وتفعيل الرتبة.`
+          )
+          .setFooter({ text: "تحالف الحصارات • Siege Alliance" })
+          .setTimestamp(),
+      ],
+    }).catch(() => {});
+  } else if (message.content?.trim()) {
+    await targetChannel.send({
+      content: `💬 **رسالة عبر الخاص من مقدم الطلب <@${app.user_id}> (${message.author.tag}) — قيلد: ${app.guild_name}:**\n> ${message.content.trim()}`,
+    }).catch(() => {});
+
+    await message.reply({
+      content:
+        `📩 **تم إيصال رسالتك إلى إدارة التحالف بنجاح.**\n` +
+        `📸 إذا كان لديك صورة (سكرين شوت) تثبت أنك قائد قيلد **${app.guild_name}** داخل اللعبة، يرجى إرسال الصورة هنا مباشرة في هذه المحادثة.`,
+    }).catch(() => {});
+  }
+}
