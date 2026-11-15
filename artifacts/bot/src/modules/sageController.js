@@ -531,44 +531,63 @@ async function sendToSageReview(interaction, app, targetChannel, isLeader) {
     ? "👑 طلب اعتماد قائد قيلد — تحالف الحصارات"
     : "📋 طلب انضمام عضو جديد — تحالف الحصارات";
 
+  const description = [
+    `👑 **مقدم الطلب:** <@${app.user_id}> (${app.discord_tag ?? interaction.user.tag})`,
+    `🏰 **القيلد المختار:** **${app.guild_name ?? "—"}**`,
+    "",
+    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+    "📋 **بيانات الشخصية والتوثيق:**",
+    `👤 **اسم الشخصية:** \`${app.character_name ?? "—"}\``,
+    `📊 **المستوى:** \`${app.character_level ?? "—"}\``,
+    `🎮 **التخصص (Class):** \`${app.class_name ?? "—"}\``,
+    `🧬 **الشعب (Race):** \`${app.race_name ?? "—"}\``,
+    `🌍 **سيرفر اللعبة:** \`${app.server_name ?? "—"}\``,
+    `⚡ **قوة القتال (CP):** ★ **${cpDisplay}** ★`,
+    "",
+    `🔗 **[عرض وتدقيق البروفايل على Shugo.gg](${app.shugo_url})**`,
+    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+  ].join("\n");
+
   const reviewEmbed = new EmbedBuilder()
-    .setColor(0xd4af37)
+    .setColor(isLeader ? 0xd4af37 : 0x5865f2)
     .setTitle(titlePrefix)
-    .setDescription(
-      `👑 **مقدم الطلب:** ${interaction.user}\n` +
-      `[🔗 عرض البروفايل على Shugo.gg](${app.shugo_url})`
-    )
-    .addFields(
-      { name: "⚔️ القيلد المختار", value: app.guild_name ?? "—", inline: false },
-      { name: "👤 اسم الشخصية", value: app.character_name ?? "—", inline: true },
-      { name: "📊 المستوى", value: String(app.character_level ?? "—"), inline: true },
-      { name: "🎮 التخصص", value: app.class_name ?? "—", inline: true },
-      { name: "🌍 السيرفر", value: app.server_name ?? "—", inline: true },
-      { name: "🧬 الشعب", value: app.race_name ?? "—", inline: true },
-      { name: "⚡ قوة القتال (CP)", value: `★ **${cpDisplay}** ★`, inline: true }
-    )
+    .setDescription(description)
     .setThumbnail(app.profile_image || classIconUrl(app.class_name))
     .setFooter({ text: `Discord ID: ${app.user_id}  •  معرف الطلب: ${app.id}` })
     .setTimestamp();
 
-  if (app.profile_image) reviewEmbed.setImage(app.profile_image);
-
-  const reviewRow = new ActionRowBuilder().addComponents(
+  const row1 = new ActionRowBuilder().addComponents(
     new ButtonBuilder()
-      .setCustomId(`sage:accept:${interaction.user.id}:${app.id}`)
+      .setCustomId(`sage:accept:${app.user_id}:${app.id}`)
       .setLabel("✅ قبول الطلب")
       .setStyle(ButtonStyle.Success),
     new ButtonBuilder()
-      .setCustomId(`sage:reject:${interaction.user.id}:${app.id}`)
+      .setCustomId(`sage:reject:${app.user_id}:${app.id}`)
       .setLabel("❌ رفض الطلب")
       .setStyle(ButtonStyle.Danger),
     new ButtonBuilder()
-      .setCustomId(`sage:ban:${interaction.user.id}:${app.id}`)
+      .setLabel("💬 مراسلة العضو (DM)")
+      .setStyle(ButtonStyle.Link)
+      .setURL(`https://discord.com/users/${app.user_id}`),
+    new ButtonBuilder()
+      .setCustomId(`sage:ban:${app.user_id}:${app.id}`)
       .setLabel("🔨 حظر فوري (سياسة الحزم)")
       .setStyle(ButtonStyle.Danger)
   );
 
-  await targetChannel.send({ embeds: [reviewEmbed], components: [reviewRow] });
+  const components = [row1];
+
+  if (isLeader) {
+    const row2 = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`sage:req_proof:${app.user_id}:${app.id}`)
+        .setLabel("📩 إرسال طلب إثبات القيادة تلقائياً (DM)")
+        .setStyle(ButtonStyle.Secondary)
+    );
+    components.push(row2);
+  }
+
+  await targetChannel.send({ embeds: [reviewEmbed], components });
 }
 
 // ─── Accept Handler ────────────────────────────────────────────────────────────
@@ -780,6 +799,50 @@ async function handleSageBan(interaction, targetUserId, appId) {
   });
 }
 
+// ─── Request Leader Proof via DM ──────────────────────────────────────────────
+async function handleRequestLeaderProof(interaction, targetUserId, appId) {
+  await interaction.deferReply({ flags: 64 });
+
+  const appRes = await query("SELECT * FROM sage_recruitment WHERE id=$1 AND user_id=$2", [appId, targetUserId]);
+  const app = appRes.rows[0];
+
+  if (!app) {
+    return await interaction.editReply({ content: "❌ لم يتم العثور على الطلب في قاعدة البيانات." });
+  }
+
+  const member = await interaction.guild.members.fetch(targetUserId).catch(() => null);
+  if (!member) {
+    return await interaction.editReply({ content: "❌ تعذر العثور على العضو في السيرفر." });
+  }
+
+  try {
+    const dmEmbed = new EmbedBuilder()
+      .setColor(0xd4af37)
+      .setTitle("🛡️ تحالف الحصارات | طلب التحقق من قيادة القيلد")
+      .setDescription(
+        `مرحباً بك يا بطل **<@${targetUserId}>**! ⚔️\n\n` +
+        `لقد تم استلام طلب اعتمادك كقائد لقيلد **${app.guild_name}** في تحالف الحصارات.\n\n` +
+        `📋 **المطلوب للتحقق والاعتماد:**\n` +
+        `يرجى تزويد إدارة التحالف بصورة (سكرين شوت) واضحة من داخل اللعبة تثبت أن شخصيتك **${app.character_name}** هي قائد القيلد (Guild Master) الحالي.\n\n` +
+        `💬 يمكنك الرد هنا أو التواصل مع الإدارة: <@${interaction.user.id}>.\n\n` +
+        `شكراً لتعاونكم في الحفاظ على تنظيم وأمان التحالف!`
+      )
+      .setFooter({ text: "تحالف الحصارات • Siege Alliance Verification" })
+      .setTimestamp();
+
+    await member.send({ embeds: [dmEmbed] });
+
+    await interaction.editReply({
+      content: `✅ **تم إرسال طلب إثبات القيادة بنجاح إلى الخاص للعضو <@${targetUserId}>.**\nيمكنك أيضاً مراسلته مباشرة عبر زر **💬 مراسلة العضو (DM)**.`,
+    });
+  } catch (err) {
+    console.warn(`[SageController] Proof request DM failed for ${targetUserId}:`, err.message);
+    await interaction.editReply({
+      content: `⚠️ تعذر إرسال رسالة في الخاص للعضو <@${targetUserId}> (الخاص لديه مغلق).\nيرجى الضغط على زر **💬 مراسلة العضو (DM)** لمراسلته مباشرة.`,
+    });
+  }
+}
+
 // ─── Roster Card Builder ───────────────────────────────────────────────────────
 async function postRosterCard(channel, app, member) {
   const cpDisplay = app.combat_power > 0 ? numFmt(app.combat_power) : "—";
@@ -869,28 +932,32 @@ async function handleFraudConfirm(interaction, oldUserId) {
 async function sendToLeaderVerification(interaction, app, targetChannel, leaderId) {
   const cpDisplay = app.combat_power > 0 ? numFmt(app.combat_power) : "—";
 
+  const description = [
+    `مرحباً بقائد القيلد <@${leaderId}>،`,
+    `هناك عضو جديد يطلب الانضمام إلى قيلدكم (**${app.guild_name}**). يرجى التحقق مما إذا كان هذا العضو ينتمي إليكم بالفعل داخل اللعبة.\n`,
+    `👑 **مقدم الطلب:** <@${app.user_id}> (${interaction.user.tag})`,
+    `🏰 **القيلد المختار:** **${app.guild_name ?? "—"}**`,
+    "",
+    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+    "📋 **بيانات الشخصية والتوثيق:**",
+    `👤 **اسم الشخصية:** \`${app.character_name ?? "—"}\``,
+    `📊 **المستوى:** \`${app.character_level ?? "—"}\``,
+    `🎮 **التخصص (Class):** \`${app.class_name ?? "—"}\``,
+    `🧬 **الشعب (Race):** \`${app.race_name ?? "—"}\``,
+    `🌍 **سيرفر اللعبة:** \`${app.server_name ?? "—"}\``,
+    `⚡ **قوة القتال (CP):** ★ **${cpDisplay}** ★`,
+    "",
+    `🔗 **[عرض وتدقيق البروفايل على Shugo.gg](${app.shugo_url})**`,
+    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+  ].join("\n");
+
   const verifyEmbed = new EmbedBuilder()
     .setColor(0x3498db) // Blue for verification
     .setTitle("🛡️ طلب تحقق من هوية عضو (تحقق قائد القيلد)")
-    .setDescription(
-      `مرحباً بقائد القيلد <@${leaderId}>،\n` +
-      `هناك عضو جديد يطلب الانضمام إلى قيلدكم (**${app.guild_name}**). يرجى التحقق مما إذا كان هذا العضو ينتمي إليكم بالفعل داخل اللعبة.\n\n` +
-      `👤 **مقدم الطلب:** ${interaction.user}\n` +
-      `[🔗 عرض البروفايل على Shugo.gg](${app.shugo_url})`
-    )
-    .addFields(
-      { name: "👤 اسم الشخصية", value: app.character_name ?? "—", inline: true },
-      { name: "📊 المستوى", value: String(app.character_level ?? "—"), inline: true },
-      { name: "🎮 التخصص", value: app.class_name ?? "—", inline: true },
-      { name: "🌍 السيرفر", value: app.server_name ?? "—", inline: true },
-      { name: "🧬 الشعب", value: app.race_name ?? "—", inline: true },
-      { name: "⚡ قوة القتال (CP)", value: `★ **${cpDisplay}** ★`, inline: true }
-    )
-    .setThumbnail(classIconUrl(app.class_name))
+    .setDescription(description)
+    .setThumbnail(app.profile_image || classIconUrl(app.class_name))
     .setFooter({ text: `Discord ID: ${interaction.user.id}  •  معرف الطلب: ${app.id}` })
     .setTimestamp();
-
-  if (app.profile_image) verifyEmbed.setImage(app.profile_image);
 
   const verifyRow = new ActionRowBuilder().addComponents(
     new ButtonBuilder()
@@ -900,7 +967,11 @@ async function sendToLeaderVerification(interaction, app, targetChannel, leaderI
     new ButtonBuilder()
       .setCustomId(`sage:leader_reject:${interaction.user.id}:${app.id}`)
       .setLabel("❌ رفض (غير معروف)")
-      .setStyle(ButtonStyle.Danger)
+      .setStyle(ButtonStyle.Danger),
+    new ButtonBuilder()
+      .setLabel("💬 مراسلة العضو (DM)")
+      .setStyle(ButtonStyle.Link)
+      .setURL(`https://discord.com/users/${app.user_id}`)
   );
 
   await targetChannel.send({ content: `<@${leaderId}>`, embeds: [verifyEmbed], components: [verifyRow] });
@@ -925,27 +996,32 @@ async function handleLeaderVerify(interaction, targetUserId, appId) {
 
   if (targetChannel) {
     const cpDisplay = app.combat_power > 0 ? numFmt(app.combat_power) : "—";
+    const description = [
+      `✅ **تم التحقق من هويته وتأكيده بواسطة قائد القيلد (<@${interaction.user.id}> - ${interaction.user.tag})**`,
+      "",
+      `👑 **المتقدم:** <@${app.user_id}>`,
+      `🏰 **القيلد:** **${app.guild_name ?? "—"}**`,
+      "",
+      "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+      "📋 **بيانات الشخصية والتوثيق:**",
+      `👤 **اسم الشخصية:** \`${app.character_name ?? "—"}\``,
+      `📊 **المستوى:** \`${app.character_level ?? "—"}\``,
+      `🎮 **التخصص (Class):** \`${app.class_name ?? "—"}\``,
+      `🧬 **الشعب (Race):** \`${app.race_name ?? "—"}\``,
+      `🌍 **سيرفر اللعبة:** \`${app.server_name ?? "—"}\``,
+      `⚡ **قوة القتال (CP):** ★ **${cpDisplay}** ★`,
+      "",
+      `🔗 **[عرض وتدقيق البروفايل على Shugo.gg](${app.shugo_url})**`,
+      "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+    ].join("\n");
+
     const reviewEmbed = new EmbedBuilder()
       .setColor(0xd4af37)
       .setTitle("📋 طلب انضمام جديد (مُحقق منه من قائد القيلد) — تحالف الحصارات")
-      .setDescription(
-        `✅ **تم التحقق من هويته وتأكيده بواسطة قائد القيلد (${interaction.user.tag})**\n\n` +
-        `👑 **المتقدم:** <@${app.user_id}>\n` +
-        `[🔗 عرض البروفايل على Shugo.gg](${app.shugo_url})`
-      )
-      .addFields(
-        { name: "⚔️ القيلد المختار", value: app.guild_name ?? "—", inline: true },
-        { name: "👤 اسم الشخصية", value: app.character_name ?? "—", inline: true },
-        { name: "📊 المستوى", value: String(app.character_level ?? "—"), inline: true },
-        { name: "🎮 التخصص", value: app.class_name ?? "—", inline: true },
-        { name: "🌍 السيرفر", value: app.server_name ?? "—", inline: true },
-        { name: "⚡ قوة القتال (CP)", value: `★ **${cpDisplay}** ★`, inline: true }
-      )
+      .setDescription(description)
       .setThumbnail(app.profile_image || classIconUrl(app.class_name))
       .setFooter({ text: `Discord ID: ${app.user_id}  •  معرف الطلب: ${app.id}` })
       .setTimestamp();
-
-    if (app.profile_image) reviewEmbed.setImage(app.profile_image);
 
     const reviewRow = new ActionRowBuilder().addComponents(
       new ButtonBuilder()
@@ -956,6 +1032,10 @@ async function handleLeaderVerify(interaction, targetUserId, appId) {
         .setCustomId(`sage:reject:${app.user_id}:${app.id}`)
         .setLabel("❌ رفض نهائي")
         .setStyle(ButtonStyle.Danger),
+      new ButtonBuilder()
+        .setLabel("💬 مراسلة العضو (DM)")
+        .setStyle(ButtonStyle.Link)
+        .setURL(`https://discord.com/users/${app.user_id}`),
       new ButtonBuilder()
         .setCustomId(`sage:ban:${app.user_id}:${app.id}`)
         .setLabel("🔨 حظر فوري")
@@ -1059,6 +1139,9 @@ export async function handleInteraction(interaction) {
 
       case "ban":
         return await handleSageBan(interaction, rest[0], rest[1]);
+
+      case "req_proof":
+        return await handleRequestLeaderProof(interaction, rest[0], rest[1]);
 
       case "open_member_mgmt":
       case "member_select":
