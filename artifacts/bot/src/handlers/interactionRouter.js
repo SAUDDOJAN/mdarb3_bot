@@ -25,6 +25,7 @@ import { handleAion2Pagination } from "../modules/aion2Lfg/admin/pagination.js";
 import { handleDungeonPointsPagination } from "../commands/utility/dungeon_points.js";
 import { handleCleanupButton } from "../modules/welcomeCleanup.js";
 import * as aion2SiegeAlert from "../modules/aion2SiegeAlert.js";
+import * as sageSiegeAlert from "../modules/sageSiegeAlert.js";
 
 const routers = {
   dgpts_page: handleDungeonPointsPagination,
@@ -65,6 +66,21 @@ export async function route(interaction) {
     } catch (err) {
       console.error(`[Router] Error handling siege interaction "${customId}":`, err);
       const reply = { content: "❌ حدث خطأ أثناء معالجة تسجيل الحضور، حاول مجدداً.", ephemeral: true };
+      if (interaction.replied || interaction.deferred) {
+        await interaction.followUp(reply).catch(() => {});
+      } else {
+        await interaction.reply(reply).catch(() => {});
+      }
+    }
+    return;
+  }
+
+  if (customId.startsWith("sage_siege_")) {
+    try {
+      await sageSiegeAlert.handleInteraction(interaction);
+    } catch (err) {
+      console.error(`[Router] Error handling sage siege interaction "${customId}":`, err);
+      const reply = { content: "❌ حدث خطأ أثناء معالجة تسجيل الحضور في حصار التحالف، حاول مجدداً.", ephemeral: true };
       if (interaction.replied || interaction.deferred) {
         await interaction.followUp(reply).catch(() => {});
       } else {

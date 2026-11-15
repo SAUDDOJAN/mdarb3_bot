@@ -252,6 +252,10 @@ async function main() {
     const { startDailySiegeCron } = await import("./modules/aion2SiegeAlert.js").catch(() => ({ startDailySiegeCron: () => {} }));
     startDailySiegeCron(client);
 
+    // Daily SAGE Alliance Siege Announcement Cron (for Sage Alliance server)
+    const { startDailySageSiegeCron } = await import("./modules/sageSiegeAlert.js").catch(() => ({ startDailySageSiegeCron: () => {} }));
+    startDailySageSiegeCron(client);
+
     // Start scheduled reminders checker
     setInterval(async () => {
       try {
