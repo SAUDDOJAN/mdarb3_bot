@@ -745,21 +745,24 @@ async function handleSageAccept(interaction, targetUserId, appId) {
 
   // 1. Assign guild role and nickname to the member
   const member = await interaction.guild.members.fetch(targetUserId).catch(() => null);
+
+  // Check if this applicant is the guild leader (first accepted member of their guild)
+  let isGuildLeader = false;
+  if (!isSoloPlayerApp(app) && app.guild_role_id) {
+    const countRes = await query(
+      "SELECT COUNT(*) FROM sage_recruitment WHERE guild_role_id = $1 AND user_id != $2 AND status = 'accepted'",
+      [app.guild_role_id, targetUserId]
+    );
+    isGuildLeader = parseInt(countRes.rows[0]?.count ?? "0", 10) === 0;
+  }
+
   if (member) {
     try {
-      if (app.guild_role_id && app.guild_role_id !== "1519397169897935019") {
+      if (app.guild_role_id && !isSoloPlayerApp(app)) {
         await member.roles.add(app.guild_role_id);
       }
 
-      // Check if this is the first accepted member (Leader)
-      const countRes = await query(
-        "SELECT COUNT(*) FROM sage_recruitment WHERE guild_role_id = $1 AND user_id != $2 AND status = 'accepted'",
-        [app.guild_role_id, targetUserId]
-      );
-      const isGuildLeader = parseInt(countRes.rows[0].count, 10) === 0;
-      const isSoloPlayer = app.guild_role_id === "1519397169897935019";
-
-      if (isGuildLeader && !isSoloPlayer) {
+      if (isGuildLeader) {
         const LEADER_ROLE_ID = "1507733486671233175";
         await member.roles.add(LEADER_ROLE_ID).catch(() => {});
       }
@@ -792,6 +795,17 @@ async function handleSageAccept(interaction, targetUserId, appId) {
           [rosterMsg.id, rosterChannel.id, appId]
         );
       }
+    }
+  }
+
+  // 3b. If applicant is Guild Leader, post their card to the dedicated Guild Leaders channel
+  if (isGuildLeader && !isSoloPlayerApp(app)) {
+    const GUILD_LEADERS_CHANNEL_ID = "1508696447674093608";
+    const leadersChannel = interaction.guild.channels.cache.get(GUILD_LEADERS_CHANNEL_ID) ?? await interaction.guild.channels.fetch(GUILD_LEADERS_CHANNEL_ID).catch(() => null);
+    if (leadersChannel) {
+      await postGuildLeaderCard(leadersChannel, app, member).catch((err) => {
+        console.warn(`[SageController] Could not post to guild leaders channel: ${err.message}`);
+      });
     }
   }
 
@@ -1019,6 +1033,35 @@ async function postRosterCard(channel, app, member) {
   if (app.profile_image) rosterEmbed.setImage(app.profile_image);
 
   return await channel.send({ embeds: [rosterEmbed] });
+}
+
+// ─── Guild Leader Card Builder (Dedicated Council Channel) ────────────────────
+async function postGuildLeaderCard(channel, app, member) {
+  const cpDisplay = app.combat_power > 0 ? numFmt(app.combat_power) : "—";
+
+  const leaderEmbed = new EmbedBuilder()
+    .setColor(0xd4af37)
+    .setTitle(`👑 قائد قيلد: ${app.character_name}`)
+    .setDescription(
+      `🛡️✨ **انضمام قائد قيلد رسمي إلى مجلس قيادة تحالف الحصارات!** ⚔️\n\n` +
+      `> 🏰 **القيلد:** **${app.guild_name}**\n` +
+      `> 👑 **قائد القيلد:** <@${member?.id ?? app.user_id}>\n` +
+      `> 🎮 **التخصص:** ${app.class_name ?? "—"}\n` +
+      `> 🧬 **الشعب:** ${app.race_name ?? "—"}\n` +
+      `> 🌍 **السيرفر:** ${app.server_name ?? "—"}\n` +
+      `> ⚡ **قوة القتال:** ★ ${cpDisplay} ★\n\n` +
+      (app.shugo_url && app.shugo_url.startsWith("http") ? `[🔗 عرض وتدقيق البروفايل على Shugo.gg](${app.shugo_url})` : "")
+    )
+    .setThumbnail(classIconUrl(app.class_name))
+    .setFooter({ text: "مجلس قيادة تحالف الحصارات • Guild Leaders Council" })
+    .setTimestamp();
+
+  if (app.profile_image) leaderEmbed.setImage(app.profile_image);
+
+  return await channel.send({
+    content: `📢 **مرحباً بالقائد <@${member?.id ?? app.user_id}> في مجلس قيادة تحالف الحصارات!**`,
+    embeds: [leaderEmbed],
+  });
 }
 
 // ─── Anti-Fraud Alert ────────────────────────────────────────────────────────
