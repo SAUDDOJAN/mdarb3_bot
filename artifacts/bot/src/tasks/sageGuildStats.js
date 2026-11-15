@@ -76,19 +76,33 @@ async function runGuildStatsUpdate(client) {
       return;
     }
 
-    // Fetch all guild roles (roles containing ⚔️)
+    // 1. Update/Post the Master Alliance Overview Card first (always stays at top)
+    try {
+      await updateAllianceMasterCard(guild, channel);
+      await sleep(600);
+    } catch (masterErr) {
+      console.error("[GuildStats] Error updating master card:", masterErr.message);
+    }
+
+    // 2. Fetch all individual guild roles (roles containing ⚔️, excluding the base Alliance Member role)
     await guild.roles.fetch();
-    const guildRoles = guild.roles.cache.filter((r) => r.name.includes(GUILD_ROLE_SYMBOL));
+    const ALLIANCE_MEMBER_ROLE_ID = "1571516616435302410";
+    const guildRoles = guild.roles.cache.filter((r) =>
+      r.name.includes(GUILD_ROLE_SYMBOL) &&
+      r.id !== ALLIANCE_MEMBER_ROLE_ID &&
+      !r.name.includes("Alliance Member") &&
+      !r.name.includes("عضو التحالف")
+    );
 
     if (guildRoles.size === 0) {
-      console.warn("[GuildStats] No guild roles found.");
+      console.warn("[GuildStats] No individual guild roles found.");
       return;
     }
 
     // Fetch all members so we can count role members accurately
     await guild.members.fetch();
 
-    console.log(`[GuildStats] Refreshing stats for ${guildRoles.size} guild(s)...`);
+    console.log(`[GuildStats] Refreshing stats for ${guildRoles.size} individual guild(s)...`);
 
     for (const [roleId, role] of guildRoles) {
       try {
@@ -103,6 +117,77 @@ async function runGuildStatsUpdate(client) {
   } catch (err) {
     console.error("[GuildStats] Unexpected error in runGuildStatsUpdate:", err);
   }
+}
+
+// ─── Master Alliance Overview Card ───────────────────────────────────────────
+export async function updateAllianceMasterCard(guild, channel) {
+  const MASTER_KEY = "MASTER_ALLIANCE_CARD";
+  const LEADER_USER_ID = "136371223209836544";
+
+  // Query overall accepted members and stats
+  const totalAcceptedRes = await query("SELECT COUNT(*) AS cnt, COALESCE(SUM(combat_power), 0) AS total_cp FROM sage_recruitment WHERE status = 'accepted'");
+  const totalMembers = parseInt(totalAcceptedRes.rows[0]?.cnt ?? 0, 10);
+  const totalCp = parseInt(totalAcceptedRes.rows[0]?.total_cp ?? 0, 10);
+
+  const todayRes = await query(
+    `SELECT COUNT(*) AS cnt FROM sage_recruitment 
+     WHERE status = 'accepted' 
+       AND joined_at >= NOW() AT TIME ZONE 'Asia/Riyadh' - INTERVAL '1 day'`
+  );
+  const addedToday = parseInt(todayRes.rows[0]?.cnt ?? 0, 10);
+
+  // Distinct guilds count
+  const guildsCountRes = await query(
+    `SELECT COUNT(DISTINCT guild_name) AS cnt FROM sage_recruitment 
+     WHERE status = 'accepted' AND guild_name IS NOT NULL AND guild_name != 'Solo Player' AND guild_name NOT LIKE '%لاعب فردي%'`
+  );
+  const totalGuilds = parseInt(guildsCountRes.rows[0]?.cnt ?? 0, 10);
+
+  const now = new Date();
+  const dateStr = now.toLocaleDateString("ar-SA", { timeZone: "Asia/Riyadh", year: "numeric", month: "long", day: "numeric" });
+
+  const embed = new EmbedBuilder()
+    .setColor(0xd4af37) // Gold
+    .setTitle("👑 إحصائيات تحالف الحصارات الشاملة | Alliance Overview")
+    .setAuthor({ name: guild.name, iconURL: guild.iconURL() ?? undefined })
+    .setDescription(
+      `🏰 **سيرفر الديسكورد:** ${guild.name}\n` +
+      `⚔️ **إجمالي مقاتلي التحالف (Alliance Member):** **${totalMembers}** مقاتل معتمد\n` +
+      `🛡️ **عدد القيلدات المتحالفة:** **${totalGuilds}** قيلد\n` +
+      `⚡ **إجمالي قوة قتال التحالف (Total CP):** ★ **${numFmt(totalCp)}** ★\n` +
+      `✅ **انضموا اليوم:** **${addedToday}** عضو جديد\n\n` +
+      `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+      `👑 **القيادة العليا للتحالف:** <@${LEADER_USER_ID}>\n` +
+      `📜 **نظام الرتب:** يتم إدراج بطاقات القيلدات الفردية أدناه تباعاً.`
+    )
+    .setFooter({ text: `تحالف الحصارات • التقرير الشامل • ${dateStr}` })
+    .setTimestamp();
+
+  const existingRes = await query(
+    "SELECT message_id FROM sage_guild_stat_messages WHERE guild_role_id = $1",
+    [MASTER_KEY]
+  );
+  const existingMsgId = existingRes.rows[0]?.message_id ?? null;
+
+  if (existingMsgId) {
+    const existingMsg = await channel.messages.fetch(existingMsgId).catch(() => null);
+    if (existingMsg) {
+      await existingMsg.edit({ embeds: [embed] });
+      await query("UPDATE sage_guild_stat_messages SET updated_at=NOW() WHERE guild_role_id=$1", [MASTER_KEY]);
+      console.log("[GuildStats] Updated Master Alliance Overview Card");
+      return;
+    }
+  }
+
+  const msg = await channel.send({ embeds: [embed] });
+  await query(
+    `INSERT INTO sage_guild_stat_messages (guild_role_id, message_id, channel_id)
+     VALUES ($1, $2, $3)
+     ON CONFLICT (guild_role_id) DO UPDATE
+       SET message_id=$2, channel_id=$3, updated_at=NOW()`,
+    [MASTER_KEY, msg.id, channel.id]
+  );
+  console.log("[GuildStats] Posted new Master Alliance Overview Card");
 }
 
 // ─── Per-guild card update ────────────────────────────────────────────────────

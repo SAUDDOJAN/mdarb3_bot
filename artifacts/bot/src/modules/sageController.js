@@ -52,8 +52,50 @@ function isSoloPlayerApp(app) {
 }
 
 function canManageApplicant(interaction, app) {
-  if (!isSoloPlayerApp(app)) return true;
-  return interaction.user.id === LEADER_USER_ID || interaction.user.id === interaction.guild?.ownerId;
+  const userId = interaction.user.id;
+  const isOwnerOrAllianceLeader = userId === LEADER_USER_ID || userId === interaction.guild?.ownerId;
+  if (isOwnerOrAllianceLeader) return true;
+
+  if (isSoloPlayerApp(app)) {
+    return false; // Solo Player approval is strictly reserved for Alliance Leader!
+  }
+
+  // Alliance Council members can manage non-solo applicants in all-application
+  const COUNCIL_ROLE_ID = "1507733319989858435";
+  const member = interaction.member;
+  if (member?.roles?.cache?.has(COUNCIL_ROLE_ID)) {
+    return true;
+  }
+
+  return false;
+}
+
+async function isAuthorizedGuildLeader(interaction, app) {
+  const userId = interaction.user.id;
+  // Alliance Leader or Server Owner always has supreme authority
+  if (userId === LEADER_USER_ID || userId === interaction.guild?.ownerId) {
+    return { authorized: true, leaderId: userId };
+  }
+
+  // Find designated leader of this guild
+  const leaderRes = await query(
+    "SELECT user_id FROM sage_recruitment WHERE guild_role_id = $1 AND status = 'accepted' ORDER BY joined_at ASC LIMIT 1",
+    [app.guild_role_id]
+  );
+  const designatedLeaderId = leaderRes.rows[0]?.user_id;
+
+  if (designatedLeaderId && userId === designatedLeaderId) {
+    return { authorized: true, leaderId: designatedLeaderId };
+  }
+
+  // Check if member has Guild Leader role AND the specific guild role
+  const member = interaction.member ?? await interaction.guild.members.fetch(userId).catch(() => null);
+  const GUILD_LEADER_ROLE_ID = "1507733486671233175";
+  if (member && member.roles.cache.has(GUILD_LEADER_ROLE_ID) && app.guild_role_id && member.roles.cache.has(app.guild_role_id)) {
+    return { authorized: true, leaderId: userId };
+  }
+
+  return { authorized: false, leaderId: designatedLeaderId };
 }
 
 const numFmt = (n) => Number(n).toLocaleString("en-US");
@@ -1194,6 +1236,14 @@ async function handleLeaderVerify(interaction, targetUserId, appId) {
     return await interaction.editReply({ content: `⚠️ تمت مراجعة هذا الطلب مسبقاً (${app.status}).` });
   }
 
+  // Security guard: Only the leader of THIS specific guild (or Supreme Alliance Leader) can verify!
+  const auth = await isAuthorizedGuildLeader(interaction, app);
+  if (!auth.authorized) {
+    return await interaction.editReply({
+      content: `⛔ **صلاحية محظورة (حماية خصوصية القيلدات):**\nهذا الطلب يخص قيلد (**${app.guild_name}**)، والتحقق منه محصور حصراً بقائد هذا القيلد (${auth.leaderId ? `<@${auth.leaderId}>` : "المعتمد"}) أو إدارة التحالف العليا.\nلا يمكنك تأكيد أو التدخل في طلبات قيلد آخر!`,
+    });
+  }
+
   // Forward to Admin Channel
   const ALL_APP_CHANNEL_ID = "1508451380560531586";
   const targetChannel = interaction.guild.channels.cache.get(ALL_APP_CHANNEL_ID) ?? await interaction.guild.channels.fetch(ALL_APP_CHANNEL_ID).catch(() => null);
@@ -1265,6 +1315,14 @@ async function handleLeaderReject(interaction, targetUserId, appId) {
   const app = appRes.rows[0];
 
   if (!app) return await interaction.editReply({ content: "❌ لم يتم العثور على الطلب." });
+
+  // Security guard: Only the leader of THIS specific guild (or Supreme Alliance Leader) can reject!
+  const auth = await isAuthorizedGuildLeader(interaction, app);
+  if (!auth.authorized) {
+    return await interaction.editReply({
+      content: `⛔ **صلاحية محظورة (حماية خصوصية القيلدات):**\nهذا الطلب يخص قيلد (**${app.guild_name}**)، والبت فيه محصور حصراً بقائد هذا القيلد (${auth.leaderId ? `<@${auth.leaderId}>` : "المعتمد"}) أو إدارة التحالف العليا.\nلا يمكنك رفض أو التدخل في طلبات قيلد آخر!`,
+    });
+  }
 
   // Update DB
   await query("UPDATE sage_recruitment SET status='rejected', reviewed_by=$1, updated_at=NOW() WHERE id=$2", [interaction.user.id, appId]);
