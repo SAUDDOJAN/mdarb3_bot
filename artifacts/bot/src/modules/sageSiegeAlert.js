@@ -9,8 +9,9 @@ import { query } from "../database/index.js";
 // ─── Constants & Configuration ───────────────────────────────────────────────
 export const SAGE_GUILD_ID = "1507696012410749030";
 export const SAGE_ORDERS_CHANNEL_ID = "1507705678809272410"; // #📣┊الأوامر
-export const SAGE_VOICE_CHANNEL_ID = "1507708086171992125";  // #🔊┊الكول-العام
+export const SAGE_VOICE_CHANNEL_ID = "1571540894061039788";  // #🏟️┊سيج-الحلف
 export const SAGE_REGISTRATION_CHANNEL_ID = "1507702008906252310"; // #📝┊التسجيل
+export const SAGE_ALLIANCE_MEMBER_ROLE_ID = "1571516616435302410"; // @⚔️ ┃ Alliance Member
 
 export const SIEGE_BANNER_URL =
   "https://raw.githubusercontent.com/SAUDDOJAN/mdarb3_bot/main/artifacts/bot/assets/aion2_siege_banner_v2.jpg";
@@ -793,6 +794,7 @@ export async function publishSageSiegeAnnouncement(
   });
 
   const sendPayload = {
+    content: `<@&${SAGE_ALLIANCE_MEMBER_ROLE_ID}>`,
     embeds: [embed],
     components: [row],
   };

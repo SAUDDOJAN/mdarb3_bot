@@ -16,27 +16,11 @@ export default {
     console.log(`[VoiceStateUpdate] User ${member.user.tag} in Guild ${newState.guild.id}. joinedNew=${joinedNew}, moved=${movedBetween}`);
 
     // ─── Siege Alliance Voice Access Control ──────────────────────────────
-    const SAGE_GUILD_ID = process.env.SAGE_GUILD_ID || "1507696012410749030";
-    if (newState.guild.id === SAGE_GUILD_ID && (joinedNew || movedBetween)) {
-      const ADMIN_ROLES = ["1507733275278577916", "1507733319989858435", "1507733404781645874", "1507733486671233175"];
-      const hasAdminRole = ADMIN_ROLES.some(roleId => member.roles.cache.has(roleId));
-      
-      if (!hasAdminRole) {
-        const nowKSA = new Date(Date.now() + 3 * 60 * 60 * 1000);
-        const day = nowKSA.getUTCDay();
-        const h = nowKSA.getUTCHours();
-        const m = nowKSA.getUTCMinutes();
-        
-        const isSiegeDay = (day === 3 || day === 6);
-        const isSiegeTime = isSiegeDay && ((h === 16 && m >= 30) || (h === 17));
-        
-        if (!isSiegeTime) {
-          console.log(`[SiegeVoiceControl] Kicking ${member.user.tag} (Not Siege Time)`);
-          await newState.disconnect().catch(err => console.error("[SiegeVoiceControl] Failed to disconnect:", err));
-          await member.send("🛑 **تحذير / Warning:**\nعذراً، استخدام القنوات الصوتية في سيرفر تحالف القيلدات مسموح فقط أثناء فترات السيج (من 4:30 م إلى 6:00 م بتوقيت مكة أيام الأربعاء والسبت). السيرفر مخصص لتجمعات السيج فقط وليس للسواليف!\n\nSorry, using voice channels in the Siege Alliance server is only allowed during Siege periods (from 4:30 PM to 6:00 PM KSA time on Wednesdays and Saturdays). The server is strictly for Siege gatherings, not for hanging out!").catch(() => {});
-          return;
-        }
-      }
+    try {
+      const { handleVoiceStateGate } = await import("../modules/sageVoiceGate.js");
+      await handleVoiceStateGate(oldState, newState);
+    } catch (gateErr) {
+      console.error("[VoiceStateUpdate] Error in handleVoiceStateGate:", gateErr);
     }
     // ───────────────────────────────────────────────────────────────────────
 

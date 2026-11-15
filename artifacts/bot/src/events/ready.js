@@ -37,6 +37,14 @@ export default {
       startPowerCardRefresh(client);
       startVoiceTracker(client);
       startSageGuildStatsTask(client);
+
+      try {
+        const { runVoiceGateWatcher } = await import("../modules/sageVoiceGate.js");
+        await runVoiceGateWatcher(client);
+        setInterval(() => runVoiceGateWatcher(client).catch((e) => console.error("[VoiceGateWatcher] Error:", e)), 60000);
+      } catch (vgErr) {
+        console.error("[Bot] Failed to start Sage Voice Gate watcher:", vgErr);
+      }
       
       try {
         const { recoverStuckProcessing, recoverEarlyTransitions, recoverStuckRemovals } = await import("../modules/aion2GlobalTemp.js");
