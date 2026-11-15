@@ -9,6 +9,7 @@ export const ROLE_IDS = {
   SHOTCALLER: "1507733404781645874",  // 🎙️ ┃ Shotcaller
   GUILD_LEADER: "1507733486671233175",// 🛡️ ┃ Guild Leader
   ASSASSIN: "1507733628640039032",    // 🥷 ┃ Assassin
+  MEMBER: "1571516616435302410",      // ⚔️ ┃ Alliance Member
   RECRUIT: "1508443474960060487",     // 🆕 New Recruit
   VERIFICATION: "1508444579488075868",// 🔒 Verification
 };
@@ -54,7 +55,7 @@ export const CHANNEL_IDS = {
 export async function ensureAllianceMemberRole(guild) {
   await guild.roles.fetch();
   let role = guild.roles.cache.find(
-    (r) => r.name === "⚔️ ┃ Alliance Member" || r.name === "⚔️ عضو التحالف"
+    (r) => r.id === ROLE_IDS.MEMBER || r.name === "⚔️ ┃ Alliance Member" || r.name === "⚔️ عضو التحالف"
   );
 
   if (!role) {
@@ -64,7 +65,7 @@ export async function ensureAllianceMemberRole(guild) {
 
     role = await guild.roles.create({
       name: "⚔️ ┃ Alliance Member",
-      color: 0x2ecc71, // Emerald Green
+      color: 0x2ecc71,
       hoist: true,
       mentionable: true,
       position: targetPos,
@@ -77,7 +78,7 @@ export async function ensureAllianceMemberRole(guild) {
 }
 
 /**
- * Automatically configures and syncs all channel permissions across the SAGE server.
+ * Automatically configures and syncs all channel & role permissions across the SAGE server.
  */
 export async function syncAllSagePermissions(guild) {
   if (guild.id !== SAGE_GUILD_ID) return;
@@ -103,6 +104,95 @@ export async function syncAllSagePermissions(guild) {
 
   const botMember = await guild.members.fetchMe();
 
+  // ─────────────────────────────────────────────────────────────────────────
+  // A. Server-Level Role Permissions (Security & Moderation Control)
+  // ─────────────────────────────────────────────────────────────────────────
+  // 1. Council (المستشارين): Timeout (ModerateMembers) ONLY. No Kick, No Ban.
+  if (roles.council?.editable) {
+    await roles.council.setPermissions(
+      [
+        PermissionFlagsBits.ViewChannel,
+        PermissionFlagsBits.SendMessages,
+        PermissionFlagsBits.ReadMessageHistory,
+        PermissionFlagsBits.AttachFiles,
+        PermissionFlagsBits.EmbedLinks,
+        PermissionFlagsBits.AddReactions,
+        PermissionFlagsBits.UseExternalEmojis,
+        PermissionFlagsBits.UseExternalStickers,
+        PermissionFlagsBits.Connect,
+        PermissionFlagsBits.Speak,
+        PermissionFlagsBits.MuteMembers,
+        PermissionFlagsBits.DeafenMembers,
+        PermissionFlagsBits.MoveMembers,
+        PermissionFlagsBits.ManageMessages,
+        PermissionFlagsBits.ModerateMembers, // Timeout capability
+      ],
+      "Sage Security: Council Timeout only (No Kick/Ban)"
+    ).catch((err) => console.warn(`[SagePerms] Could not update Council permissions: ${err.message}`));
+    console.log("[SagePerms] ✅ Configured Council role: ModerateMembers (Timeout) enabled, Kick/Ban strictly disabled.");
+  }
+
+  // 2. Guild Leader: No Kick, No Ban, No Timeout. (ManageMessages granted per channel)
+  if (roles.guildLeader?.editable) {
+    await roles.guildLeader.setPermissions(
+      [
+        PermissionFlagsBits.ViewChannel,
+        PermissionFlagsBits.SendMessages,
+        PermissionFlagsBits.ReadMessageHistory,
+        PermissionFlagsBits.AttachFiles,
+        PermissionFlagsBits.EmbedLinks,
+        PermissionFlagsBits.AddReactions,
+        PermissionFlagsBits.UseExternalEmojis,
+        PermissionFlagsBits.Connect,
+        PermissionFlagsBits.Speak,
+      ],
+      "Sage Security: Guild Leader safe permissions"
+    ).catch((err) => console.warn(`[SagePerms] Could not update Guild Leader permissions: ${err.message}`));
+  }
+
+  // 3. Shotcaller: Tactical voice, Priority speaker, No Kick/Ban/Timeout
+  if (roles.shotcaller?.editable) {
+    await roles.shotcaller.setPermissions(
+      [
+        PermissionFlagsBits.ViewChannel,
+        PermissionFlagsBits.SendMessages,
+        PermissionFlagsBits.ReadMessageHistory,
+        PermissionFlagsBits.AttachFiles,
+        PermissionFlagsBits.EmbedLinks,
+        PermissionFlagsBits.AddReactions,
+        PermissionFlagsBits.UseExternalEmojis,
+        PermissionFlagsBits.Connect,
+        PermissionFlagsBits.Speak,
+        PermissionFlagsBits.PrioritySpeaker,
+        PermissionFlagsBits.MuteMembers,
+        PermissionFlagsBits.DeafenMembers,
+        PermissionFlagsBits.MoveMembers,
+      ],
+      "Sage Security: Shotcaller tactical permissions"
+    ).catch((err) => console.warn(`[SagePerms] Could not update Shotcaller permissions: ${err.message}`));
+  }
+
+  // 4. Alliance Member: Safe baseline permissions
+  if (roles.member?.editable) {
+    await roles.member.setPermissions(
+      [
+        PermissionFlagsBits.ViewChannel,
+        PermissionFlagsBits.SendMessages,
+        PermissionFlagsBits.ReadMessageHistory,
+        PermissionFlagsBits.AttachFiles,
+        PermissionFlagsBits.EmbedLinks,
+        PermissionFlagsBits.AddReactions,
+        PermissionFlagsBits.UseExternalEmojis,
+        PermissionFlagsBits.UseExternalStickers,
+        PermissionFlagsBits.Connect,
+        PermissionFlagsBits.Speak,
+        PermissionFlagsBits.Stream,
+        PermissionFlagsBits.UseVAD,
+      ],
+      "Sage Security: Alliance Member baseline permissions"
+    ).catch((err) => console.warn(`[SagePerms] Could not update Member permissions: ${err.message}`));
+  }
+
   // Helper to safely set overwrites on a channel or category
   async function applyOverwrites(channelId, overwritesList) {
     const ch = guild.channels.cache.get(channelId);
@@ -124,6 +214,7 @@ export async function syncAllSagePermissions(guild) {
           PermissionFlagsBits.ManageChannels,
           PermissionFlagsBits.Connect,
           PermissionFlagsBits.Speak,
+          PermissionFlagsBits.ReadMessageHistory,
         ],
       },
       ...overwritesList.filter((ow) => Boolean(ow.id)),
@@ -140,7 +231,6 @@ export async function syncAllSagePermissions(guild) {
   // ─────────────────────────────────────────────────────────────────────────
   // 1. 📌 ┃ بوابة التحالف
   // ─────────────────────────────────────────────────────────────────────────
-  // Category level: @everyone View Allowed by default, specific channels locked
   await applyOverwrites(CHANNEL_IDS.CAT_GATEWAY, [
     {
       id: roles.everyone.id,
@@ -149,7 +239,7 @@ export async function syncAllSagePermissions(guild) {
     },
   ]);
 
-  // 📜┊القوانين: Visible to EVERYONE (including Verification & Recruit), strictly Read-Only
+  // 📜┊القوانين: Read-Only for EVERYONE, ReadMessageHistory enabled
   await applyOverwrites(CHANNEL_IDS.RULES, [
     {
       id: roles.everyone.id,
@@ -181,20 +271,20 @@ export async function syncAllSagePermissions(guild) {
     },
     {
       id: roles.council?.id,
-      allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.SendMessages],
+      allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ManageMessages],
     },
     {
       id: roles.leader?.id,
-      allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.SendMessages],
+      allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ManageMessages],
     },
   ]);
 
-  // 🛡️┊القادة: Leaders Showcase Roster - Visible to all members & everyone (Read-Only), editable by Council/Leader
+  // 🛡️┊القادة: Leaders Showcase Roster - View & ReadMessageHistory for all, ManageMessages for Guild Leaders & above
   await applyOverwrites(CHANNEL_IDS.LEADERS, [
     {
       id: roles.everyone.id,
       allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory],
-      deny: [PermissionFlagsBits.SendMessages, PermissionFlagsBits.AddReactions],
+      deny: [PermissionFlagsBits.SendMessages, PermissionFlagsBits.AddReactions, PermissionFlagsBits.ManageMessages],
     },
     {
       id: roles.verification?.id,
@@ -203,31 +293,31 @@ export async function syncAllSagePermissions(guild) {
     {
       id: roles.member?.id,
       allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory],
-      deny: [PermissionFlagsBits.SendMessages, PermissionFlagsBits.AddReactions],
+      deny: [PermissionFlagsBits.SendMessages, PermissionFlagsBits.AddReactions, PermissionFlagsBits.ManageMessages],
     },
     {
       id: roles.guildLeader?.id,
-      allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory],
+      allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.ManageMessages],
       deny: [PermissionFlagsBits.SendMessages],
     },
     {
       id: roles.council?.id,
-      allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.SendMessages],
+      allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ManageMessages],
     },
     {
       id: roles.leader?.id,
-      allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.SendMessages],
+      allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ManageMessages],
     },
   ]);
 
-  // 👥┊الأعضاء & 🏰┊القيلدات: Default onboarding channels - @everyone view allowed, read-only
+  // 👥┊الأعضاء & 🏰┊القيلدات: Default onboarding channels - Read-Only, ReadMessageHistory enabled
   const rosterChannels = [CHANNEL_IDS.MEMBERS, CHANNEL_IDS.GUILDS];
   for (const rChId of rosterChannels) {
     await applyOverwrites(rChId, [
       {
         id: roles.everyone.id,
         allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory],
-        deny: [PermissionFlagsBits.SendMessages, PermissionFlagsBits.AddReactions],
+        deny: [PermissionFlagsBits.SendMessages, PermissionFlagsBits.AddReactions, PermissionFlagsBits.ManageMessages],
       },
       {
         id: roles.verification?.id,
@@ -236,15 +326,20 @@ export async function syncAllSagePermissions(guild) {
       {
         id: roles.member?.id,
         allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory],
+        deny: [PermissionFlagsBits.SendMessages, PermissionFlagsBits.ManageMessages],
+      },
+      {
+        id: roles.guildLeader?.id,
+        allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.ManageMessages],
         deny: [PermissionFlagsBits.SendMessages],
       },
       {
         id: roles.council?.id,
-        allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.SendMessages],
+        allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ManageMessages],
       },
       {
         id: roles.leader?.id,
-        allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.SendMessages],
+        allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ManageMessages],
       },
     ]);
   }
@@ -267,20 +362,25 @@ export async function syncAllSagePermissions(guild) {
     },
     {
       id: roles.member?.id,
-      allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory],
+      allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.AddReactions],
+      deny: [PermissionFlagsBits.SendMessages, PermissionFlagsBits.ManageMessages],
+    },
+    {
+      id: roles.guildLeader?.id,
+      allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.AddReactions, PermissionFlagsBits.ManageMessages],
       deny: [PermissionFlagsBits.SendMessages],
     },
     {
       id: roles.shotcaller?.id,
-      allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.SendMessages],
+      allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ManageMessages],
     },
     {
       id: roles.council?.id,
-      allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.SendMessages],
+      allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ManageMessages],
     },
     {
       id: roles.leader?.id,
-      allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.SendMessages],
+      allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ManageMessages],
     },
   ]);
 
@@ -293,26 +393,33 @@ export async function syncAllSagePermissions(guild) {
       },
       {
         id: roles.member?.id,
-        allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory],
+        allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.AddReactions],
+        deny: [PermissionFlagsBits.SendMessages, PermissionFlagsBits.ManageMessages],
+      },
+      {
+        id: roles.guildLeader?.id,
+        allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.AddReactions, PermissionFlagsBits.ManageMessages],
         deny: [PermissionFlagsBits.SendMessages],
       },
       {
         id: roles.shotcaller?.id,
-        allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.SendMessages],
+        allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ManageMessages, PermissionFlagsBits.EmbedLinks, PermissionFlagsBits.AttachFiles],
       },
       {
         id: roles.council?.id,
-        allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.SendMessages],
+        allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ManageMessages, PermissionFlagsBits.EmbedLinks, PermissionFlagsBits.AttachFiles],
       },
       {
         id: roles.leader?.id,
-        allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.SendMessages],
+        allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ManageMessages, PermissionFlagsBits.EmbedLinks, PermissionFlagsBits.AttachFiles],
       },
     ]);
   }
 
   // ─────────────────────────────────────────────────────────────────────────
   // 3. ⚔️ ┃ ساحة التحالف (💬┊شات-التحالف)
+  // Manage Messages granted to Guild Leaders and above!
+  // Read Message History, Send Messages, Attach Files, Emojis for all Members!
   // ─────────────────────────────────────────────────────────────────────────
   await applyOverwrites(CHANNEL_IDS.CAT_WARROOM, [
     {
@@ -334,7 +441,64 @@ export async function syncAllSagePermissions(guild) {
         PermissionFlagsBits.SendMessages,
         PermissionFlagsBits.ReadMessageHistory,
         PermissionFlagsBits.AttachFiles,
+        PermissionFlagsBits.EmbedLinks,
         PermissionFlagsBits.AddReactions,
+        PermissionFlagsBits.UseExternalEmojis,
+        PermissionFlagsBits.UseExternalStickers,
+        PermissionFlagsBits.SendVoiceMessages,
+      ],
+      deny: [PermissionFlagsBits.ManageMessages],
+    },
+    {
+      id: roles.guildLeader?.id,
+      allow: [
+        PermissionFlagsBits.ViewChannel,
+        PermissionFlagsBits.SendMessages,
+        PermissionFlagsBits.ReadMessageHistory,
+        PermissionFlagsBits.AttachFiles,
+        PermissionFlagsBits.EmbedLinks,
+        PermissionFlagsBits.AddReactions,
+        PermissionFlagsBits.UseExternalEmojis,
+        PermissionFlagsBits.ManageMessages, // Manage Messages for Guild Leaders!
+      ],
+    },
+    {
+      id: roles.shotcaller?.id,
+      allow: [
+        PermissionFlagsBits.ViewChannel,
+        PermissionFlagsBits.SendMessages,
+        PermissionFlagsBits.ReadMessageHistory,
+        PermissionFlagsBits.AttachFiles,
+        PermissionFlagsBits.EmbedLinks,
+        PermissionFlagsBits.AddReactions,
+        PermissionFlagsBits.UseExternalEmojis,
+        PermissionFlagsBits.ManageMessages,
+      ],
+    },
+    {
+      id: roles.council?.id,
+      allow: [
+        PermissionFlagsBits.ViewChannel,
+        PermissionFlagsBits.SendMessages,
+        PermissionFlagsBits.ReadMessageHistory,
+        PermissionFlagsBits.AttachFiles,
+        PermissionFlagsBits.EmbedLinks,
+        PermissionFlagsBits.AddReactions,
+        PermissionFlagsBits.UseExternalEmojis,
+        PermissionFlagsBits.ManageMessages,
+      ],
+    },
+    {
+      id: roles.leader?.id,
+      allow: [
+        PermissionFlagsBits.ViewChannel,
+        PermissionFlagsBits.SendMessages,
+        PermissionFlagsBits.ReadMessageHistory,
+        PermissionFlagsBits.AttachFiles,
+        PermissionFlagsBits.EmbedLinks,
+        PermissionFlagsBits.AddReactions,
+        PermissionFlagsBits.UseExternalEmojis,
+        PermissionFlagsBits.ManageMessages,
       ],
     },
   ]);
@@ -359,7 +523,64 @@ export async function syncAllSagePermissions(guild) {
         PermissionFlagsBits.SendMessages,
         PermissionFlagsBits.ReadMessageHistory,
         PermissionFlagsBits.AttachFiles,
+        PermissionFlagsBits.EmbedLinks,
         PermissionFlagsBits.AddReactions,
+        PermissionFlagsBits.UseExternalEmojis,
+        PermissionFlagsBits.UseExternalStickers,
+        PermissionFlagsBits.SendVoiceMessages,
+      ],
+      deny: [PermissionFlagsBits.ManageMessages],
+    },
+    {
+      id: roles.guildLeader?.id,
+      allow: [
+        PermissionFlagsBits.ViewChannel,
+        PermissionFlagsBits.SendMessages,
+        PermissionFlagsBits.ReadMessageHistory,
+        PermissionFlagsBits.AttachFiles,
+        PermissionFlagsBits.EmbedLinks,
+        PermissionFlagsBits.AddReactions,
+        PermissionFlagsBits.UseExternalEmojis,
+        PermissionFlagsBits.ManageMessages, // Manage Messages for Guild Leaders!
+      ],
+    },
+    {
+      id: roles.shotcaller?.id,
+      allow: [
+        PermissionFlagsBits.ViewChannel,
+        PermissionFlagsBits.SendMessages,
+        PermissionFlagsBits.ReadMessageHistory,
+        PermissionFlagsBits.AttachFiles,
+        PermissionFlagsBits.EmbedLinks,
+        PermissionFlagsBits.AddReactions,
+        PermissionFlagsBits.UseExternalEmojis,
+        PermissionFlagsBits.ManageMessages,
+      ],
+    },
+    {
+      id: roles.council?.id,
+      allow: [
+        PermissionFlagsBits.ViewChannel,
+        PermissionFlagsBits.SendMessages,
+        PermissionFlagsBits.ReadMessageHistory,
+        PermissionFlagsBits.AttachFiles,
+        PermissionFlagsBits.EmbedLinks,
+        PermissionFlagsBits.AddReactions,
+        PermissionFlagsBits.UseExternalEmojis,
+        PermissionFlagsBits.ManageMessages,
+      ],
+    },
+    {
+      id: roles.leader?.id,
+      allow: [
+        PermissionFlagsBits.ViewChannel,
+        PermissionFlagsBits.SendMessages,
+        PermissionFlagsBits.ReadMessageHistory,
+        PermissionFlagsBits.AttachFiles,
+        PermissionFlagsBits.EmbedLinks,
+        PermissionFlagsBits.AddReactions,
+        PermissionFlagsBits.UseExternalEmojis,
+        PermissionFlagsBits.ManageMessages,
       ],
     },
   ]);
@@ -367,7 +588,6 @@ export async function syncAllSagePermissions(guild) {
   // ─────────────────────────────────────────────────────────────────────────
   // 4. 🔊 ┃ صوت التحالف
   // ─────────────────────────────────────────────────────────────────────────
-  // Category baseline: deny @everyone, allow members to view
   await applyOverwrites(CHANNEL_IDS.CAT_VOICE, [
     {
       id: roles.everyone.id,
@@ -387,7 +607,7 @@ export async function syncAllSagePermissions(guild) {
     },
   ]);
 
-  // 🔊┊الكول-العام: All members can connect and speak
+  // 🔊┊الكول-العام: All members can connect, speak, stream, use VAD
   await applyOverwrites(CHANNEL_IDS.GENERAL_VC, [
     {
       id: roles.everyone.id,
@@ -412,12 +632,56 @@ export async function syncAllSagePermissions(guild) {
       ],
     },
     {
+      id: roles.guildLeader?.id,
+      allow: [
+        PermissionFlagsBits.ViewChannel,
+        PermissionFlagsBits.Connect,
+        PermissionFlagsBits.Speak,
+        PermissionFlagsBits.Stream,
+        PermissionFlagsBits.UseVAD,
+        PermissionFlagsBits.MuteMembers,
+        PermissionFlagsBits.MoveMembers,
+      ],
+    },
+    {
       id: roles.shotcaller?.id,
       allow: [
         PermissionFlagsBits.ViewChannel,
         PermissionFlagsBits.Connect,
         PermissionFlagsBits.Speak,
+        PermissionFlagsBits.Stream,
+        PermissionFlagsBits.UseVAD,
         PermissionFlagsBits.PrioritySpeaker,
+        PermissionFlagsBits.MuteMembers,
+        PermissionFlagsBits.DeafenMembers,
+        PermissionFlagsBits.MoveMembers,
+      ],
+    },
+    {
+      id: roles.council?.id,
+      allow: [
+        PermissionFlagsBits.ViewChannel,
+        PermissionFlagsBits.Connect,
+        PermissionFlagsBits.Speak,
+        PermissionFlagsBits.Stream,
+        PermissionFlagsBits.UseVAD,
+        PermissionFlagsBits.MuteMembers,
+        PermissionFlagsBits.DeafenMembers,
+        PermissionFlagsBits.MoveMembers,
+      ],
+    },
+    {
+      id: roles.leader?.id,
+      allow: [
+        PermissionFlagsBits.ViewChannel,
+        PermissionFlagsBits.Connect,
+        PermissionFlagsBits.Speak,
+        PermissionFlagsBits.Stream,
+        PermissionFlagsBits.UseVAD,
+        PermissionFlagsBits.PrioritySpeaker,
+        PermissionFlagsBits.MuteMembers,
+        PermissionFlagsBits.DeafenMembers,
+        PermissionFlagsBits.MoveMembers,
       ],
     },
   ]);
@@ -434,19 +698,19 @@ export async function syncAllSagePermissions(guild) {
     },
     {
       id: roles.guildLeader?.id,
-      allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.Connect, PermissionFlagsBits.Speak],
+      allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.Connect, PermissionFlagsBits.Speak, PermissionFlagsBits.Stream],
     },
     {
       id: roles.shotcaller?.id,
-      allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.Connect, PermissionFlagsBits.Speak, PermissionFlagsBits.PrioritySpeaker],
+      allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.Connect, PermissionFlagsBits.Speak, PermissionFlagsBits.Stream, PermissionFlagsBits.PrioritySpeaker],
     },
     {
       id: roles.council?.id,
-      allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.Connect, PermissionFlagsBits.Speak],
+      allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.Connect, PermissionFlagsBits.Speak, PermissionFlagsBits.Stream],
     },
     {
       id: roles.leader?.id,
-      allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.Connect, PermissionFlagsBits.Speak],
+      allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.Connect, PermissionFlagsBits.Speak, PermissionFlagsBits.Stream],
     },
   ]);
 
@@ -464,19 +728,19 @@ export async function syncAllSagePermissions(guild) {
       },
       {
         id: roles.assassin?.id,
-        allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.Connect, PermissionFlagsBits.Speak],
+        allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.Connect, PermissionFlagsBits.Speak, PermissionFlagsBits.Stream],
       },
       {
         id: roles.shotcaller?.id,
-        allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.Connect, PermissionFlagsBits.Speak],
+        allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.Connect, PermissionFlagsBits.Speak, PermissionFlagsBits.Stream],
       },
       {
         id: roles.council?.id,
-        allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.Connect, PermissionFlagsBits.Speak],
+        allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.Connect, PermissionFlagsBits.Speak, PermissionFlagsBits.Stream],
       },
       {
         id: roles.leader?.id,
-        allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.Connect, PermissionFlagsBits.Speak],
+        allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.Connect, PermissionFlagsBits.Speak, PermissionFlagsBits.Stream],
       },
     ]);
   }
@@ -499,6 +763,10 @@ export async function syncAllSagePermissions(guild) {
     },
     {
       id: roles.member?.id,
+      deny: [PermissionFlagsBits.ViewChannel],
+    },
+    {
+      id: roles.guildLeader?.id,
       deny: [PermissionFlagsBits.ViewChannel],
     },
     {
@@ -540,6 +808,10 @@ export async function syncAllSagePermissions(guild) {
       },
       {
         id: roles.member?.id,
+        deny: [PermissionFlagsBits.ViewChannel],
+      },
+      {
+        id: roles.guildLeader?.id,
         deny: [PermissionFlagsBits.ViewChannel],
       },
       {
