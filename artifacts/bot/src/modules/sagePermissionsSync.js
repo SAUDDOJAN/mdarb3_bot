@@ -19,6 +19,7 @@ export const CHANNEL_IDS = {
   CAT_GATEWAY: "1507700341167362058",
   RULES: "1507701269035225188",        // 📜┊القوانين
   REGISTRATION: "1507702008906252310", // 📝┊التسجيل
+  ALLIANCE: "1571561801433358406",     // 👑┊الحلف
   LEADERS: "1508696447674093608",      // 🛡️┊القادة
   MEMBERS: "1507778645962522817",      // 👥┊الأعضاء
   GUILDS: "1507703833223233567",       // 🏰┊القيلدات
@@ -312,8 +313,8 @@ export async function syncAllSagePermissions(guild) {
     },
   ]);
 
-  // 👥┊الأعضاء & 🏰┊القيلدات: Default onboarding channels - Read-Only, ReadMessageHistory enabled
-  const rosterChannels = [CHANNEL_IDS.MEMBERS, CHANNEL_IDS.GUILDS];
+  // 👑┊الحلف & 👥┊الأعضاء & 🏰┊القيلدات: Default onboarding channels - Read-Only, ReadMessageHistory enabled
+  const rosterChannels = [CHANNEL_IDS.ALLIANCE, CHANNEL_IDS.MEMBERS, CHANNEL_IDS.GUILDS];
   for (const rChId of rosterChannels) {
     await applyOverwrites(rChId, [
       {

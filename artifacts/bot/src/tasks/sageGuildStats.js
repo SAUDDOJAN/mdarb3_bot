@@ -120,9 +120,19 @@ async function runGuildStatsUpdate(client) {
 }
 
 // ─── Master Alliance Overview Card ───────────────────────────────────────────
-export async function updateAllianceMasterCard(guild, channel) {
+export async function updateAllianceMasterCard(guild, channel = null) {
   const MASTER_KEY = "MASTER_ALLIANCE_CARD";
   const LEADER_USER_ID = "136371223209836544";
+  const ALLIANCE_CHANNEL_ID = "1571561801433358406"; // 👑┊الحلف
+
+  const targetChannel = guild.channels.cache.get(ALLIANCE_CHANNEL_ID)
+    ?? await guild.channels.fetch(ALLIANCE_CHANNEL_ID).catch(() => null)
+    ?? channel;
+
+  if (!targetChannel) {
+    console.warn(`[GuildStats] Alliance channel ${ALLIANCE_CHANNEL_ID} not found.`);
+    return;
+  }
 
   // Query overall accepted members and stats
   const totalAcceptedRes = await query("SELECT COUNT(*) AS cnt, COALESCE(SUM(combat_power), 0) AS total_cp FROM sage_recruitment WHERE status = 'accepted'");
@@ -158,7 +168,7 @@ export async function updateAllianceMasterCard(guild, channel) {
       `✅ **انضموا اليوم:** **${addedToday}** عضو جديد\n\n` +
       `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
       `👑 **القيادة العليا للتحالف:** <@${LEADER_USER_ID}>\n` +
-      `📜 **نظام الرتب:** يتم إدراج بطاقات القيلدات الفردية أدناه تباعاً.`
+      `🏰 **القيلدات المتحالفة:** يمكنكم استعراض بطاقات وإحصائيات القيلدات في روم <#1507703833223233567>.`
     )
     .setFooter({ text: `تحالف الحصارات • التقرير الشامل • ${dateStr}` })
     .setTimestamp();
@@ -170,24 +180,24 @@ export async function updateAllianceMasterCard(guild, channel) {
   const existingMsgId = existingRes.rows[0]?.message_id ?? null;
 
   if (existingMsgId) {
-    const existingMsg = await channel.messages.fetch(existingMsgId).catch(() => null);
+    const existingMsg = await targetChannel.messages.fetch(existingMsgId).catch(() => null);
     if (existingMsg) {
       await existingMsg.edit({ embeds: [embed] });
       await query("UPDATE sage_guild_stat_messages SET updated_at=NOW() WHERE guild_role_id=$1", [MASTER_KEY]);
-      console.log("[GuildStats] Updated Master Alliance Overview Card");
+      console.log("[GuildStats] Updated Master Alliance Overview Card in #الحلف");
       return;
     }
   }
 
-  const msg = await channel.send({ embeds: [embed] });
+  const msg = await targetChannel.send({ embeds: [embed] });
   await query(
     `INSERT INTO sage_guild_stat_messages (guild_role_id, message_id, channel_id)
      VALUES ($1, $2, $3)
      ON CONFLICT (guild_role_id) DO UPDATE
        SET message_id=$2, channel_id=$3, updated_at=NOW()`,
-    [MASTER_KEY, msg.id, channel.id]
+    [MASTER_KEY, msg.id, targetChannel.id]
   );
-  console.log("[GuildStats] Posted new Master Alliance Overview Card");
+  console.log("[GuildStats] Posted new Master Alliance Overview Card in #الحلف");
 }
 
 // ─── Per-guild card update ────────────────────────────────────────────────────

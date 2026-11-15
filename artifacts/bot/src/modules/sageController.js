@@ -19,7 +19,7 @@ import {
 import { scrapeProfile, classIconUrl } from "./scraper.js";
 import { query } from "../database/index.js";
 import { handleSageMgmtAction } from "./sageMgmtPanels.js";
-import { updateGuildStatCard } from "../tasks/sageGuildStats.js";
+import { updateGuildStatCard, updateAllianceMasterCard } from "../tasks/sageGuildStats.js";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const SAGE_GUILD_ID = "1507696012410749030";
@@ -879,7 +879,7 @@ async function handleSageAccept(interaction, targetUserId, appId) {
     }).catch(() => {});
   }
 
-  // 5. Update Guild Stats Card immediately
+  // 5. Update Guild Stats Card & Master Alliance Overview Card immediately
   const statsChannelId = process.env.SAGE_GUILD_STATS_CHANNEL_ID || "1507703833223233567";
   if (statsChannelId && app.guild_role_id) {
     const statsChannel = interaction.guild.channels.cache.get(statsChannelId) ?? await interaction.guild.channels.fetch(statsChannelId).catch(() => null);
@@ -888,6 +888,7 @@ async function handleSageAccept(interaction, targetUserId, appId) {
       await updateGuildStatCard(interaction.guild, statsChannel, app.guild_role_id, role).catch((e) => console.error("[SageController] Error updating guild stats card:", e));
     }
   }
+  await updateAllianceMasterCard(interaction.guild).catch((e) => console.error("[SageController] Error updating master alliance card:", e));
 
   const updatedEmbed = EmbedBuilder.from(interaction.message.embeds[0])
     .setColor(0x57f287)
