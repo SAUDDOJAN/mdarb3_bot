@@ -33,7 +33,7 @@ export default {
       const ALLOWED_EXTERNAL_COMMANDS = ["crosschat"];
 
       // Commands exclusive to the Sage Alliance server (along with external commands)
-      const SAGE_ONLY_COMMANDS = ["setup", "alerts", "help", "sage-join", "sage_mgmt_panel"];
+      const SAGE_ONLY_COMMANDS = ["setup", "alerts", "help", "sage-join", "sage_mgmt_panel", "sage-sync-permissions"];
 
       if (interaction.guildId === MAIN_GUILD_ID) {
         // ✅ Main guild: Allow ALL interactions — no restrictions

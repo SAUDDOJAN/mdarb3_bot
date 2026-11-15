@@ -21,6 +21,7 @@ if (!token || !clientId) {
 // ── Sage-exclusive command files ──────────────────────────────────────────────
 const SAGE_COMMAND_FILES = [
   join(__dirname, "commands", "utility", "sage_join.js"),
+  join(__dirname, "commands", "admin", "sage_sync_perms.js"),
   // Add other sage commands here as needed
 ];
 

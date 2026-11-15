@@ -758,8 +758,12 @@ async function handleSageAccept(interaction, targetUserId, appId) {
 
   if (member) {
     try {
+      // Assign the core Alliance Member role to give access to all alliance channels
+      const ALLIANCE_MEMBER_ROLE_ID = "1571516616435302410";
+      await member.roles.add(ALLIANCE_MEMBER_ROLE_ID).catch(() => {});
+
       if (app.guild_role_id && !isSoloPlayerApp(app)) {
-        await member.roles.add(app.guild_role_id);
+        await member.roles.add(app.guild_role_id).catch(() => {});
       }
 
       if (isGuildLeader) {
@@ -770,7 +774,10 @@ async function handleSageAccept(interaction, targetUserId, appId) {
       // Change Nickname to character name
       if (app.character_name) await member.setNickname(app.character_name).catch(() => {});
 
-      // Remove guest/visitor role if configured
+      // Remove visitor / onboarding roles upon acceptance
+      const RECRUIT_ROLE_ID = "1508443474960060487";
+      const VERIFICATION_ROLE_ID = "1508444579488075868";
+      await member.roles.remove([RECRUIT_ROLE_ID, VERIFICATION_ROLE_ID]).catch(() => {});
       if (SAGE_GUEST_ROLE_ID) await member.roles.remove(SAGE_GUEST_ROLE_ID).catch(() => {});
     } catch (roleErr) {
       console.warn(`[SageController] Role/Nickname assignment failed for ${targetUserId}:`, roleErr.message);
