@@ -35,8 +35,10 @@ export const CHANNEL_IDS = {
 
   // 🔊 ┃ صوت التحالف
   CAT_VOICE: "1507707354626527232",
+  WAR_STAGE: "1571540894061039788",    // 🏟️┊منصة-نداءات-الحرب
   COMMAND_VC: "1507696013551472683",   // 🎙️┊غرفة-القيادة
   GENERAL_VC: "1507708086171992125",   // 🔊┊الكول-العام
+  GENERAL_VC2: "1571540896401326090",  // 🔊┊الكول-العام-2
   ASSASSIN_VC1: "1507709012022526005", // 🗡️┊فرقة-اغتيال-1
   ASSASSIN_VC2: "1507709389283393577", // 🗡️┊فرقة-اغتيال-2
 
@@ -607,28 +609,29 @@ export async function syncAllSagePermissions(guild) {
     },
   ]);
 
-  // 🔊┊الكول-العام: All members can connect, speak, stream, use VAD
-  await applyOverwrites(CHANNEL_IDS.GENERAL_VC, [
+  // 🏟️┊منصة-نداءات-الحرب (War Stage Channel - Unlimited listeners, zero noise)
+  await applyOverwrites(CHANNEL_IDS.WAR_STAGE, [
     {
       id: roles.everyone.id,
-      deny: [PermissionFlagsBits.ViewChannel],
+      deny: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.Connect],
     },
     {
       id: roles.verification?.id,
-      deny: [PermissionFlagsBits.ViewChannel],
+      deny: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.Connect],
     },
     {
       id: roles.recruit?.id,
-      deny: [PermissionFlagsBits.ViewChannel],
+      deny: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.Connect],
     },
     {
       id: roles.member?.id,
       allow: [
         PermissionFlagsBits.ViewChannel,
         PermissionFlagsBits.Connect,
-        PermissionFlagsBits.Speak,
-        PermissionFlagsBits.Stream,
-        PermissionFlagsBits.UseVAD,
+        PermissionFlagsBits.ReadMessageHistory,
+      ],
+      deny: [
+        PermissionFlagsBits.RequestToSpeak, // Keep stage pure for war shotcalls
       ],
     },
     {
@@ -636,11 +639,10 @@ export async function syncAllSagePermissions(guild) {
       allow: [
         PermissionFlagsBits.ViewChannel,
         PermissionFlagsBits.Connect,
-        PermissionFlagsBits.Speak,
-        PermissionFlagsBits.Stream,
-        PermissionFlagsBits.UseVAD,
         PermissionFlagsBits.MuteMembers,
         PermissionFlagsBits.MoveMembers,
+        PermissionFlagsBits.RequestToSpeak,
+        PermissionFlagsBits.ReadMessageHistory,
       ],
     },
     {
@@ -648,13 +650,11 @@ export async function syncAllSagePermissions(guild) {
       allow: [
         PermissionFlagsBits.ViewChannel,
         PermissionFlagsBits.Connect,
-        PermissionFlagsBits.Speak,
-        PermissionFlagsBits.Stream,
-        PermissionFlagsBits.UseVAD,
-        PermissionFlagsBits.PrioritySpeaker,
         PermissionFlagsBits.MuteMembers,
-        PermissionFlagsBits.DeafenMembers,
         PermissionFlagsBits.MoveMembers,
+        PermissionFlagsBits.RequestToSpeak,
+        PermissionFlagsBits.PrioritySpeaker,
+        PermissionFlagsBits.ReadMessageHistory,
       ],
     },
     {
@@ -662,12 +662,10 @@ export async function syncAllSagePermissions(guild) {
       allow: [
         PermissionFlagsBits.ViewChannel,
         PermissionFlagsBits.Connect,
-        PermissionFlagsBits.Speak,
-        PermissionFlagsBits.Stream,
-        PermissionFlagsBits.UseVAD,
         PermissionFlagsBits.MuteMembers,
-        PermissionFlagsBits.DeafenMembers,
         PermissionFlagsBits.MoveMembers,
+        PermissionFlagsBits.RequestToSpeak,
+        PermissionFlagsBits.ReadMessageHistory,
       ],
     },
     {
@@ -675,16 +673,96 @@ export async function syncAllSagePermissions(guild) {
       allow: [
         PermissionFlagsBits.ViewChannel,
         PermissionFlagsBits.Connect,
-        PermissionFlagsBits.Speak,
-        PermissionFlagsBits.Stream,
-        PermissionFlagsBits.UseVAD,
-        PermissionFlagsBits.PrioritySpeaker,
         PermissionFlagsBits.MuteMembers,
-        PermissionFlagsBits.DeafenMembers,
         PermissionFlagsBits.MoveMembers,
+        PermissionFlagsBits.RequestToSpeak,
+        PermissionFlagsBits.PrioritySpeaker,
+        PermissionFlagsBits.ReadMessageHistory,
       ],
     },
   ]);
+
+  // 🔊┊الكول-العام & 🔊┊الكول-العام-2: All members can connect, speak, stream, use VAD
+  const generalVcs = [CHANNEL_IDS.GENERAL_VC, CHANNEL_IDS.GENERAL_VC2];
+  for (const gVcId of generalVcs) {
+    await applyOverwrites(gVcId, [
+      {
+        id: roles.everyone.id,
+        deny: [PermissionFlagsBits.ViewChannel],
+      },
+      {
+        id: roles.verification?.id,
+        deny: [PermissionFlagsBits.ViewChannel],
+      },
+      {
+        id: roles.recruit?.id,
+        deny: [PermissionFlagsBits.ViewChannel],
+      },
+      {
+        id: roles.member?.id,
+        allow: [
+          PermissionFlagsBits.ViewChannel,
+          PermissionFlagsBits.Connect,
+          PermissionFlagsBits.Speak,
+          PermissionFlagsBits.Stream,
+          PermissionFlagsBits.UseVAD,
+        ],
+      },
+      {
+        id: roles.guildLeader?.id,
+        allow: [
+          PermissionFlagsBits.ViewChannel,
+          PermissionFlagsBits.Connect,
+          PermissionFlagsBits.Speak,
+          PermissionFlagsBits.Stream,
+          PermissionFlagsBits.UseVAD,
+          PermissionFlagsBits.MuteMembers,
+          PermissionFlagsBits.MoveMembers,
+        ],
+      },
+      {
+        id: roles.shotcaller?.id,
+        allow: [
+          PermissionFlagsBits.ViewChannel,
+          PermissionFlagsBits.Connect,
+          PermissionFlagsBits.Speak,
+          PermissionFlagsBits.Stream,
+          PermissionFlagsBits.UseVAD,
+          PermissionFlagsBits.PrioritySpeaker,
+          PermissionFlagsBits.MuteMembers,
+          PermissionFlagsBits.DeafenMembers,
+          PermissionFlagsBits.MoveMembers,
+        ],
+      },
+      {
+        id: roles.council?.id,
+        allow: [
+          PermissionFlagsBits.ViewChannel,
+          PermissionFlagsBits.Connect,
+          PermissionFlagsBits.Speak,
+          PermissionFlagsBits.Stream,
+          PermissionFlagsBits.UseVAD,
+          PermissionFlagsBits.MuteMembers,
+          PermissionFlagsBits.DeafenMembers,
+          PermissionFlagsBits.MoveMembers,
+        ],
+      },
+      {
+        id: roles.leader?.id,
+        allow: [
+          PermissionFlagsBits.ViewChannel,
+          PermissionFlagsBits.Connect,
+          PermissionFlagsBits.Speak,
+          PermissionFlagsBits.Stream,
+          PermissionFlagsBits.UseVAD,
+          PermissionFlagsBits.PrioritySpeaker,
+          PermissionFlagsBits.MuteMembers,
+          PermissionFlagsBits.DeafenMembers,
+          PermissionFlagsBits.MoveMembers,
+        ],
+      },
+    ]);
+  }
 
   // 🎙️┊غرفة-القيادة: Strictly Leaders, Council, Shotcaller, and Guild Leaders
   await applyOverwrites(CHANNEL_IDS.COMMAND_VC, [
