@@ -189,23 +189,21 @@ export async function syncAllSagePermissions(guild) {
     },
   ]);
 
-  // 🛡️┊القادة: Strictly for Guild Leaders, Council, and Alliance Leader
+  // 🛡️┊القادة: Leaders Showcase Roster - Visible to all members & everyone (Read-Only), editable by Council/Leader
   await applyOverwrites(CHANNEL_IDS.LEADERS, [
     {
       id: roles.everyone.id,
-      deny: [PermissionFlagsBits.ViewChannel],
+      allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory],
+      deny: [PermissionFlagsBits.SendMessages, PermissionFlagsBits.AddReactions],
     },
     {
       id: roles.verification?.id,
       deny: [PermissionFlagsBits.ViewChannel],
     },
     {
-      id: roles.recruit?.id,
-      deny: [PermissionFlagsBits.ViewChannel],
-    },
-    {
       id: roles.member?.id,
-      deny: [PermissionFlagsBits.ViewChannel],
+      allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory],
+      deny: [PermissionFlagsBits.SendMessages, PermissionFlagsBits.AddReactions],
     },
     {
       id: roles.guildLeader?.id,
