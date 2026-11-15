@@ -15,32 +15,32 @@ client.once("ready", async () => {
       }
     }
 
-    const embedEng = new EmbedBuilder()
+    const embedAr = new EmbedBuilder()
       .setColor(0x2f3136)
-      .setTitle("📜 Siege Alliance Protocol")
+      .setTitle("📜 ميثاق وبروتوكول تحالف الحصارات | Siege Alliance")
       .setDescription(
-        "• Mutual respect is mandatory at all times.\n" +
-        "• No public drama or conflicts in any channel.\n" +
-        "• 🚨 Zero Tolerance: Any toxicity = Immediate kick.\n" +
-        "• All disputes must be resolved via DM with staff.\n" +
-        "• Character verification is mandatory."
-      );
-
-    embedEng.setFooter({ text: "Siege Alliance • Authorized Protocol" });
+        "• **الاحترام المتبادل إلزامي بين جميع الأعضاء في كافة الأوقات.**\n" +
+        "• **يُمنع منعاً باتاً أي جدال، دراما، أو نزاعات علنية في أي قناة بالخادم.**\n" +
+        "• 🚨 **سياسة الحزم التام (Zero Tolerance):** أي تجاوز أو إساءة أو تخريب = **طرد وحظر فوري دائم دون سابق إنذار.**\n" +
+        "• **جميع الخلافات والشكاوى تُحل حصرياً وبشكل خاص عبر الرسائل الخاصة (DM) مع إدارة التحالف فقط.**\n" +
+        "• **توثيق وربط الشخصية عبر موقع Shugo.gg إلزامي لكافة الأعضاء.**"
+      )
+      .setFooter({ text: "تحالف الحصارات • البروتوكول المعتمد" })
+      .setTimestamp();
 
     const row = new ActionRowBuilder().addComponents(
       new ButtonBuilder()
         .setCustomId("sage_gate_agree")
-        .setLabel("✅ I Agree")
+        .setLabel("✅ أوافق على الشروط")
         .setStyle(ButtonStyle.Success),
       new ButtonBuilder()
         .setCustomId("sage_gate_reject")
-        .setLabel("❌ I Disagree")
+        .setLabel("❌ أرفض الشروط")
         .setStyle(ButtonStyle.Danger)
     );
 
-    await channel.send({ embeds: [embedEng], components: [row] });
-    console.log("✅ Gatekeeper messages sent successfully.");
+    await channel.send({ embeds: [embedAr], components: [row] });
+    console.log("✅ Gatekeeper Arabic message sent successfully.");
 
   } catch (err) {
     console.error("Error adding buttons:", err);

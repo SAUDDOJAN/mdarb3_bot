@@ -47,46 +47,48 @@ const trunc = (s, n) => (String(s ?? "").length > n ? String(s).slice(0, n - 1) 
 // ─── /sage-join Command Handler ───────────────────────────────────────────────
 /**
  * Handles the /sage-join slash command.
- * Sends the bilingual welcome embed with the "Join Now" button.
+ * Sends the Arabic welcome embed with the "Join Now" button.
  */
 export async function handleSageJoinCommand(interaction) {
-   // ← strict isolation
-
   const rulesEmbed = new EmbedBuilder()
     .setColor(0xd4af37) // Gold — premium feel
-    .setTitle("⚔️ Siege Alliance — Join System")
+    .setTitle("⚔️ تحالف الحصارات — نظام الانضمام | Siege Alliance")
     .setDescription(
       [
-        "**🇬🇧 Welcome to the Siege Alliance!**",
-        "Please read all rules carefully before joining.",
+        "**👑 مرحباً بكم في تحالف الحصارات (Siege Alliance)!**",
+        "يرجى قراءة جميع الشروط والتعليمات بعناية قبل البدء بعملية الانضمام.",
         "",
-        "**📜 Alliance Rules:**",
-        "**1.** Mutual respect between all members at all times.",
-        "**2.** No public arguments or conflicts in any server channel.",
-        "**3.** 🚨 **Zero Tolerance Policy:** Any public conflict = **immediate permanent ban**, no prior warning.",
-        "**4.** All disputes must be resolved via DM with staff only.",
-        "**5.** You must link your shugo.gg profile for character verification.",
+        "**📜 قوانين وشروط التحالف:**",
+        "**1.** الاحترام المتبادل إلزامي بين كافة الأعضاء في جميع الأوقات.",
+        "**2.** يُمنع منعاً باتاً أي جدال، دراما، أو نزاعات علنية في أي قناة بالسيرفر.",
+        "**3.** 🚨 **سياسة الحزم التام (Zero Tolerance):** أي نزاع أو تجاوز علني = **حظر دائم وفوري** دون أي إنذار مسبق.",
+        "**4.** جميع الخلافات والشكاوى تُحل حصرياً عبر الخاص (DM) مع إدارة التحالف فقط.",
+        "**5.** يجب ربط وتوثيق بروفايلك على Shugo.gg بصيغة السيرفرات العالمية المعتمدة:",
+        "`https://shugo.gg/character/global/eu-ludra/اسم_الشخصية`",
         "",
         "━━━━━━━━━━━━━━━━━━━━━━━",
-        "*By clicking Join Now, you agree to all rules listed above.*",
+        "*بالضغط على زر 'الانضمام الآن' أدناه، فإنك تقر وتوافق على جميع الشروط والقوانين المذكورة أعلاه.*",
       ].join("\n")
     )
-    .setFooter({ text: "Siege Alliance • Official Join System" })
+    .setFooter({ text: "تحالف الحصارات • نظام الانضمام الرسمي" })
     .setTimestamp();
 
   const joinRow = new ActionRowBuilder().addComponents(
     new ButtonBuilder()
       .setCustomId("sage:join_start")
-      .setLabel("⚔️ Join Now")
+      .setLabel("⚔️ الانضمام الآن")
       .setStyle(ButtonStyle.Primary)
   );
 
-  await interaction.reply({ embeds: [rulesEmbed], components: [joinRow] });
+  if (interaction.replied || interaction.deferred) {
+    await interaction.editReply({ embeds: [rulesEmbed], components: [joinRow] });
+  } else {
+    await interaction.reply({ embeds: [rulesEmbed], components: [joinRow] });
+  }
 }
 
 // ─── Button: sage:join_start → Show Guild Select Menu ─────────────────────────
 async function handleJoinStart(interaction) {
-  
   await interaction.deferReply({ flags: 64 });
 
   // Fetch all roles containing ⚔️ from the guild, plus the Solo Player role
@@ -95,62 +97,61 @@ async function handleJoinStart(interaction) {
     (r) => r.name.includes(GUILD_ROLE_SYMBOL) || r.id === "1519397169897935019"
   );
 
-  
   let options = [];
   if (guildRoles.size > 0) {
     options = guildRoles.map((role) => {
       const isSolo = role.id === "1519397169897935019";
       let cleanName = role.name.replace(GUILD_ROLE_SYMBOL, "").trim();
       if (isSolo) {
-        cleanName = cleanName.replace(GUILD_ROLE_SYMBOL, "").trim();
+        cleanName = "لاعب فردي (Solo Player)";
       } else {
-        cleanName = cleanName + " Guild";
+        cleanName = "قيلد " + cleanName;
       }
       return {
         label: cleanName,
         value: role.id,
         emoji: isSolo ? "🙎‍♂️" : "⚔️",
-        isSolo: isSolo
+        isSolo: isSolo,
       };
     });
-    
+
     options.sort((a, b) => {
       if (a.isSolo) return -1;
       if (b.isSolo) return 1;
-      return a.label.localeCompare(b.label);
+      return a.label.localeCompare(b.label, "ar");
     });
-    
+
     options = options.slice(0, 24);
   }
 
   // Always add Solo Player if not present
-  if (!options.some(o => o.value === "1519397169897935019")) {
+  if (!options.some((o) => o.value === "1519397169897935019")) {
     options.unshift({
-      label: "Solo Player",
+      label: "لاعب فردي (Solo Player)",
       value: "1519397169897935019",
-      emoji: "🙎‍♂️"
+      emoji: "🙎‍♂️",
     });
   }
 
   const selectRow = new ActionRowBuilder().addComponents(
     new StringSelectMenuBuilder()
       .setCustomId("sage:select_guild")
-      .setPlaceholder("Select your Guild")
+      .setPlaceholder("اختر القيلد الذي تنتمي إليه...")
       .addOptions(options)
   );
 
   const addGuildRow = new ActionRowBuilder().addComponents(
     new ButtonBuilder()
       .setCustomId("sage:add_guild_start")
-      .setLabel("➕ Add New Guild")
+      .setLabel("➕ إضافة قيلد جديد")
       .setStyle(ButtonStyle.Success)
   );
 
   const selectEmbed = new EmbedBuilder()
     .setColor(0xd4af37)
-    .setTitle(GUILD_ROLE_SYMBOL + " Select Your Guild")
+    .setTitle("⚔️ اختيار القيلد — تحالف الحصارات")
     .setDescription(
-      "Select the guild you belong to in Aion 2 from the list below.\n*(If your guild is not listed, click 'Add New Guild' to create it.)*"
+      "اختر القيلد الذي تنتمي إليه في AION 2 من القائمة بالأسفل.\n*(إذا لم تجد قيلدك بالقائمة، اضغط على زر 'إضافة قيلد جديد' لإضافته فوراً).* "
     );
 
   const components = [selectRow, addGuildRow];
@@ -160,16 +161,15 @@ async function handleJoinStart(interaction) {
 
 // ─── Button: sage:add_guild_start → Show Add Guild Modal ──────────────────────
 async function handleAddGuildStart(interaction) {
-  
-
   const modal = new ModalBuilder()
-    .setCustomId('sage:add_guild_modal')
-    .setTitle('Add New Guild');
+    .setCustomId("sage:add_guild_modal")
+    .setTitle("إضافة قيلد جديد للتحالف");
 
   const guildNameInput = new TextInputBuilder()
-    .setCustomId('guild_name')
-    .setLabel('Guild Name')
+    .setCustomId("guild_name")
+    .setLabel("اسم القيلد (Guild Name)")
     .setStyle(TextInputStyle.Short)
+    .setPlaceholder("مثال: M3RGEEN")
     .setRequired(true);
 
   const actionRow = new ActionRowBuilder().addComponents(guildNameInput);
@@ -180,136 +180,127 @@ async function handleAddGuildStart(interaction) {
 
 // ─── Modal Submit: sage:add_guild_modal ───────────────────────────────────────
 async function handleAddGuildModal(interaction) {
-  
-
-  const guildName = interaction.fields.getTextInputValue('guild_name');
+  const guildName = interaction.fields.getTextInputValue("guild_name").trim();
 
   try {
     const newRole = await interaction.guild.roles.create({
       name: `${GUILD_ROLE_SYMBOL} ${guildName}`,
-      reason: 'Sage Recruitment - New Guild added by user',
+      reason: `Sage Recruitment - New Guild added by ${interaction.user.tag}`,
     });
 
     await interaction.reply({
-      content: `✅ Guild **${guildName}** has been added successfully! Please re-click the 'Join' button to select it.`,
-      flags: 64
+      content: `✅ تم إنشاء وإضافة قيلد **${guildName}** بنجاح! يرجى إعادة الضغط على زر 'الانضمام الآن' لاختياره من القائمة.`,
+      flags: 64,
     });
   } catch (error) {
-    console.error('Error creating guild role:', error);
+    console.error("Error creating guild role:", error);
     await interaction.reply({
-      content: '❌ Error adding guild. Please contact an admin.',
-      flags: 64
+      content: "❌ حدث خطأ أثناء إضافة القيلد. يرجى التواصل مع إدارة السيرفر.",
+      flags: 64,
     });
   }
 }
 
-// ─── Select Menu: sage:select_guild ───────────────────────────────────────────
+// ─── Select Menu: sage:select_guild → Open Shugo Profile Modal ────────────────
 async function handleGuildSelect(interaction) {
-  
-  
   const selectedRoleId = interaction.values[0];
-  
-  const classOptions = [
-    { label: 'Templar', value: 'Templar', emoji: '🛡️' },
-    { label: 'Gladiator', value: 'Gladiator', emoji: '⚔️' },
-    { label: 'Assassin', value: 'Assassin', emoji: '🗡️' },
-    { label: 'Ranger', value: 'Ranger', emoji: '🏹' },
-    { label: 'Sorcerer', value: 'Sorcerer', emoji: '🔮' },
-    { label: 'Spiritmaster', value: 'Spiritmaster', emoji: '👻' },
-    { label: 'Cleric', value: 'Cleric', emoji: '⚕️' },
-    { label: 'Chanter', value: 'Chanter', emoji: '🎵' }
-  ];
 
-  const classRow = new ActionRowBuilder().addComponents(
-    new StringSelectMenuBuilder()
-      .setCustomId(`sage:select_class:${selectedRoleId}`)
-      .setPlaceholder('Select your Class')
-      .addOptions(classOptions)
-  );
+  // Open Shugo.gg Profile Modal directly as required for character verification
+  const modal = new ModalBuilder()
+    .setCustomId(`sage:profile_modal:${selectedRoleId}`)
+    .setTitle("توثيق الشخصية عبر Shugo.gg");
 
-  await interaction.update({
-    content: '✅ Guild Selected!\n**Step 1:** Select your Class below:',
-    components: [classRow]
-  });
+  const urlInput = new TextInputBuilder()
+    .setCustomId("sage_shugo_url")
+    .setLabel("رابط ملفك على Shugo.gg")
+    .setStyle(TextInputStyle.Short)
+    .setPlaceholder("https://shugo.gg/character/global/eu-ludra/اسم_الشخصية")
+    .setRequired(true)
+    .setMinLength(15)
+    .setMaxLength(300);
+
+  modal.addComponents(new ActionRowBuilder().addComponents(urlInput));
+  await interaction.showModal(modal);
 }
 
+// ─── Manual Flow (Class -> Race -> Server -> Name) Fallbacks ───────────────────
 async function handleClassSelect(interaction, guildId) {
-  
   const selectedClass = interaction.values[0];
 
   const raceOptions = [
-    { label: 'Asmodian', value: 'Asmodian', emoji: '🦇' }
+    { label: "أسموديان (Asmodians)", value: "Asmodians", emoji: "🦇" },
+    { label: "إليوس (Elyos)", value: "Elyos", emoji: "🕊️" },
   ];
 
   const raceRow = new ActionRowBuilder().addComponents(
     new StringSelectMenuBuilder()
       .setCustomId(`sage:select_race:${guildId}:${selectedClass}`)
-      .setPlaceholder('Select your Race')
+      .setPlaceholder("اختر الشعب (الريس)...")
       .addOptions(raceOptions)
   );
 
   await interaction.update({
-    content: `✅ Class Selected: **${selectedClass}**\n**Step 2:** Select your Race below:`,
-    components: [raceRow]
+    content: `✅ تم اختيار التخصص: **${selectedClass}**\n**الخطوة 2:** اختر الشعب من القائمة أدناه:`,
+    components: [raceRow],
   });
 }
 
 async function handleRaceSelect(interaction, guildId, selectedClass) {
-  
   const selectedRace = interaction.values[0];
 
   const serverOptions = [
-    { label: 'Israphel', value: 'Israphel', emoji: '🌍' }
+    { label: "لودرا (Ludra - Global EU)", value: "Ludra", emoji: "🌍" },
+    { label: "زيكل (Zikel - Global EU)", value: "Zikel", emoji: "🌍" },
+    { label: "ترينيل (Triniel - Global EU)", value: "Triniel", emoji: "🌍" },
+    { label: "فايزل (Vaizel - Global EU)", value: "Vaizel", emoji: "🌍" },
+    { label: "كايسنيل (Kaisenel - Global EU)", value: "Kaisenel", emoji: "🌍" },
+    { label: "نيزيكان (Nezekan - Global EU)", value: "Nezekan", emoji: "🌍" },
   ];
 
   const serverRow = new ActionRowBuilder().addComponents(
     new StringSelectMenuBuilder()
       .setCustomId(`sage:select_server:${guildId}:${selectedClass}:${selectedRace}`)
-      .setPlaceholder('Select your Server ')
+      .setPlaceholder("اختر سيرفر اللعبة...")
       .addOptions(serverOptions)
   );
 
   await interaction.update({
-    content: `✅ Race Selected: **${selectedRace}**\n**Step 3:** Select your Server below:`,
-    components: [serverRow]
+    content: `✅ تم اختيار الشعب: **${selectedRace}**\n**الخطوة 3:** اختر سيرفر اللعبة أدناه:`,
+    components: [serverRow],
   });
 }
 
 async function handleServerSelect(interaction, guildId, selectedClass, selectedRace) {
-  
   const selectedServer = interaction.values[0];
 
   const modal = new ModalBuilder()
     .setCustomId(`sage:submit_name:${guildId}:${selectedClass}:${selectedRace}:${selectedServer}`)
-    .setTitle("Enter Character Name");
+    .setTitle("إدخال اسم الشخصية في اللعبة");
 
   const nameInput = new TextInputBuilder()
     .setCustomId("sage_char_name")
-    .setLabel("Character Name ")
+    .setLabel("اسم الشخصية (Character Name)")
     .setStyle(TextInputStyle.Short)
-    .setPlaceholder("e.g. Mdarb3")
+    .setPlaceholder("مثال: MDARB3")
     .setRequired(true)
     .setMaxLength(30);
 
   modal.addComponents(new ActionRowBuilder().addComponents(nameInput));
-
-  // Must use showModal for select menu interaction
   await interaction.showModal(modal);
 }
 
 async function handleSubmitName(interaction, guildId, className, raceName, serverName) {
-  
   await interaction.deferReply({ flags: 64 });
 
   const characterName = interaction.fields.getTextInputValue("sage_char_name").trim();
-  const characterLevel = 0; // Not requested
+  const characterLevel = 0;
   const combatPower = 0;
-  const profileImage = classIconUrl(className); // Built-in function
-  const shugoUrl = "Manual Entry (Aion 2 Global)";
+  const profileImage = classIconUrl(className);
+  const shugoUrl = `https://shugo.gg/character/global/eu-ludra/${encodeURIComponent(characterName)}`;
 
   const selectedRole = interaction.guild.roles.cache.get(guildId);
   let guildName = selectedRole?.name?.replace(GUILD_ROLE_SYMBOL, "").trim() ?? "Unknown";
-    if (guildId === "1519397169897935019" || (typeof selectedRoleId !== "undefined" && selectedRoleId === "1519397169897935019")) guildName = "Solo Player";
+  if (guildId === "1519397169897935019") guildName = "Solo Player";
 
   const sourceRes = await query("SELECT source_server_name FROM sage_pending_source WHERE user_id = $1", [interaction.user.id]);
   const sourceDiscordServer = sourceRes.rows[0]?.source_server_name ?? null;
@@ -333,10 +324,16 @@ async function handleSubmitName(interaction, guildId, className, raceName, serve
     [
       interaction.user.id,
       interaction.user.tag,
-      characterName, characterLevel, className,
-      combatPower, raceName, serverName,
-      profileImage, shugoUrl,
-      guildId, guildName,
+      characterName,
+      characterLevel,
+      className,
+      combatPower,
+      raceName,
+      serverName,
+      profileImage,
+      shugoUrl,
+      guildId,
+      guildName,
       JSON.stringify({}),
       sourceDiscordServer,
     ]
@@ -344,7 +341,7 @@ async function handleSubmitName(interaction, guildId, className, raceName, serve
 
   const app = appRes.rows[0];
 
-  // ─── Double Verification Routing (Stage 4 & 5) ───────────────────────────────────
+  // Double Verification Routing
   if (isLeader) {
     const LEADER_APP_CHANNEL_ID = "1508469394873913549";
     const targetChannel = interaction.guild.channels.cache.get(LEADER_APP_CHANNEL_ID) ?? await interaction.guild.channels.fetch(LEADER_APP_CHANNEL_ID).catch(() => null);
@@ -362,7 +359,7 @@ async function handleSubmitName(interaction, guildId, className, raceName, serve
     const leaderId = leaderRes.rows[0]?.user_id || fallbackRes.rows[0]?.user_id;
 
     const leadersChannel = interaction.guild.channels.cache.get(GUILD_LEADERS_CHANNEL_ID) ?? await interaction.guild.channels.fetch(GUILD_LEADERS_CHANNEL_ID).catch(() => null);
-    
+
     if (leadersChannel && leaderId) {
       try {
         await sendToLeaderVerification(interaction, app, leadersChannel, leaderId);
@@ -383,34 +380,39 @@ async function handleSubmitName(interaction, guildId, className, raceName, serve
   }
 
   await interaction.editReply({
-    content: "✅ **Registration Completed!** Your application has been sent for verification.",
-    components: []
+    content: "✅ **تم إكمال التسجيل بنجاح!** تم إرسال طلبك للإدارة للتحقق والاعتماد.",
+    components: [],
   });
 }
 
+// ─── Modal Submit: Shugo.gg Profile Modal ─────────────────────────────────────
 async function handleProfileModal(interaction, selectedRoleId) {
-   // ← strict isolation
-
   await interaction.deferReply({ flags: 64 });
 
   const shugoUrl = interaction.fields.getTextInputValue("sage_shugo_url").trim();
-  await interaction.editReply({ content: "⏳ Fetching character data from server..." });
+  await interaction.editReply({ content: "⏳ جارٍ جلب وتوثيق بيانات ملفك الشخصي من Shugo.gg..." });
 
   const result = await scrapeProfile(shugoUrl);
 
   if (!result.success) {
     await interaction.editReply({
       content:
-        `❌ **Failed to fetch profile.**\n` +
-        `Make sure the URL is correct and your profile is public.\n` +
-        `\`\`\`${result.error}\`\`\``,
+        `❌ **تعذر جلب بيانات البروفايل من Shugo.gg.**\n` +
+        `يرجى التأكد من كتابة الرابط بالصيغة العالمية المعتمدة:\n` +
+        `\`https://shugo.gg/character/global/eu-ludra/اسم_الشخصية\`\n` +
+        `والتأكد من أن ملفك الشخصي عام.\n\`\`\`${result.error}\`\`\``,
     });
     return;
   }
 
   const {
-    characterName, characterLevel, className,
-    combatPower, profileImage, raceName, serverName,
+    characterName,
+    characterLevel,
+    className,
+    combatPower,
+    profileImage,
+    raceName,
+    serverName,
   } = result.data;
 
   // Anti-Fraud Protocol: Check for duplicates
@@ -419,15 +421,15 @@ async function handleProfileModal(interaction, selectedRoleId) {
     [shugoUrl, interaction.user.id]
   );
 
-    if (duplicateCheck.rowCount > 0) {
-      const oldUserId = duplicateCheck.rows[0].user_id;
-      const fraudConfirmBtn = new ButtonBuilder()
-        .setCustomId(`sage:fraud_confirm:${oldUserId}`)
-        .setLabel("Yes, I am sure")
-        .setStyle(ButtonStyle.Danger);
+  if (duplicateCheck.rowCount > 0) {
+    const oldUserId = duplicateCheck.rows[0].user_id;
+    const fraudConfirmBtn = new ButtonBuilder()
+      .setCustomId(`sage:fraud_confirm:${oldUserId}`)
+      .setLabel("نعم، أنا متأكد أن هذه شخصيتي")
+      .setStyle(ButtonStyle.Danger);
 
     await interaction.editReply({
-      content: "⚠️ **Warning: This URL is already registered to another member.**\nAre you sure this profile belongs to you in the game?",
+      content: "⚠️ **تحذير أمني: هذا الرابط مسجل مسبقاً لعضو آخر بالتحالف!**\nهل أنت متأكد تماماً أن هذه الشخصية تعود لك داخل اللعبة؟",
       components: [new ActionRowBuilder().addComponents(fraudConfirmBtn)],
     });
     return;
@@ -435,7 +437,7 @@ async function handleProfileModal(interaction, selectedRoleId) {
 
   const selectedRole = interaction.guild.roles.cache.get(selectedRoleId);
   let guildName = selectedRole?.name?.replace(GUILD_ROLE_SYMBOL, "").trim() ?? "Unknown";
-    if (guildId === "1519397169897935019" || (typeof selectedRoleId !== "undefined" && selectedRoleId === "1519397169897935019")) guildName = "Solo Player";
+  if (selectedRoleId === "1519397169897935019") guildName = "Solo Player";
 
   // Get source server if they joined via tracked invite
   const sourceRes = await query("SELECT source_server_name FROM sage_pending_source WHERE user_id = $1", [interaction.user.id]);
@@ -445,7 +447,7 @@ async function handleProfileModal(interaction, selectedRoleId) {
   const countRes = await query("SELECT COUNT(*) FROM sage_recruitment WHERE guild_role_id = $1 AND user_id != $2", [selectedRoleId, interaction.user.id]);
   const isLeader = parseInt(countRes.rows[0].count, 10) === 0;
 
-  // Upsert into sage_recruitment (always pending initially)
+  // Upsert into sage_recruitment
   const appRes = await query(
     `INSERT INTO sage_recruitment
        (user_id, discord_tag, character_name, character_level, class_name, combat_power,
@@ -462,10 +464,16 @@ async function handleProfileModal(interaction, selectedRoleId) {
     [
       interaction.user.id,
       interaction.user.tag,
-      characterName, characterLevel, className,
-      combatPower ?? 0, raceName, serverName,
-      profileImage, shugoUrl,
-      selectedRoleId, guildName,
+      characterName,
+      characterLevel,
+      className,
+      combatPower ?? 0,
+      raceName,
+      serverName,
+      profileImage,
+      shugoUrl,
+      selectedRoleId,
+      guildName,
       JSON.stringify(result.data),
       sourceDiscordServer,
     ]
@@ -475,7 +483,6 @@ async function handleProfileModal(interaction, selectedRoleId) {
 
   // ─── Double Verification Routing ───────────────────────────────────
   if (isLeader) {
-    // If they are the first, they are the leader. Send directly to Admin Leader Channel.
     const LEADER_APP_CHANNEL_ID = "1508469394873913549";
     const targetChannel = interaction.guild.channels.cache.get(LEADER_APP_CHANNEL_ID) ?? await interaction.guild.channels.fetch(LEADER_APP_CHANNEL_ID).catch(() => null);
 
@@ -487,17 +494,13 @@ async function handleProfileModal(interaction, selectedRoleId) {
       }
     }
   } else {
-    // If not the first, they are a member. Send verification card to Guild Leaders channel.
     const GUILD_LEADERS_CHANNEL_ID = "1508696447674093608";
     const leaderRes = await query("SELECT user_id FROM sage_recruitment WHERE guild_role_id = $1 AND status = 'accepted' ORDER BY joined_at ASC LIMIT 1", [selectedRoleId]);
-    
-    // Fallback: If no accepted leader exists, just find the first applicant for this guild
     const fallbackRes = await query("SELECT user_id FROM sage_recruitment WHERE guild_role_id = $1 ORDER BY joined_at ASC LIMIT 1", [selectedRoleId]);
-    
     const leaderId = leaderRes.rows[0]?.user_id || fallbackRes.rows[0]?.user_id;
 
     const leadersChannel = interaction.guild.channels.cache.get(GUILD_LEADERS_CHANNEL_ID) ?? await interaction.guild.channels.fetch(GUILD_LEADERS_CHANNEL_ID).catch(() => null);
-    
+
     if (leadersChannel && leaderId) {
       try {
         await sendToLeaderVerification(interaction, app, leadersChannel, leaderId);
@@ -505,7 +508,6 @@ async function handleProfileModal(interaction, selectedRoleId) {
         console.warn(`[SageController] Could not send verification to leaders channel: ${err.message}`);
       }
     } else if (!leaderId) {
-      // If for some reason there's no leader at all, fallback to regular admin channel
       const ALL_APP_CHANNEL_ID = "1508451380560531586";
       const fallbackChannel = interaction.guild.channels.cache.get(ALL_APP_CHANNEL_ID) ?? await interaction.guild.channels.fetch(ALL_APP_CHANNEL_ID).catch(() => null);
       if (fallbackChannel) {
@@ -516,46 +518,37 @@ async function handleProfileModal(interaction, selectedRoleId) {
 
   await interaction.editReply({
     content:
-      `✅ **Application received successfully!**\n` +
-      `Character: **${characterName}** | Guild: **${guildName}**\n` +
-      `Your application is now under review. You will receive a DM once accepted.`,
+      `✅ **تم استلام طلبك وتوثيق شخصيتك بنجاح!**\n` +
+      `الشخصية: **${characterName}** | القيلد: **${guildName}** | السيرفر: **${serverName}**\n` +
+      `طلبك الآن قيد المراجعة والتحقق، وستصلك رسالة في الخاص فور قبوله.`,
   });
 }
 
 // ─── Admin Review Embed ────────────────────────────────────────────────────────
 async function sendToSageReview(interaction, app, targetChannel, isLeader) {
   const cpDisplay = app.combat_power > 0 ? numFmt(app.combat_power) : "—";
-
-  const titlePrefix = isLeader ? "👑 Guild Leader Application — Siege Alliance" : "📋 New Join Application — Siege Alliance";
-
-  const statsData = typeof app.stats === "string" ? JSON.parse(app.stats) : (app.stats || {});
-  const itemLevel = statsData.itemLevel ? numFmt(statsData.itemLevel) : "—";
-
-  let rankingsText = "—";
-  if (statsData.rankings && statsData.rankings.length > 0) {
-    rankingsText = statsData.rankings.map(r => `• ${r.name}: ${r.rank} (${numFmt(r.point || 0)})`).join("\n");
-  }
-
-  let titlesText = "—";
-  if (statsData.equippedTitles && statsData.equippedTitles.length > 0) {
-    titlesText = statsData.equippedTitles.map(t => `• **${t.category}:** ${t.name}`).join("\n");
-  } else if (statsData.titles && statsData.titles.active) {
-    titlesText = statsData.titles.active;
-  }
+  const titlePrefix = isLeader
+    ? "👑 طلب اعتماد قائد قيلد — تحالف الحصارات"
+    : "📋 طلب انضمام عضو جديد — تحالف الحصارات";
 
   const reviewEmbed = new EmbedBuilder()
     .setColor(0xd4af37)
     .setTitle(titlePrefix)
-    .setDescription(`👑 Applicant: ${interaction.user}`)
+    .setDescription(
+      `👑 **مقدم الطلب:** ${interaction.user}\n` +
+      `[🔗 عرض البروفايل على Shugo.gg](${app.shugo_url})`
+    )
     .addFields(
-      { name: "⚔️ Selected Guild", value: app.guild_name ?? "—", inline: false },
-      { name: "👤 Character", value: app.character_name ?? "—", inline: true },
-      { name: "🎮 Class", value: app.class_name ?? "—", inline: true },
-      { name: "🌍 Server", value: app.server_name ?? "—", inline: true },
-      { name: "🧬 Race", value: app.race_name ?? "—", inline: true }
+      { name: "⚔️ القيلد المختار", value: app.guild_name ?? "—", inline: false },
+      { name: "👤 اسم الشخصية", value: app.character_name ?? "—", inline: true },
+      { name: "📊 المستوى", value: String(app.character_level ?? "—"), inline: true },
+      { name: "🎮 التخصص", value: app.class_name ?? "—", inline: true },
+      { name: "🌍 السيرفر", value: app.server_name ?? "—", inline: true },
+      { name: "🧬 الشعب", value: app.race_name ?? "—", inline: true },
+      { name: "⚡ قوة القتال (CP)", value: `★ **${cpDisplay}** ★`, inline: true }
     )
     .setThumbnail(app.profile_image || classIconUrl(app.class_name))
-    .setFooter({ text: `Discord ID: ${app.user_id}  •  App DB ID: ${app.id}` })
+    .setFooter({ text: `Discord ID: ${app.user_id}  •  معرف الطلب: ${app.id}` })
     .setTimestamp();
 
   if (app.profile_image) reviewEmbed.setImage(app.profile_image);
@@ -563,15 +556,15 @@ async function sendToSageReview(interaction, app, targetChannel, isLeader) {
   const reviewRow = new ActionRowBuilder().addComponents(
     new ButtonBuilder()
       .setCustomId(`sage:accept:${interaction.user.id}:${app.id}`)
-      .setLabel("✅ Accept")
+      .setLabel("✅ قبول الطلب")
       .setStyle(ButtonStyle.Success),
     new ButtonBuilder()
       .setCustomId(`sage:reject:${interaction.user.id}:${app.id}`)
-      .setLabel("❌ Reject")
+      .setLabel("❌ رفض الطلب")
       .setStyle(ButtonStyle.Danger),
     new ButtonBuilder()
       .setCustomId(`sage:ban:${interaction.user.id}:${app.id}`)
-      .setLabel("🔨 Instant Ban")
+      .setLabel("🔨 حظر فوري (سياسة الحزم)")
       .setStyle(ButtonStyle.Danger)
   );
 
@@ -580,20 +573,18 @@ async function sendToSageReview(interaction, app, targetChannel, isLeader) {
 
 // ─── Accept Handler ────────────────────────────────────────────────────────────
 async function handleSageAccept(interaction, targetUserId, appId) {
-   // ← strict isolation
-
   await interaction.deferReply({ flags: 64 });
 
   const appRes = await query("SELECT * FROM sage_recruitment WHERE id=$1 AND user_id=$2", [appId, targetUserId]);
   const app = appRes.rows[0];
 
   if (!app) {
-    await interaction.editReply({ content: "❌ Application not found in the database." });
+    await interaction.editReply({ content: "❌ لم يتم العثور على الطلب في قاعدة البيانات." });
     return;
   }
 
   if (app.status !== "pending") {
-    await interaction.editReply({ content: `⚠️ This application was already reviewed (${app.status}).` });
+    await interaction.editReply({ content: `⚠️ تمت مراجعة هذا الطلب مسبقاً (الحالة: ${app.status}).` });
     return;
   }
 
@@ -601,13 +592,16 @@ async function handleSageAccept(interaction, targetUserId, appId) {
   const member = await interaction.guild.members.fetch(targetUserId).catch(() => null);
   if (member) {
     try {
-      // Assign guild role
-      if (app.guild_role_id && app.guild_role_id !== "1519397169897935019") await member.roles.add(app.guild_role_id);
+      if (app.guild_role_id && app.guild_role_id !== "1519397169897935019") {
+        await member.roles.add(app.guild_role_id);
+      }
 
       // Check if this is the first accepted member (Leader)
-      const countRes = await query("SELECT COUNT(*) FROM sage_recruitment WHERE guild_role_id = $1 AND user_id != $2 AND status = 'accepted'", [app.guild_role_id, targetUserId]);
+      const countRes = await query(
+        "SELECT COUNT(*) FROM sage_recruitment WHERE guild_role_id = $1 AND user_id != $2 AND status = 'accepted'",
+        [app.guild_role_id, targetUserId]
+      );
       const isGuildLeader = parseInt(countRes.rows[0].count, 10) === 0;
-      
       const isSoloPlayer = app.guild_role_id === "1519397169897935019";
 
       if (isGuildLeader && !isSoloPlayer) {
@@ -632,9 +626,9 @@ async function handleSageAccept(interaction, targetUserId, appId) {
   );
 
   // 3. Post roster card to roster channel
-  const rosterChannelId = SAGE_ROSTER_CHANNEL_ID;
+  const rosterChannelId = SAGE_ROSTER_CHANNEL_ID || "1507703833223233567";
   if (rosterChannelId) {
-    const rosterChannel = interaction.guild.channels.cache.get(rosterChannelId);
+    const rosterChannel = interaction.guild.channels.cache.get(rosterChannelId) ?? await interaction.guild.channels.fetch(rosterChannelId).catch(() => null);
     if (rosterChannel) {
       const rosterMsg = await postRosterCard(rosterChannel, app, member);
       if (rosterMsg) {
@@ -646,61 +640,60 @@ async function handleSageAccept(interaction, targetUserId, appId) {
     }
   }
 
-  // 4. DM the member
+  // 4. DM the member in Arabic
   if (member) {
     await member.send({
       embeds: [
         new EmbedBuilder()
           .setColor(0x57f287)
-          .setTitle("✅ Welcome to the Siege Alliance!")
+          .setTitle("✅ مرحباً بك في تحالف الحصارات | Siege Alliance!")
           .setDescription(
-            `Hello **${app.character_name}**!\n\n` +
-            `Your application to join **${app.guild_name}** has been accepted.\n\n` +
-            `🚨 Remember: Any public conflict = **immediate permanent ban**, no warning.\n` +
-            `💬 For any disputes, contact staff via DM only.`
+            `أهلاً بك يا بطل **${app.character_name}**! 🛡️\n\n` +
+            `تم قبول طلب انضمامك إلى قيلد **${app.guild_name}** في تحالف الحصارات بنجاح.\n\n` +
+            `🚨 **تذكير هام:** أي نزاع أو دراما علنية = **طرد وحظر فوري دائم** دون سابق إنذار.\n` +
+            `💬 لأي استفسارات أو شكاوى، تواصل مع إدارة التحالف عبر الخاص فقط.`
           )
-          .setTimestamp()
-      ]
-    }).catch(() => {}); // DM might fail if user has DMs disabled
+          .setFooter({ text: "تحالف الحصارات • Siege Alliance" })
+          .setTimestamp(),
+      ],
+    }).catch(() => {});
   }
 
   // 5. Update Guild Stats Card immediately
-  const statsChannelId = process.env.SAGE_GUILD_STATS_CHANNEL_ID;
+  const statsChannelId = process.env.SAGE_GUILD_STATS_CHANNEL_ID || "1507703833223233567";
   if (statsChannelId && app.guild_role_id) {
     const statsChannel = interaction.guild.channels.cache.get(statsChannelId) ?? await interaction.guild.channels.fetch(statsChannelId).catch(() => null);
     const role = interaction.guild.roles.cache.get(app.guild_role_id);
     if (statsChannel && role) {
-      await updateGuildStatCard(interaction.guild, statsChannel, app.guild_role_id, role).catch(e => console.error("[SageController] Error updating guild stats card:", e));
+      await updateGuildStatCard(interaction.guild, statsChannel, app.guild_role_id, role).catch((e) => console.error("[SageController] Error updating guild stats card:", e));
     }
   }
 
   const updatedEmbed = EmbedBuilder.from(interaction.message.embeds[0])
     .setColor(0x57f287)
-    .setTitle(`✅ Accepted — ${app.character_name} (${app.guild_name})`)
-    .setFooter({ text: `Accepted by: ${interaction.user.tag}` });
+    .setTitle(`✅ تم القبول — ${app.character_name} (${app.guild_name})`)
+    .setFooter({ text: `تم الاعتماد بواسطة: ${interaction.user.tag}` });
 
   await interaction.message.edit({ embeds: [updatedEmbed], components: [] }).catch(() => {});
   await interaction.editReply({
-    content: `✅ **${app.character_name}** has been accepted and the **${app.guild_name}** role was assigned successfully.`,
+    content: `✅ تم قبول **${app.character_name}** وإسناد رتبة **${app.guild_name}** بنجاح.`,
   });
 }
 
 // ─── Reject Handler ────────────────────────────────────────────────────────────
 async function handleSageReject(interaction, targetUserId, appId) {
-   // ← strict isolation
-
   await interaction.deferReply({ flags: 64 });
 
   const appRes = await query("SELECT * FROM sage_recruitment WHERE id=$1 AND user_id=$2", [appId, targetUserId]);
   const app = appRes.rows[0];
 
   if (!app) {
-    await interaction.editReply({ content: "❌ Application not found." });
+    await interaction.editReply({ content: "❌ لم يتم العثور على الطلب." });
     return;
   }
 
   if (app.status !== "pending") {
-    await interaction.editReply({ content: `⚠️ This application was already reviewed (${app.status}).` });
+    await interaction.editReply({ content: `⚠️ تمت مراجعة هذا الطلب مسبقاً (${app.status}).` });
     return;
   }
 
@@ -718,36 +711,35 @@ async function handleSageReject(interaction, targetUserId, appId) {
     }
   }
 
-  // DM the rejected member
+  // DM the rejected member in Arabic
   const member = await interaction.guild.members.fetch(targetUserId).catch(() => null);
   if (member) {
     await member.send({
       embeds: [
         new EmbedBuilder()
           .setColor(0xed4245)
-          .setTitle("❌ Application Rejected — Siege Alliance")
+          .setTitle("❌ تحديث بشأن طلب الانضمام — تحالف الحصارات")
           .setDescription(
-            "Unfortunately, your application was not accepted at this time.\n" +
-            "For inquiries, contact staff via DM only."
+            "نأسف لإبلاغك بأنه لم يتم قبول طلب انضمامك إلى التحالف في الوقت الحالي.\n" +
+            "لأي استفسارات، تواصل مع إدارة السيرفر عبر الخاص فقط."
           )
-          .setTimestamp()
-      ]
+          .setFooter({ text: "تحالف الحصارات • Siege Alliance" })
+          .setTimestamp(),
+      ],
     }).catch(() => {});
   }
 
   const updatedEmbed = EmbedBuilder.from(interaction.message.embeds[0])
     .setColor(0xed4245)
-    .setTitle(`❌ Rejected — ${app.character_name}`)
-    .setFooter({ text: `Rejected by: ${interaction.user.tag}` });
+    .setTitle(`❌ تم الرفض — ${app.character_name}`)
+    .setFooter({ text: `تم الرفض بواسطة: ${interaction.user.tag}` });
 
   await interaction.message.edit({ embeds: [updatedEmbed], components: [] }).catch(() => {});
-  await interaction.editReply({ content: `❌ Application for **${app.character_name}** has been rejected.` });
+  await interaction.editReply({ content: `❌ تم رفض طلب العضو **${app.character_name}** بنجاح.` });
 }
 
 // ─── Ban Handler (Zero Tolerance) ─────────────────────────────────────────────
 async function handleSageBan(interaction, targetUserId, appId) {
-   // ← strict isolation
-
   await interaction.deferReply({ flags: 64 });
 
   const appRes = await query("SELECT * FROM sage_recruitment WHERE id=$1 AND user_id=$2", [appId, targetUserId]);
@@ -755,10 +747,10 @@ async function handleSageBan(interaction, targetUserId, appId) {
 
   try {
     await interaction.guild.members.ban(targetUserId, {
-      reason: `[Siege Alliance] Zero Tolerance Policy — Banned by ${interaction.user.tag}`,
+      reason: `[تحالف الحصارات] سياسة الحزم التام — حظر فوري بواسطة ${interaction.user.tag}`,
     });
   } catch (banErr) {
-    await interaction.editReply({ content: `❌ Failed to ban: ${banErr.message}` });
+    await interaction.editReply({ content: `❌ فشل تنفيذ الحظر: ${banErr.message}` });
     return;
   }
 
@@ -768,7 +760,6 @@ async function handleSageBan(interaction, targetUserId, appId) {
       [interaction.user.id, appId]
     );
 
-    // Check if role needs to be deleted
     if (app.guild_role_id) {
       const roleCheck = await query("SELECT COUNT(*) FROM sage_recruitment WHERE guild_role_id=$1 AND status IN ('pending', 'accepted')", [app.guild_role_id]);
       if (parseInt(roleCheck.rows[0].count) === 0) {
@@ -777,50 +768,37 @@ async function handleSageBan(interaction, targetUserId, appId) {
       }
     }
   }
+
   const updatedEmbed = EmbedBuilder.from(interaction.message.embeds[0])
     .setColor(0xff0000)
-    .setTitle(`🔨 Banned — ${app?.character_name ?? targetUserId}`)
-    .setFooter({ text: `Executed by: ${interaction.user.tag} — Zero Tolerance` });
+    .setTitle(`🔨 تم الحظر — ${app?.character_name ?? targetUserId}`)
+    .setFooter({ text: `تم التنفيذ بواسطة: ${interaction.user.tag} — سياسة الحزم التام` });
 
   await interaction.message.edit({ embeds: [updatedEmbed], components: [] }).catch(() => {});
   await interaction.editReply({
-    content: `🔨 Instant ban executed on **${app?.character_name ?? targetUserId}** per the Zero Tolerance policy.`,
+    content: `🔨 تم تنفيذ الحظر الفوري على **${app?.character_name ?? targetUserId}** بموجب سياسة الحزم التام.`,
   });
 }
 
 // ─── Roster Card Builder ───────────────────────────────────────────────────────
 async function postRosterCard(channel, app, member) {
   const cpDisplay = app.combat_power > 0 ? numFmt(app.combat_power) : "—";
-  const displayName = member?.displayName ?? app.discord_tag;
-
-  const statsData = typeof app.stats === "string" ? JSON.parse(app.stats) : (app.stats || {});
-  const itemLevel = statsData.itemLevel ? numFmt(statsData.itemLevel) : "—";
-
-  let rankingsText = "—";
-  if (statsData.rankings && statsData.rankings.length > 0) {
-    rankingsText = statsData.rankings.map(r => `> • ${r.name}: ${r.rank} (${numFmt(r.point || 0)})`).join("\n");
-  }
-
-  let titlesText = "—";
-  if (statsData.equippedTitles && statsData.equippedTitles.length > 0) {
-    titlesText = statsData.equippedTitles.map(t => `> • **${t.category}:** ${t.name}`).join("\n");
-  } else if (statsData.titles && statsData.titles.active) {
-    titlesText = `> ${statsData.titles.active}`;
-  }
 
   const rosterEmbed = new EmbedBuilder()
     .setColor(0xd4af37)
     .setTitle(`⚔️ ${app.character_name}`)
-          .setDescription(
-        `🎊 **Welcome to the Alliance family! We're thrilled to have you here.** ✨\n\n` +
-        `> 🏰 **Guild:** ${app.guild_name}\n` +
-        `> 👤 **Discord:** <@${member?.id ?? app.user_id}>\n` +
-        `> 🎮 **Class:** ${app.class_name ?? "—"}\n` +
-        `> 🧬 **Race:** ${app.race_name ?? "—"}\n` +
-        `> 🌍 **Server:** ${app.server_name ?? "—"}`
+    .setDescription(
+      `🎊 **أهلاً بك في عائلة تحالف الحصارات! سعداء بانضمامك معنا.** ✨\n\n` +
+      `> 🏰 **القيلد:** ${app.guild_name}\n` +
+      `> 👤 **الديسكورد:** <@${member?.id ?? app.user_id}>\n` +
+      `> 🎮 **التخصص:** ${app.class_name ?? "—"}\n` +
+      `> 🧬 **الشعب:** ${app.race_name ?? "—"}\n` +
+      `> 🌍 **السيرفر:** ${app.server_name ?? "—"}\n` +
+      `> ⚡ **قوة القتال:** ★ ${cpDisplay} ★\n\n` +
+      (app.shugo_url && app.shugo_url.startsWith("http") ? `[🔗 عرض البروفايل على Shugo.gg](${app.shugo_url})` : "")
     )
     .setThumbnail(classIconUrl(app.class_name))
-    .setFooter({ text: `Siege Alliance Roster • ${new Date().toLocaleDateString("en-US")}` })
+    .setFooter({ text: `سجل تحالف الحصارات • Siege Alliance Roster` })
     .setTimestamp();
 
   if (app.profile_image) rosterEmbed.setImage(app.profile_image);
@@ -831,58 +809,59 @@ async function postRosterCard(channel, app, member) {
 // ─── Anti-Fraud Alert ────────────────────────────────────────────────────────
 async function handleFraudConfirm(interaction, oldUserId) {
   await interaction.deferReply({ flags: 64 });
-  
+
   try {
     const res = await query("SELECT character_name, shugo_url, discord_tag FROM sage_recruitment WHERE user_id = $1", [oldUserId]);
     if (res.rowCount === 0) {
-      return await interaction.editReply({ content: "❌ Could not find old member data in the database." });
+      return await interaction.editReply({ content: "❌ تعذر العثور على بيانات العضو السابق في قاعدة البيانات." });
     }
-    
+
     const oldUser = res.rows[0];
     const newMemberId = interaction.user.id;
-    
+
     const alertEmbed = new EmbedBuilder()
       .setColor(0xed4245)
-      .setTitle("🚨 Identity Fraud Report (Anti-Fraud Protocol)")
+      .setTitle("🚨 بلاغ انتحال شخصية (Anti-Fraud Protocol)")
       .setDescription(
-        `A duplicate Shugo.gg registration attempt was detected!\n\n` +
-        `👤 **Player attempting to register (Fraudster):** <@${newMemberId}>\n` +
-        `⚠️ **Old member registered with this link:** <@${oldUserId}> (${oldUser.discord_tag})\n` +
-        `🎮 **Character Name:** ${oldUser.character_name}\n` +
-        `🔗 **Entered Link:** ${oldUser.shugo_url}`
+        `تم رصد محاولة تسجيل مكررة لرابط **Shugo.gg**!\n\n` +
+        `👤 **اللاعب الذي يحاول التسجيل (المنتحل):** <@${newMemberId}>\n` +
+        `⚠️ **العضو السابق المسجل بهذا الرابط:** <@${oldUserId}> (${oldUser.discord_tag})\n` +
+        `🎮 **اسم الشخصية:** ${oldUser.character_name}\n` +
+        `🔗 **الرابط المدخل:** ${oldUser.shugo_url}`
       )
+      .setFooter({ text: "تحالف الحصارات • نظام مكافحة الانتحال" })
       .setTimestamp();
-      
+
     const leaderRoleId = "1507733275278577916";
     const councilRoleId = "1507733319989858435";
     const triageChannelId = "1508489408251171080";
-    
+
     // Send to Triage Channel
     const triageChannel = interaction.guild.channels.cache.get(triageChannelId) ?? await interaction.guild.channels.fetch(triageChannelId).catch(() => null);
     if (triageChannel) {
       await triageChannel.send({ content: `<@&${leaderRoleId}> <@&${councilRoleId}>`, embeds: [alertEmbed] });
     }
-    
+
     // Send DMs to Leaders and Council
     await interaction.guild.members.fetch();
     const leaders = interaction.guild.roles.cache.get(leaderRoleId)?.members;
     const council = interaction.guild.roles.cache.get(councilRoleId)?.members;
-    
+
     const notifyMember = async (member) => {
       if (!member.user.bot) {
         await member.send({ embeds: [alertEmbed] }).catch(() => {});
       }
     };
-    
+
     if (leaders) leaders.forEach(notifyMember);
     if (council) council.forEach(notifyMember);
-    
+
     await interaction.editReply({
-      content: "✅ **Report confirmed.** An urgent message has been sent to leadership for verification. Appropriate action will be taken. Thank you."
+      content: "✅ **تم تأكيد البلاغ.** تم إرسال إشعار عاجل لقيادة التحالف للتحقق من الهوية واتخاذ الإجراء اللازم. شكراً لك.",
     });
   } catch (err) {
     console.error("[AntiFraud] Error processing alert:", err);
-    await interaction.editReply({ content: "❌ An error occurred while sending the report." });
+    await interaction.editReply({ content: "❌ حدث خطأ أثناء إرسال البلاغ." });
   }
 }
 
@@ -890,42 +869,25 @@ async function handleFraudConfirm(interaction, oldUserId) {
 async function sendToLeaderVerification(interaction, app, targetChannel, leaderId) {
   const cpDisplay = app.combat_power > 0 ? numFmt(app.combat_power) : "—";
 
-  const statsData = typeof app.stats === "string" ? JSON.parse(app.stats) : (app.stats || {});
-  const itemLevel = statsData.itemLevel ? numFmt(statsData.itemLevel) : "—";
-
-  let rankingsText = "—";
-  if (statsData.rankings && statsData.rankings.length > 0) {
-    rankingsText = statsData.rankings.map(r => `• ${r.name}: ${r.rank} (${numFmt(r.point || 0)})`).join("\n");
-  }
-
-  let titlesText = "—";
-  if (statsData.equippedTitles && statsData.equippedTitles.length > 0) {
-    titlesText = statsData.equippedTitles.map(t => `• **${t.category}:** ${t.name}`).join("\n");
-  } else if (statsData.titles && statsData.titles.active) {
-    titlesText = statsData.titles.active;
-  }
-
   const verifyEmbed = new EmbedBuilder()
     .setColor(0x3498db) // Blue for verification
-    .setTitle("🛡️ Member Identity Verification Request (Leader Verification)")
+    .setTitle("🛡️ طلب تحقق من هوية عضو (تحقق قائد القيلد)")
     .setDescription(
-      `Hello Guild Leader <@${leaderId}>,\n` +
-      `A new member has requested to join your guild (**${app.guild_name}**). Please verify if this member truly belongs to your guild.\n\n` +
-      `👤 **Applicant:** ${interaction.user}\n` +
-      `[🔗 View Profile](${app.shugo_url})`
+      `مرحباً بقائد القيلد <@${leaderId}>،\n` +
+      `هناك عضو جديد يطلب الانضمام إلى قيلدكم (**${app.guild_name}**). يرجى التحقق مما إذا كان هذا العضو ينتمي إليكم بالفعل داخل اللعبة.\n\n` +
+      `👤 **مقدم الطلب:** ${interaction.user}\n` +
+      `[🔗 عرض البروفايل على Shugo.gg](${app.shugo_url})`
     )
     .addFields(
-      { name: "👤 Character", value: app.character_name ?? "—", inline: true },
-      { name: "📊 Level", value: String(app.character_level ?? "—"), inline: true },
-      { name: "🎮 Class", value: app.class_name ?? "—", inline: true },
-      { name: "🌍 Server", value: app.server_name ?? "—", inline: true },
-      { name: "🧬 Race", value: app.race_name ?? "—", inline: true },
-      { name: "🏆 Rankings (Rankings)", value: rankingsText, inline: false },
-      { name: "🎖️ Equipped Titles", value: titlesText, inline: false },
-      { name: "⚡ Combat Power (CP)", value: `★ **${cpDisplay}** ★  *(Item Level: ${itemLevel})*`, inline: false }
+      { name: "👤 اسم الشخصية", value: app.character_name ?? "—", inline: true },
+      { name: "📊 المستوى", value: String(app.character_level ?? "—"), inline: true },
+      { name: "🎮 التخصص", value: app.class_name ?? "—", inline: true },
+      { name: "🌍 السيرفر", value: app.server_name ?? "—", inline: true },
+      { name: "🧬 الشعب", value: app.race_name ?? "—", inline: true },
+      { name: "⚡ قوة القتال (CP)", value: `★ **${cpDisplay}** ★`, inline: true }
     )
     .setThumbnail(classIconUrl(app.class_name))
-    .setFooter({ text: `Discord ID: ${interaction.user.id}  •  App DB ID: ${app.id}` })
+    .setFooter({ text: `Discord ID: ${interaction.user.id}  •  معرف الطلب: ${app.id}` })
     .setTimestamp();
 
   if (app.profile_image) verifyEmbed.setImage(app.profile_image);
@@ -933,11 +895,11 @@ async function sendToLeaderVerification(interaction, app, targetChannel, leaderI
   const verifyRow = new ActionRowBuilder().addComponents(
     new ButtonBuilder()
       .setCustomId(`sage:leader_verify:${interaction.user.id}:${app.id}`)
-      .setLabel("✅ Confirm (In my Guild)")
+      .setLabel("✅ تأكيد (ينتمي للقيلد)")
       .setStyle(ButtonStyle.Success),
     new ButtonBuilder()
       .setCustomId(`sage:leader_reject:${interaction.user.id}:${app.id}`)
-      .setLabel("❌ Reject (Unknown)")
+      .setLabel("❌ رفض (غير معروف)")
       .setStyle(ButtonStyle.Danger)
   );
 
@@ -945,44 +907,42 @@ async function sendToLeaderVerification(interaction, app, targetChannel, leaderI
 }
 
 async function handleLeaderVerify(interaction, targetUserId, appId) {
-  
   await interaction.deferReply({ flags: 64 });
 
   const appRes = await query("SELECT * FROM sage_recruitment WHERE id=$1 AND user_id=$2", [appId, targetUserId]);
   const app = appRes.rows[0];
 
   if (!app) {
-    return await interaction.editReply({ content: "❌ Request not found." });
+    return await interaction.editReply({ content: "❌ لم يتم العثور على الطلب." });
   }
   if (app.status !== "pending") {
-    return await interaction.editReply({ content: `⚠️ This request has already been reviewed (${app.status}).` });
+    return await interaction.editReply({ content: `⚠️ تمت مراجعة هذا الطلب مسبقاً (${app.status}).` });
   }
-
-  // Update status temporarily (optional, or just forward to admin)
-  // For simplicity, we can leave status as pending and just forward the card to admin
 
   // Forward to Admin Channel
   const ALL_APP_CHANNEL_ID = "1508451380560531586";
   const targetChannel = interaction.guild.channels.cache.get(ALL_APP_CHANNEL_ID) ?? await interaction.guild.channels.fetch(ALL_APP_CHANNEL_ID).catch(() => null);
 
   if (targetChannel) {
-    // Modify embed to show it was verified by leader
     const cpDisplay = app.combat_power > 0 ? numFmt(app.combat_power) : "—";
-          const reviewEmbed = new EmbedBuilder()
-        .setColor(0xd4af37)
-        .setTitle("🛡️ Member Identity Verification Request")
-        .setDescription(
-          `Hello Guild Leader <@${leaderId}>,\n` +
-          `A new member has requested to join your guild (**${app.guild_name}**). Please verify if this member truly belongs to your guild.\n\n` +
-          `👤 **Applicant:** ${interaction.user}`
-        )
-        .addFields(
-          { name: "👤 Character", value: app.character_name ?? "—", inline: true },
-          { name: "🎮 Class", value: app.class_name ?? "—", inline: true },
-          { name: "🧬 Race", value: app.race_name ?? "—", inline: true },
-          { name: "🌍 Server", value: app.server_name ?? "—", inline: true }
-        )
-        .setThumbnail(app.profile_image || classIconUrl(app.class_name)).setFooter({ text: `Discord ID: ${app.user_id}  •  App DB ID: ${app.id}` })
+    const reviewEmbed = new EmbedBuilder()
+      .setColor(0xd4af37)
+      .setTitle("📋 طلب انضمام جديد (مُحقق منه من قائد القيلد) — تحالف الحصارات")
+      .setDescription(
+        `✅ **تم التحقق من هويته وتأكيده بواسطة قائد القيلد (${interaction.user.tag})**\n\n` +
+        `👑 **المتقدم:** <@${app.user_id}>\n` +
+        `[🔗 عرض البروفايل على Shugo.gg](${app.shugo_url})`
+      )
+      .addFields(
+        { name: "⚔️ القيلد المختار", value: app.guild_name ?? "—", inline: true },
+        { name: "👤 اسم الشخصية", value: app.character_name ?? "—", inline: true },
+        { name: "📊 المستوى", value: String(app.character_level ?? "—"), inline: true },
+        { name: "🎮 التخصص", value: app.class_name ?? "—", inline: true },
+        { name: "🌍 السيرفر", value: app.server_name ?? "—", inline: true },
+        { name: "⚡ قوة القتال (CP)", value: `★ **${cpDisplay}** ★`, inline: true }
+      )
+      .setThumbnail(app.profile_image || classIconUrl(app.class_name))
+      .setFooter({ text: `Discord ID: ${app.user_id}  •  معرف الطلب: ${app.id}` })
       .setTimestamp();
 
     if (app.profile_image) reviewEmbed.setImage(app.profile_image);
@@ -990,15 +950,15 @@ async function handleLeaderVerify(interaction, targetUserId, appId) {
     const reviewRow = new ActionRowBuilder().addComponents(
       new ButtonBuilder()
         .setCustomId(`sage:accept:${app.user_id}:${app.id}`)
-        .setLabel("✅ Final Approval")
+        .setLabel("✅ اعتماد نهائي")
         .setStyle(ButtonStyle.Success),
       new ButtonBuilder()
         .setCustomId(`sage:reject:${app.user_id}:${app.id}`)
-        .setLabel("❌ Final Rejection")
+        .setLabel("❌ رفض نهائي")
         .setStyle(ButtonStyle.Danger),
       new ButtonBuilder()
         .setCustomId(`sage:ban:${app.user_id}:${app.id}`)
-        .setLabel("🔨 Instant Ban")
+        .setLabel("🔨 حظر فوري")
         .setStyle(ButtonStyle.Danger)
     );
 
@@ -1008,20 +968,19 @@ async function handleLeaderVerify(interaction, targetUserId, appId) {
   // Update the leader message
   const updatedEmbed = EmbedBuilder.from(interaction.message.embeds[0])
     .setColor(0x2ecc71)
-    .setTitle("✅ Member verified and sent to Admin");
+    .setTitle("✅ تم تأكيد العضو وتحويل طلبه للإدارة للموافقة النهائية");
   await interaction.message.edit({ embeds: [updatedEmbed], components: [] }).catch(() => {});
-  
-  await interaction.editReply({ content: "✅ Member verified and application forwarded to Admin for final approval." });
+
+  await interaction.editReply({ content: "✅ تم تأكيد هوية العضو وإرسال طلبه للإدارة للاعتماد النهائي." });
 }
 
 async function handleLeaderReject(interaction, targetUserId, appId) {
-  
   await interaction.deferReply({ flags: 64 });
 
   const appRes = await query("SELECT * FROM sage_recruitment WHERE id=$1 AND user_id=$2", [appId, targetUserId]);
   const app = appRes.rows[0];
 
-  if (!app) return await interaction.editReply({ content: "❌ Application not found." });
+  if (!app) return await interaction.editReply({ content: "❌ لم يتم العثور على الطلب." });
 
   // Update DB
   await query("UPDATE sage_recruitment SET status='rejected', reviewed_by=$1, updated_at=NOW() WHERE id=$2", [interaction.user.id, appId]);
@@ -1029,30 +988,29 @@ async function handleLeaderReject(interaction, targetUserId, appId) {
   // Update the leader message
   const updatedEmbed = EmbedBuilder.from(interaction.message.embeds[0])
     .setColor(0xe74c3c)
-    .setTitle("❌ Member rejected by Leader");
+    .setTitle("❌ تم رفض العضو من قبل قائد القيلد");
   await interaction.message.edit({ embeds: [updatedEmbed], components: [] }).catch(() => {});
 
-  // Send DM to applicant
+  // Send DM to applicant in Arabic
   const member = await interaction.guild.members.fetch(targetUserId).catch(() => null);
   if (member && !member.user.bot) {
     const dmEmbed = new EmbedBuilder()
       .setColor(0xe74c3c)
-      .setTitle("❌ Update on your application (Siege Alliance)")
+      .setTitle("❌ تحديث بشأن طلب انضمامك (تحالف الحصارات)")
       .setDescription(
-        `We regret to inform you that your application to join **${app.guild_name}** has been **rejected** by the guild leader.\n\n` +
-        `If you believe this is a mistake, please contact your guild leader to resolve the issue.`
+        `نأسف لإبلاغك بأن طلب انضمامك إلى قيلد **${app.guild_name}** قد تم **رفضه** من قبل قائد القيلد.\n\n` +
+        `إذا كنت تعتقد أن هذا خطأ، يرجى التواصل مع قائد قيلدك مباشرة لتوضيح الأمر.`
       )
+      .setFooter({ text: "تحالف الحصارات • Siege Alliance" })
       .setTimestamp();
     await member.send({ embeds: [dmEmbed] }).catch(() => {});
   }
 
-  await interaction.editReply({ content: "✅ Member rejected and notified successfully." });
+  await interaction.editReply({ content: "✅ تم رفض العضو وإشعاره بنجاح." });
 }
 
 // ─── Main Interaction Router ───────────────────────────────────────────────────
 export async function handleInteraction(interaction) {
-   // ← strict isolation (top-level)
-
   try {
     const [, action, ...rest] = interaction.customId.split(":");
 
@@ -1115,7 +1073,7 @@ export async function handleInteraction(interaction) {
   } catch (err) {
     console.error(`[SageController] Error in ${interaction.customId}:`, err);
     const reply = {
-      content: "❌ An error occurred while processing your request in the Alliance system. Please try again.",
+      content: "❌ حدث خطأ أثناء معالجة طلبك في نظام التحالف. يرجى المحاولة مرة أخرى.",
       flags: 64,
     };
     if (interaction.replied || interaction.deferred) {

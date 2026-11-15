@@ -33,7 +33,7 @@ export async function startSiegeMonitor(client, guildId) {
   // Send warning about 1-hour voice channel termination
   const unifiedChat = guild.channels.cache.get(UNIFIED_CHAT_ID) ?? await guild.channels.fetch(UNIFIED_CHAT_ID).catch(() => null);
   if (unifiedChat) {
-    await unifiedChat.send("⚠️ **Notice:** Voice channels will be automatically cleared for non-admins 1 hour (60 minutes) after the Siege starts.");
+    await unifiedChat.send("⚠️ **تنبيه:** سيتم إخلاء القنوات الصوتية لغير المشرفين تلقائياً بعد مرور ساعة (60 دقيقة) من بدء الحصار.");
   }
   
   // Set 1-hour voice channel clearing timeout
@@ -109,7 +109,7 @@ async function runCheck(client, guild, voiceChannel) {
           
           const unifiedChat = guild.channels.cache.get(UNIFIED_CHAT_ID) ?? await guild.channels.fetch(UNIFIED_CHAT_ID).catch(() => null);
           if (unifiedChat) {
-            await unifiedChat.send(`⚠️ Member <@${userId}> (${record.character_name}) has withdrawn from Siege early!`);
+            await unifiedChat.send(`⚠️ تنبيه: العضو <@${userId}> (${record.character_name}) انسحب مبكراً من الحصار!`);
           }
         }
       }
@@ -198,7 +198,7 @@ async function endSiege(client, guild) {
   for (let i = 0; i < chunks.length; i++) {
     const embed = new EmbedBuilder()
       .setColor(0x2b2d31)
-      .setTitle(i === 0 ? "📊 Siege Results & Leaderboard" : "📊 Siege Results (Cont.)")
+      .setTitle(i === 0 ? "📊 نتائج وترتيب الحصار | Siege Results & Leaderboard" : "📊 نتائج وترتيب الحصار (تكملة)")
       .setDescription(chunks[i])
       .setTimestamp();
     await reportChannel.send({ embeds: [embed] });

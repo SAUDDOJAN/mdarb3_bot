@@ -14,7 +14,7 @@ export default {
       .setCustomId("shugo_url")
       .setLabel("رابط ملفك على Shugo.gg")
       .setStyle(TextInputStyle.Short)
-      .setPlaceholder("https://shugo.gg/character?id=...&server=...")
+      .setPlaceholder("https://shugo.gg/character/global/eu-ludra/CharacterName")
       .setRequired(true)
       .setMinLength(10)
       .setMaxLength(300);

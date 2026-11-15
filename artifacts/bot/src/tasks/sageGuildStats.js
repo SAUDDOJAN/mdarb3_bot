@@ -185,13 +185,13 @@ export async function updateGuildStatCard(guild, channel, roleId, role) {
 // ─── Embed builder ────────────────────────────────────────────────────────────
 function buildGuildStatsEmbed({ guild, guildName, totalMembers, addedToday, leader }) {
   const now = new Date();
-  const dateStr = now.toLocaleDateString("en-US", { timeZone: "Asia/Riyadh", year: "numeric", month: "long", day: "numeric" });
+  const dateStr = now.toLocaleDateString("ar-SA", { timeZone: "Asia/Riyadh", year: "numeric", month: "long", day: "numeric" });
 
   const embed = new EmbedBuilder()
     .setColor(0xd4af37)
-    .setTitle(`⚔️ Guild Stats: ${guildName}`)
+    .setTitle(`⚔️ إحصائيات القيلد: ${guildName}`)
     .setAuthor({ name: guild.name, iconURL: guild.iconURL() ?? undefined })
-    .setFooter({ text: `Siege Alliance • Last Update: ${dateStr}` })
+    .setFooter({ text: `تحالف الحصارات • آخر تحديث: ${dateStr}` })
     .setTimestamp();
 
   const sourceServer = leader?.source_discord_server ?? guild.name;
@@ -200,22 +200,22 @@ function buildGuildStatsEmbed({ guild, guildName, totalMembers, addedToday, lead
   if (leader) {
     const cpDisplay = leader.combat_power > 0 ? numFmt(leader.combat_power) : "—";
     embed.setDescription(
-      `🏰 **Discord Server:** ${sourceServer}\n` +
-      `👥 **Members Count:** **${totalMembers}**\n` +
-      `✅ **Added Today:** ${addedText}\n\n` +
-      `> 👑 **Guild Leader:** ${leader.character_name ?? "—"}\n` +
-      `> 🎮 **Class:** ${leader.class_name ?? "—"}\n` +
-      `> 🌍 **Aion Server:** ${leader.server_name ?? "—"}\n` +
-      `> ⚡ **CP:** ★ ${cpDisplay} ★\n\n` +
-      (leader.shugo_url ? `🔗 **[View Profile](${leader.shugo_url})**` : "")
+      `🏰 **سيرفر الديسكورد:** ${sourceServer}\n` +
+      `👥 **عدد الأعضاء:** **${totalMembers}**\n` +
+      `✅ **انضموا اليوم:** ${addedText}\n\n` +
+      `> 👑 **قائد القيلد:** ${leader.character_name ?? "—"}\n` +
+      `> 🎮 **التخصص:** ${leader.class_name ?? "—"}\n` +
+      `> 🌍 **سيرفر اللعبة:** ${leader.server_name ?? "—"}\n` +
+      `> ⚡ **قوة القتال (CP):** ★ ${cpDisplay} ★\n\n` +
+      (leader.shugo_url ? `🔗 **[عرض البروفايل على Shugo.gg](${leader.shugo_url})**` : "")
     );
     if (leader.profile_image) embed.setThumbnail(leader.profile_image);
   } else {
     embed.setDescription(
-      `🏰 **Discord Server:** ${sourceServer}\n` +
-      `👥 **Members Count:** **${totalMembers}**\n` +
-      `✅ **Added Today:** ${addedText}\n\n` +
-      `*No members registered yet.*`
+      `🏰 **سيرفر الديسكورد:** ${sourceServer}\n` +
+      `👥 **عدد الأعضاء:** **${totalMembers}**\n` +
+      `✅ **انضموا اليوم:** ${addedText}\n\n` +
+      `*لا يوجد أعضاء مسجلون حتى الآن.*`
     );
   }
 

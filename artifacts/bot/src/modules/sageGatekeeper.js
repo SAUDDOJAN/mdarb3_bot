@@ -13,7 +13,7 @@ export async function handleGatekeeperButton(interaction) {
     await interaction.deferReply({ flags: 64 });
     const member = await interaction.guild.members.fetch(interaction.user.id).catch(() => null);
     if (!member) {
-      await interaction.editReply({ content: "❌ Cannot find your profile." });
+      await interaction.editReply({ content: "❌ تعذر العثور على ملفك الشخصي في السيرفر." });
       return;
     }
 
@@ -27,7 +27,7 @@ export async function handleGatekeeperButton(interaction) {
 
     // 2. Ephemeral welcome
     await interaction.editReply({
-      content: "✅ **Protocol accepted. Welcome to the Alliance.**",
+      content: "✅ **تم قبول البروتوكول والموافقة على الشروط بنجاح. أهلاً بك في تحالف الحصارات!**",
     });
   } else if (customId === "sage_gate_reject") {
     // Reject & Kick
@@ -38,20 +38,20 @@ export async function handleGatekeeperButton(interaction) {
         embeds: [
           new EmbedBuilder()
             .setColor(0xed4245)
-            .setTitle("❌ Join Rejected")
-            .setDescription("Join rejected due to declining alliance protocols.")
+            .setTitle("❌ تم رفض الانضمام للتحالف")
+            .setDescription("تم استبعادك من السيرفر نظراً لعدم الموافقة على بروتوكولات وشروط تحالف الحصارات.")
+            .setFooter({ text: "تحالف الحصارات • Siege Alliance" })
+            .setTimestamp()
         ]
       }).catch(() => {});
 
       // Kick member
-      await member.kick("Declined to agree to rules").catch(err => {
+      await member.kick("رفض الموافقة على شروط وبروتوكولات التحالف").catch(err => {
         console.error("[Gatekeeper] Failed to kick member:", err.message);
       });
     }
 
-    // Acknowledge interaction without keeping the user thinking (since they are kicked)
-    await interaction.reply({ content: "Action executed.", flags: 64 }).catch(() => {});
+    // Acknowledge interaction
+    await interaction.reply({ content: "تم تنفيذ الإجراء واستبعاد الحساب.", flags: 64 }).catch(() => {});
   }
 }
-
-
