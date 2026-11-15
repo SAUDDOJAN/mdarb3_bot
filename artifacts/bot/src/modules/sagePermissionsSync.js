@@ -386,11 +386,68 @@ export async function syncAllSagePermissions(guild) {
     },
   ]);
 
-  const commandChildren = [CHANNEL_IDS.ORDERS, CHANNEL_IDS.TACTICS, CHANNEL_IDS.DEPLOYMENT];
-  for (const cChId of commandChildren) {
-    await applyOverwrites(cChId, [
+  // 📣┊الأوامر: Strictly Alliance Leader ONLY for sending messages. Council/Shotcaller/GuildLeader/Members CANNOT write (Reactions only).
+  await applyOverwrites(CHANNEL_IDS.ORDERS, [
+    {
+      id: roles.everyone.id,
+      deny: [PermissionFlagsBits.ViewChannel],
+    },
+    {
+      id: roles.verification?.id,
+      deny: [PermissionFlagsBits.ViewChannel],
+    },
+    {
+      id: roles.recruit?.id,
+      deny: [PermissionFlagsBits.ViewChannel],
+    },
+    {
+      id: roles.member?.id,
+      allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.AddReactions],
+      deny: [PermissionFlagsBits.SendMessages, PermissionFlagsBits.ManageMessages],
+    },
+    {
+      id: roles.guildLeader?.id,
+      allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.AddReactions],
+      deny: [PermissionFlagsBits.SendMessages, PermissionFlagsBits.ManageMessages],
+    },
+    {
+      id: roles.shotcaller?.id,
+      allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.AddReactions],
+      deny: [PermissionFlagsBits.SendMessages, PermissionFlagsBits.ManageMessages],
+    },
+    {
+      id: roles.council?.id,
+      allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.AddReactions],
+      deny: [PermissionFlagsBits.SendMessages, PermissionFlagsBits.ManageMessages], // Council strictly blocked from writing
+    },
+    {
+      id: roles.leader?.id,
+      allow: [
+        PermissionFlagsBits.ViewChannel,
+        PermissionFlagsBits.ReadMessageHistory,
+        PermissionFlagsBits.SendMessages,
+        PermissionFlagsBits.ManageMessages,
+        PermissionFlagsBits.EmbedLinks,
+        PermissionFlagsBits.AttachFiles,
+        PermissionFlagsBits.AddReactions,
+      ],
+    },
+  ]);
+
+  // 🗺️┊الخطط & 📊┊توزيع-القوات: Guild Leaders & Leaders/Council/Shotcaller can write and read history. Members read-only (reactions allowed).
+  const planningChannels = [CHANNEL_IDS.TACTICS, CHANNEL_IDS.DEPLOYMENT];
+  for (const pChId of planningChannels) {
+    await applyOverwrites(pChId, [
       {
         id: roles.everyone.id,
+        deny: [PermissionFlagsBits.ViewChannel],
+      },
+      {
+        id: roles.verification?.id,
+        deny: [PermissionFlagsBits.ViewChannel],
+      },
+      {
+        id: roles.recruit?.id,
         deny: [PermissionFlagsBits.ViewChannel],
       },
       {
@@ -400,20 +457,51 @@ export async function syncAllSagePermissions(guild) {
       },
       {
         id: roles.guildLeader?.id,
-        allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.AddReactions, PermissionFlagsBits.ManageMessages],
-        deny: [PermissionFlagsBits.SendMessages],
+        allow: [
+          PermissionFlagsBits.ViewChannel,
+          PermissionFlagsBits.ReadMessageHistory,
+          PermissionFlagsBits.SendMessages,
+          PermissionFlagsBits.EmbedLinks,
+          PermissionFlagsBits.AttachFiles,
+          PermissionFlagsBits.AddReactions,
+          PermissionFlagsBits.ManageMessages,
+        ],
       },
       {
         id: roles.shotcaller?.id,
-        allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ManageMessages, PermissionFlagsBits.EmbedLinks, PermissionFlagsBits.AttachFiles],
+        allow: [
+          PermissionFlagsBits.ViewChannel,
+          PermissionFlagsBits.ReadMessageHistory,
+          PermissionFlagsBits.SendMessages,
+          PermissionFlagsBits.EmbedLinks,
+          PermissionFlagsBits.AttachFiles,
+          PermissionFlagsBits.AddReactions,
+          PermissionFlagsBits.ManageMessages,
+        ],
       },
       {
         id: roles.council?.id,
-        allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ManageMessages, PermissionFlagsBits.EmbedLinks, PermissionFlagsBits.AttachFiles],
+        allow: [
+          PermissionFlagsBits.ViewChannel,
+          PermissionFlagsBits.ReadMessageHistory,
+          PermissionFlagsBits.SendMessages,
+          PermissionFlagsBits.EmbedLinks,
+          PermissionFlagsBits.AttachFiles,
+          PermissionFlagsBits.AddReactions,
+          PermissionFlagsBits.ManageMessages,
+        ],
       },
       {
         id: roles.leader?.id,
-        allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ManageMessages, PermissionFlagsBits.EmbedLinks, PermissionFlagsBits.AttachFiles],
+        allow: [
+          PermissionFlagsBits.ViewChannel,
+          PermissionFlagsBits.ReadMessageHistory,
+          PermissionFlagsBits.SendMessages,
+          PermissionFlagsBits.EmbedLinks,
+          PermissionFlagsBits.AttachFiles,
+          PermissionFlagsBits.AddReactions,
+          PermissionFlagsBits.ManageMessages,
+        ],
       },
     ]);
   }

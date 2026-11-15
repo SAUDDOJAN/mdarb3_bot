@@ -2,9 +2,9 @@ import { EmbedBuilder } from "discord.js";
 import { query } from "../database/index.js";
 import { addPoints } from "../modules/management.js";
 
-const SIEGE_VOICE_ID = "1507708086171992125";
+const SIEGE_VOICE_ID = "1571540894061039788"; // 🏟️┊سيج-الحلف
 const UNIFIED_CHAT_ID = "1507706953521041509";
-const REPORT_CHANNEL_ID = "1508678825066762280";
+const REPORT_CHANNEL_ID = "1508477241896730736"; // 🛠️┊الإدارة (Admin only, leaderboard removed from deployment room)
 
 const MONITOR_INTERVAL = 3 * 60 * 1000; // 3 minutes
 const MAX_DURATION = 40 * 60 * 1000; // 40 minutes limit
