@@ -5,7 +5,7 @@ import { addPoints } from "../modules/management.js";
 // ─── Constants ───────────────────────────────────────────────────────────────
 const BATTLE_VOICE_ID     = "1504419701642760292"; // قناة الصوت "المعارك"
 const LOBBY_CHANNEL_ID    = "1496783538937135184"; // ساحة المجموعات — مكان إمبد الحدث
-const INTERACT_LOG_ID     = "1470406771318460426"; // الاعلانات
+const INTERACT_LOG_ID     = process.env.NEWS_CHANNEL_ID || "1567572191959064589"; // الاعلانات
 const WITHDRAWAL_LOG_ID   = "1502976886710730823"; // سجل الانسحابات
 const MAIN_GUILD_ID       = process.env.MAIN_GUILD_ID || "861355983975874601";
 
