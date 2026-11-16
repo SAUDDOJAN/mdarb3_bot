@@ -41,14 +41,18 @@ export default {
       }
     }
 
-    // ── 2. Sage Gatekeeper (Assign Verification Role immediately) ──────────────
+    // ── 2. Sage Auto-Role (Assign Verification Role immediately on join) ───────────
     if (member.guild.id === SAGE_GUILD_ID) {
+      const AUTO_ROLE_ID = "1508444579488075868";
       try {
-        const VERIFICATION_ROLE_ID = "1508444579488075868";
-        await member.roles.add(VERIFICATION_ROLE_ID).catch(() => {});
-        console.log(`[SageGatekeeper] Assiged Verification role to ${member.user.tag}`);
-      } catch (e) {
-        console.error("[SageGatekeeper] Error assigning verification role:", e.message);
+        if (member.roles.cache.has(AUTO_ROLE_ID)) {
+          console.log(`[SageAutoRole] Member ${member.user?.tag || member.id} already has role ${AUTO_ROLE_ID}. Skipping.`);
+        } else {
+          await member.roles.add(AUTO_ROLE_ID, "Sage Alliance Auto-Role on join");
+          console.log(`[SageAutoRole] Successfully granted auto-role ${AUTO_ROLE_ID} to ${member.user?.tag || member.id}`);
+        }
+      } catch (err) {
+        console.error(`[SageAutoRole] Failed to grant auto-role ${AUTO_ROLE_ID} to ${member.user?.tag || member.id}:`, err?.message || err);
       }
     }
 

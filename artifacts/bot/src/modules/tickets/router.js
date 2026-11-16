@@ -858,7 +858,7 @@ async function handleModalSubmission(interaction, rawTypePayload) {
   // Create channel securely
   let channel = null;
   try {
-    const channelPrefix = isConfidential ? "report" : "ticket";
+    const channelPrefix = isConfidential ? "بلاغ" : "تذكرة";
     channel = await guild.channels.create({
       name: `${channelPrefix}-${user.username.toLowerCase().replace(/[^a-z0-9_-]/g, "")}`,
       type: ChannelType.GuildText,
@@ -884,9 +884,10 @@ async function handleModalSubmission(interaction, rawTypePayload) {
       modalData,
     });
 
-    // Rename channel to include clean sequential number
+    // Rename channel to include clean sequential number with status icon
     const formattedNumber = String(ticketRecord.ticket_number).padStart(4, "0");
-    await channel.setName(`${isConfidential ? "report" : "ticket"}-${formattedNumber}`).catch(() => {});
+    const initialPrefix = isConfidential ? "🚨｜بلاغ" : "🎫｜تذكرة";
+    await channel.setName(`${initialPrefix}-${formattedNumber}`).catch(() => {});
   } catch (dbErr) {
     console.error("[TicketRouter] Database insertion error:", dbErr.message);
     await channel.delete().catch(() => {});
@@ -974,6 +975,11 @@ async function handleControlAction(interaction, action) {
         ephemeral: true,
       });
     }
+
+    // Dynamic channel icon update: switch from new (🎫) to in-progress (⚙️)
+    const formattedNumber = String(result.ticket.ticket_number).padStart(4, "0");
+    const inProgressPrefix = result.ticket.is_confidential ? "🚨｜بلاغ" : "⚙️｜تذكرة";
+    await interaction.channel.setName(`${inProgressPrefix}-${formattedNumber}`).catch(() => {});
 
     await interaction.reply({
       content: `✅ تم استلام التذكرة بواسطة <@${interaction.user.id}>.`,

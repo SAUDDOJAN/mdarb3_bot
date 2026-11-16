@@ -1322,7 +1322,7 @@ export async function updateTLMemberCount(client) {
     const tlRole = await guild.roles.fetch(TL_MEMBER_ROLE_ID).catch(() => null);
     const count = tlRole ? tlRole.members.size : 0;
 
-    await membersChannel.setName(`🔰｜ᵀʰʳᵒⁿᴺᴸᶦᵇʳᵗʸ-الاعضاء「${count}」`).catch(e => console.error("[TL] Name update err:", e));
+    await membersChannel.setName(`👥｜الأعضاء「${count}」`).catch(e => console.error("[TL] Name update err:", e));
   } catch (err) {
     console.error("[TL] Error updating member count:", err);
   }
