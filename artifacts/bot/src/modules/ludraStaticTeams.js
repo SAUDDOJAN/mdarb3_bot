@@ -693,7 +693,9 @@ export async function buildTeamEmbedAndComponents(teamNumber) {
   const members = membersRes.rows;
 
   const count = members.length;
-  const isFull = count >= 10;
+  // Team 10 has an administrative approval exception (معتمد 9/10)
+  const isException = team.team_number === 10;
+  const isFull = count >= 10 || isException;
 
   // Map members by slot for balanced 10-slot rendering (1..5 left, 6..10 right)
   const memberBySlot = new Map();
@@ -763,7 +765,7 @@ export async function buildTeamEmbedAndComponents(teamNumber) {
     .setDescription(
       `⚔️ **تحالف M3RGEEN • منظومة الفرق الثابتة**\n\n` +
       `👑 **قائد الفريق:** ${leaderDisplay}\n` +
-      `📊 **حالة الفريق:** ${isFull ? "مكتمل" : "غير مكتمل"} \`${count} / 10\` لاعبين\n` +
+      `📊 **حالة الفريق:** ${isException && count < 10 ? "معتمد (استثناء إداري خاص)" : (isFull ? "مكتمل" : "غير مكتمل")} \`${count} / 10\` لاعبين\n` +
       `━━━━━━━━━━━━━━━━━━━━━━━━━`
     )
     .addFields(
