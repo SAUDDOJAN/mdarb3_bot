@@ -49,6 +49,7 @@ export const AUTHORIZED_LIST_VIEWER_ROLE_IDS = [
 // Eligibility & Classification Thresholds
 export const HARD_MIN_ILVL = 3000;
 export const NORMAL_MIN_ILVL = 2800;
+export const EASY_MIN_ILVL = 2800;
 export const CARRY_MIN_CP = 170000; // >= 170000 => "كيري", < 170000 => "يتكرى"
 
 // Queue & Rate Limit Configuration
@@ -185,16 +186,20 @@ export async function initLudraRaidDB() {
       channel_id VARCHAR(64) NOT NULL,
       hard_message_id VARCHAR(64),
       normal_message_id VARCHAR(64),
+      easy_message_id VARCHAR(64),
       announcement_message_id VARCHAR(64),
       is_test_channel BOOLEAN DEFAULT TRUE,
       previous_channel_id VARCHAR(64),
       previous_hard_message_id VARCHAR(64),
       previous_normal_message_id VARCHAR(64),
+      previous_easy_message_id VARCHAR(64),
       updated_at TIMESTAMPTZ DEFAULT NOW()
     );
 
     ALTER TABLE ludra_raid_config
-      ADD COLUMN IF NOT EXISTS announcement_message_id VARCHAR(64);
+      ADD COLUMN IF NOT EXISTS announcement_message_id VARCHAR(64),
+      ADD COLUMN IF NOT EXISTS easy_message_id VARCHAR(64),
+      ADD COLUMN IF NOT EXISTS previous_easy_message_id VARCHAR(64);
 
     CREATE TABLE IF NOT EXISTS ludra_external_profiles (
       discord_id VARCHAR(64) PRIMARY KEY,
@@ -225,7 +230,7 @@ export async function initLudraRaidDB() {
       class_name VARCHAR(64) NOT NULL,
       item_level INTEGER NOT NULL,
       combat_power INTEGER NOT NULL,
-      raid_tier VARCHAR(16) NOT NULL CHECK (raid_tier IN ('HARD', 'NORMAL')),
+      raid_tier VARCHAR(16) NOT NULL CHECK (raid_tier IN ('HARD', 'NORMAL', 'EASY')),
       carry_classification VARCHAR(16) CHECK (carry_classification IN ('كيري', 'يتكرى') OR carry_classification IS NULL),
       member_source VARCHAR(32) NOT NULL CHECK (member_source IN ('M3RGEEN_GUILD', 'EMPEROR_GUILD', 'BOTH_GUILDS', 'EXTERNAL')),
       is_guild_member BOOLEAN NOT NULL DEFAULT FALSE,
@@ -237,6 +242,12 @@ export async function initLudraRaidDB() {
       CONSTRAINT uq_ludra_reg_shugo_char UNIQUE (shugo_character_id, server_id)
     );
 
+    ALTER TABLE ludra_raid_registrations
+      DROP CONSTRAINT IF EXISTS ludra_raid_registrations_raid_tier_check;
+    ALTER TABLE ludra_raid_registrations
+      ADD CONSTRAINT ludra_raid_registrations_raid_tier_check
+      CHECK (raid_tier IN ('HARD', 'NORMAL', 'EASY'));
+
     CREATE INDEX IF NOT EXISTS idx_ludra_reg_tier_status
       ON ludra_raid_registrations (raid_tier, eligibility_status);
 
@@ -245,7 +256,7 @@ export async function initLudraRaidDB() {
       discord_id VARCHAR(64) NOT NULL,
       shugo_character_id TEXT,
       shugo_url TEXT NOT NULL,
-      target_action VARCHAR(24) NOT NULL CHECK (target_action IN ('HARD', 'NORMAL', 'REFRESH')),
+      target_action VARCHAR(24) NOT NULL CHECK (target_action IN ('HARD', 'NORMAL', 'EASY', 'REFRESH')),
       member_source VARCHAR(32) NOT NULL,
       is_guild_member BOOLEAN NOT NULL DEFAULT FALSE,
       status VARCHAR(24) NOT NULL DEFAULT 'PENDING' CHECK (status IN ('PENDING', 'PROCESSING', 'COMPLETED', 'FAILED')),
@@ -258,6 +269,12 @@ export async function initLudraRaidDB() {
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       completed_at TIMESTAMPTZ
     );
+
+    ALTER TABLE ludra_sync_queue
+      DROP CONSTRAINT IF EXISTS ludra_sync_queue_target_action_check;
+    ALTER TABLE ludra_sync_queue
+      ADD CONSTRAINT ludra_sync_queue_target_action_check
+      CHECK (target_action IN ('HARD', 'NORMAL', 'EASY', 'REFRESH'));
 
     CREATE UNIQUE INDEX IF NOT EXISTS uq_ludra_queue_active_discord
       ON ludra_sync_queue (discord_id)
@@ -375,20 +392,8 @@ export function isAuthorizedListViewer(member) {
 export async function resolveExistingPlayerShugoUrl(discordId, isGuildMember) {
   await initLudraRaidDB();
 
-  // Check if already registered in Ludra
-  const ludraReg = await query(
-    `SELECT shugo_url, shugo_character_id FROM ludra_raid_registrations WHERE discord_id = $1 LIMIT 1`,
-    [String(discordId)]
-  );
-  if (ludraReg.rows.length > 0 && ludraReg.rows[0].shugo_url) {
-    const v = validateAndSanitizeShugoUrl(ludraReg.rows[0].shugo_url);
-    if (v.valid) {
-      return { shugoUrl: v.url, shugoCharacterId: ludraReg.rows[0].shugo_character_id || null, origin: "LUDRA_REGISTRATION" };
-    }
-  }
-
   if (isGuildMember) {
-    // 1. Check aion2_global_applications (Read-Only!)
+    // 1. Check aion2_global_applications for verified guild member character (Read-Only!)
     const appRes = await query(
       `SELECT shugo_url FROM aion2_global_applications
        WHERE discord_id = $1 AND shugo_url IS NOT NULL AND TRIM(shugo_url) <> ''
@@ -402,7 +407,21 @@ export async function resolveExistingPlayerShugoUrl(discordId, isGuildMember) {
         return { shugoUrl: v.url, shugoCharacterId: null, origin: "GUILD_APPLICATIONS" };
       }
     }
+  }
 
+  // Check if already registered in Ludra
+  const ludraReg = await query(
+    `SELECT shugo_url, shugo_character_id FROM ludra_raid_registrations WHERE discord_id = $1 LIMIT 1`,
+    [String(discordId)]
+  );
+  if (ludraReg.rows.length > 0 && ludraReg.rows[0].shugo_url) {
+    const v = validateAndSanitizeShugoUrl(ludraReg.rows[0].shugo_url);
+    if (v.valid) {
+      return { shugoUrl: v.url, shugoCharacterId: ludraReg.rows[0].shugo_character_id || null, origin: "LUDRA_REGISTRATION" };
+    }
+  }
+
+  if (isGuildMember) {
     // 2. Check recruits fallback (Read-Only!)
     const recRes = await query(
       `SELECT shugo_url FROM recruits
@@ -912,9 +931,10 @@ export async function applyLudraRegistrationTransaction({
 
       // Qualified for HARD (itemLevel >= 3000)!
       const wasInNormal = existing && existing.raid_tier === "NORMAL";
+      const wasInEasy = existing && existing.raid_tier === "EASY";
       const wasUpdateInHard = existing && existing.raid_tier === "HARD";
 
-      // Atomic upsert into HARD (removes from NORMAL if wasInNormal, clears carry_classification)
+      // Atomic upsert into HARD (removes from NORMAL/EASY if was in them, clears carry_classification)
       await client.query(
         `INSERT INTO ludra_raid_registrations (
            discord_id, shugo_character_id, server_id, server_name, region, shugo_url,
@@ -979,6 +999,21 @@ export async function applyLudraRegistrationTransaction({
         };
       }
 
+      if (wasInEasy) {
+        return {
+          accepted: true,
+          code: "UPGRADED_EASY_TO_HARD",
+          embedsChanged: true,
+          tier: "HARD",
+          message:
+            `🔥 **تمت ترقيتك ونقلك تلقائياً من Ludra Easy إلى Ludra Hard!**\n` +
+            `• **الشخصية:** \`${characterName}\` (${className})\n` +
+            `• **Item Level:** \`${numFmt(itemLevel)}\`\n` +
+            `• **Combat Power:** \`${numFmt(combatPower)}\`\n` +
+            `*(تم حذف تسجيلك من Easy وإضافتك في إحصائيات Hard بنجاح)*`,
+        };
+      }
+
       if (wasUpdateInHard) {
         return {
           accepted: true,
@@ -1007,133 +1042,268 @@ export async function applyLudraRegistrationTransaction({
     }
 
     // ── CASE B: Target is NORMAL (2800+ iLvl) ───────────────────────────────
-    // If player is registered in HARD and chooses to register in NORMAL, allow moving down to Normal!
-    const wasDowngradeFromHard = Boolean(
-      existing && existing.raid_tier === "HARD" && existing.eligibility_status === "ACTIVE" && targetAction === "NORMAL"
-    );
+    if (effectiveAction === "NORMAL") {
+      const wasDowngradeFromHard = Boolean(
+        existing && existing.raid_tier === "HARD" && existing.eligibility_status === "ACTIVE"
+      );
+      const wasMoveFromEasy = Boolean(
+        existing && existing.raid_tier === "EASY" && existing.eligibility_status === "ACTIVE"
+      );
 
-    if (itemLevel < NORMAL_MIN_ILVL) {
-      // If they were already registered in NORMAL and their iLvl dropped below 2800 on re-verification:
-      if (existing && existing.raid_tier === "NORMAL") {
-        await client.query(
-          `UPDATE ludra_raid_registrations
-           SET character_name = $2, class_name = $3, item_level = $4, combat_power = $5,
-               member_source = $6, is_guild_member = $7,
-               eligibility_status = 'SUSPENDED',
-               suspended_reason = $8,
-               last_verified_at = $9, updated_at = NOW()
-           WHERE discord_id = $1`,
-          [
-            String(discordId),
-            characterName,
-            className,
-            itemLevel,
-            combatPower,
-            memberSource,
-            isGuildMember,
-            `انخفض Item Level إلى ${itemLevel} (أقل من 2800)`,
-            verifiedAt,
-          ]
-        );
+      if (itemLevel < NORMAL_MIN_ILVL) {
+        if (existing && existing.raid_tier === "NORMAL") {
+          await client.query(
+            `UPDATE ludra_raid_registrations
+             SET character_name = $2, class_name = $3, item_level = $4, combat_power = $5,
+                 member_source = $6, is_guild_member = $7,
+                 eligibility_status = 'SUSPENDED',
+                 suspended_reason = $8,
+                 last_verified_at = $9, updated_at = NOW()
+             WHERE discord_id = $1`,
+            [
+              String(discordId),
+              characterName,
+              className,
+              itemLevel,
+              combatPower,
+              memberSource,
+              isGuildMember,
+              `انخفض Item Level إلى ${itemLevel} (أقل من 2800)`,
+              verifiedAt,
+            ]
+          );
+          await client.query("COMMIT");
+          return {
+            accepted: false,
+            code: "NORMAL_SUSPENDED_BELOW_2800",
+            embedsChanged: true,
+            message:
+              `⚠️ لم تصل إلى Item Level 2800 المطلوب للتسجيل في Ludra Normal. مستواك الحالي: ${itemLevel}.\n` +
+              `تم تعليق أهليتك في الإحصائيات لحين إعادة رفع مستوى العتاد إلى 2800+.`,
+          };
+        }
+
         await client.query("COMMIT");
         return {
           accepted: false,
-          code: "NORMAL_SUSPENDED_BELOW_2800",
-          embedsChanged: true,
-          message:
-            `⚠️ لم تصل إلى Item Level 2800 المطلوب للتسجيل في Ludra Normal. مستواك الحالي: ${itemLevel}.\n` +
-            `تم تعليق أهليتك في الإحصائيات لحين إعادة رفع مستوى العتاد إلى 2800+.`,
+          code: "NORMAL_REJECTED_ILVL",
+          embedsChanged: false,
+          message: `لم تصل بعد إلى Item Level 2800 المطلوب للتسجيل في Ludra Normal. مستواك الحالي: ${itemLevel}.`,
         };
       }
 
+      const carryClassification = combatPower >= CARRY_MIN_CP ? "كيري" : "يتكرى";
+      const wasUpdateInNormal = existing && existing.raid_tier === "NORMAL";
+
+      await client.query(
+        `INSERT INTO ludra_raid_registrations (
+           discord_id, shugo_character_id, server_id, server_name, region, shugo_url,
+           character_name, class_name, item_level, combat_power,
+           raid_tier, carry_classification, member_source, is_guild_member,
+           eligibility_status, suspended_reason, last_verified_at, registered_at, updated_at
+         ) VALUES (
+           $1, $2, $3, $4, $5, $6,
+           $7, $8, $9, $10,
+           'NORMAL', $11, $12, $13,
+           'ACTIVE', NULL, $14, NOW(), NOW()
+         )
+         ON CONFLICT (discord_id) DO UPDATE SET
+           shugo_character_id = EXCLUDED.shugo_character_id,
+           server_id = EXCLUDED.server_id,
+           server_name = EXCLUDED.server_name,
+           region = EXCLUDED.region,
+           shugo_url = EXCLUDED.shugo_url,
+           character_name = EXCLUDED.character_name,
+           class_name = EXCLUDED.class_name,
+           item_level = EXCLUDED.item_level,
+           combat_power = EXCLUDED.combat_power,
+           raid_tier = 'NORMAL',
+           carry_classification = EXCLUDED.carry_classification,
+           member_source = EXCLUDED.member_source,
+           is_guild_member = EXCLUDED.is_guild_member,
+           eligibility_status = 'ACTIVE',
+           suspended_reason = NULL,
+           last_verified_at = EXCLUDED.last_verified_at,
+           updated_at = NOW()`,
+        [
+          String(discordId),
+          shugoCharacterId,
+          serverId,
+          serverName,
+          region,
+          shugoUrl,
+          characterName,
+          className,
+          itemLevel,
+          combatPower,
+          carryClassification,
+          memberSource,
+          isGuildMember,
+          verifiedAt,
+        ]
+      );
+
       await client.query("COMMIT");
+
+      let responseCode = "REGISTERED_NORMAL";
+      let titleMsg = "تم تسجيلك بنجاح";
+      if (wasDowngradeFromHard) {
+        responseCode = "MOVED_HARD_TO_NORMAL";
+        titleMsg = "تم نقلك بنجاح من Ludra Hard إلى Ludra Normal";
+      } else if (wasMoveFromEasy) {
+        responseCode = "MOVED_EASY_TO_NORMAL";
+        titleMsg = "تم نقلك بنجاح من Ludra Easy إلى Ludra Normal";
+      } else if (wasUpdateInNormal) {
+        responseCode = "UPDATED_IN_NORMAL";
+        titleMsg = "تم تحديث بياناتك وتصنيفك في Ludra Normal";
+      }
+
       return {
-        accepted: false,
-        code: "NORMAL_REJECTED_ILVL",
-        embedsChanged: false,
-        message: `لم تصل بعد إلى Item Level 2800 المطلوب للتسجيل في Ludra Normal. مستواك الحالي: ${itemLevel}.`,
+        accepted: true,
+        code: responseCode,
+        embedsChanged: true,
+        tier: "NORMAL",
+        classification: carryClassification,
+        message:
+          `🛡️ **${titleMsg} (2800+)!**\n` +
+          `• **الشخصية:** \`${characterName}\` (${className})\n` +
+          `• **Item Level:** \`${numFmt(itemLevel)}\`\n` +
+          `• **Combat Power:** \`${numFmt(combatPower)}\`\n` +
+          `• **التصنيف التلقائي:** **${carryClassification}**`,
       };
     }
 
-    // Automatic Carry / يتكرى classification:
-    // CP >= 170000 => "كيري"
-    // CP < 170000  => "يتكرى"
-    const carryClassification = combatPower >= CARRY_MIN_CP ? "كيري" : "يتكرى";
-    const wasUpdateInNormal = existing && existing.raid_tier === "NORMAL";
+    // ── CASE C: Target is EASY (2800+ iLvl) ─────────────────────────────────
+    if (effectiveAction === "EASY") {
+      const wasMoveFromHard = Boolean(
+        existing && existing.raid_tier === "HARD" && existing.eligibility_status === "ACTIVE"
+      );
+      const wasMoveFromNormal = Boolean(
+        existing && existing.raid_tier === "NORMAL" && existing.eligibility_status === "ACTIVE"
+      );
 
-    await client.query(
-      `INSERT INTO ludra_raid_registrations (
-         discord_id, shugo_character_id, server_id, server_name, region, shugo_url,
-         character_name, class_name, item_level, combat_power,
-         raid_tier, carry_classification, member_source, is_guild_member,
-         eligibility_status, suspended_reason, last_verified_at, registered_at, updated_at
-       ) VALUES (
-         $1, $2, $3, $4, $5, $6,
-         $7, $8, $9, $10,
-         'NORMAL', $11, $12, $13,
-         'ACTIVE', NULL, $14, NOW(), NOW()
-       )
-       ON CONFLICT (discord_id) DO UPDATE SET
-         shugo_character_id = EXCLUDED.shugo_character_id,
-         server_id = EXCLUDED.server_id,
-         server_name = EXCLUDED.server_name,
-         region = EXCLUDED.region,
-         shugo_url = EXCLUDED.shugo_url,
-         character_name = EXCLUDED.character_name,
-         class_name = EXCLUDED.class_name,
-         item_level = EXCLUDED.item_level,
-         combat_power = EXCLUDED.combat_power,
-         raid_tier = 'NORMAL',
-         carry_classification = EXCLUDED.carry_classification,
-         member_source = EXCLUDED.member_source,
-         is_guild_member = EXCLUDED.is_guild_member,
-         eligibility_status = 'ACTIVE',
-         suspended_reason = NULL,
-         last_verified_at = EXCLUDED.last_verified_at,
-         updated_at = NOW()`,
-      [
-        String(discordId),
-        shugoCharacterId,
-        serverId,
-        serverName,
-        region,
-        shugoUrl,
-        characterName,
-        className,
-        itemLevel,
-        combatPower,
-        carryClassification,
-        memberSource,
-        isGuildMember,
-        verifiedAt,
-      ]
-    );
+      if (itemLevel < EASY_MIN_ILVL) {
+        if (existing && existing.raid_tier === "EASY") {
+          await client.query(
+            `UPDATE ludra_raid_registrations
+             SET character_name = $2, class_name = $3, item_level = $4, combat_power = $5,
+                 member_source = $6, is_guild_member = $7,
+                 eligibility_status = 'SUSPENDED',
+                 suspended_reason = $8,
+                 last_verified_at = $9, updated_at = NOW()
+             WHERE discord_id = $1`,
+            [
+              String(discordId),
+              characterName,
+              className,
+              itemLevel,
+              combatPower,
+              memberSource,
+              isGuildMember,
+              `انخفض Item Level إلى ${itemLevel} (أقل من 2800)`,
+              verifiedAt,
+            ]
+          );
+          await client.query("COMMIT");
+          return {
+            accepted: false,
+            code: "EASY_SUSPENDED_BELOW_2800",
+            embedsChanged: true,
+            message:
+              `⚠️ لم تصل إلى Item Level 2800 المطلوب للتسجيل في Ludra Easy. مستواك الحالي: ${itemLevel}.\n` +
+              `تم تعليق أهليتك في الإحصائيات لحين إعادة رفع مستوى العتاد إلى 2800+.`,
+          };
+        }
 
-    await client.query("COMMIT");
+        await client.query("COMMIT");
+        return {
+          accepted: false,
+          code: "EASY_REJECTED_ILVL",
+          embedsChanged: false,
+          message: `لم تصل بعد إلى Item Level 2800 المطلوب للتسجيل في Ludra Easy. مستواك الحالي: ${itemLevel}.`,
+        };
+      }
 
-    let responseCode = "REGISTERED_NORMAL";
-    let titleMsg = "تم تسجيلك بنجاح";
-    if (wasDowngradeFromHard) {
-      responseCode = "MOVED_HARD_TO_NORMAL";
-      titleMsg = "تم نقلك بنجاح من Ludra Hard إلى Ludra Normal";
-    } else if (wasUpdateInNormal) {
-      responseCode = "UPDATED_IN_NORMAL";
-      titleMsg = "تم تحديث بياناتك وتصنيفك في Ludra Normal";
+      const carryClassification = combatPower >= CARRY_MIN_CP ? "كيري" : "يتكرى";
+      const wasUpdateInEasy = existing && existing.raid_tier === "EASY";
+
+      await client.query(
+        `INSERT INTO ludra_raid_registrations (
+           discord_id, shugo_character_id, server_id, server_name, region, shugo_url,
+           character_name, class_name, item_level, combat_power,
+           raid_tier, carry_classification, member_source, is_guild_member,
+           eligibility_status, suspended_reason, last_verified_at, registered_at, updated_at
+         ) VALUES (
+           $1, $2, $3, $4, $5, $6,
+           $7, $8, $9, $10,
+           'EASY', $11, $12, $13,
+           'ACTIVE', NULL, $14, NOW(), NOW()
+         )
+         ON CONFLICT (discord_id) DO UPDATE SET
+           shugo_character_id = EXCLUDED.shugo_character_id,
+           server_id = EXCLUDED.server_id,
+           server_name = EXCLUDED.server_name,
+           region = EXCLUDED.region,
+           shugo_url = EXCLUDED.shugo_url,
+           character_name = EXCLUDED.character_name,
+           class_name = EXCLUDED.class_name,
+           item_level = EXCLUDED.item_level,
+           combat_power = EXCLUDED.combat_power,
+           raid_tier = 'EASY',
+           carry_classification = EXCLUDED.carry_classification,
+           member_source = EXCLUDED.member_source,
+           is_guild_member = EXCLUDED.is_guild_member,
+           eligibility_status = 'ACTIVE',
+           suspended_reason = NULL,
+           last_verified_at = EXCLUDED.last_verified_at,
+           updated_at = NOW()`,
+        [
+          String(discordId),
+          shugoCharacterId,
+          serverId,
+          serverName,
+          region,
+          shugoUrl,
+          characterName,
+          className,
+          itemLevel,
+          combatPower,
+          carryClassification,
+          memberSource,
+          isGuildMember,
+          verifiedAt,
+        ]
+      );
+
+      await client.query("COMMIT");
+
+      let responseCode = "REGISTERED_EASY";
+      let titleMsg = "تم تسجيلك بنجاح";
+      if (wasMoveFromHard) {
+        responseCode = "MOVED_HARD_TO_EASY";
+        titleMsg = "تم نقلك بنجاح من Ludra Hard إلى Ludra Easy";
+      } else if (wasMoveFromNormal) {
+        responseCode = "MOVED_NORMAL_TO_EASY";
+        titleMsg = "تم نقلك بنجاح من Ludra Normal إلى Ludra Easy";
+      } else if (wasUpdateInEasy) {
+        responseCode = "UPDATED_IN_EASY";
+        titleMsg = "تم تحديث بياناتك وتصنيفك في Ludra Easy";
+      }
+
+      return {
+        accepted: true,
+        code: responseCode,
+        embedsChanged: true,
+        tier: "EASY",
+        classification: carryClassification,
+        message:
+          `🌱 **${titleMsg} (2800+)!**\n` +
+          `• **الشخصية:** \`${characterName}\` (${className})\n` +
+          `• **Item Level:** \`${numFmt(itemLevel)}\`\n` +
+          `• **Combat Power:** \`${numFmt(combatPower)}\`\n` +
+          `• **التصنيف التلقائي:** **${carryClassification}**`,
+      };
     }
-
-    return {
-      accepted: true,
-      code: responseCode,
-      embedsChanged: true,
-      tier: "NORMAL",
-      classification: carryClassification,
-      message:
-        `🛡️ **${titleMsg} (2800+)!**\n` +
-        `• **الشخصية:** \`${characterName}\` (${className})\n` +
-        `• **Item Level:** \`${numFmt(itemLevel)}\`\n` +
-        `• **Combat Power:** \`${numFmt(combatPower)}\`\n` +
-        `• **التصنيف التلقائي:** **${carryClassification}**`,
-    };
   } catch (err) {
     await client.query("ROLLBACK").catch(() => {});
     throw err;
@@ -1388,6 +1558,89 @@ export async function buildLudraNormalEmbedAndComponents(disabled = false) {
   return { embed, components: [row], stats };
 }
 
+export async function getLudraEasyStats() {
+  await initLudraRaidDB();
+  const res = await query(
+    `SELECT discord_id, character_name, class_name, item_level, combat_power,
+            carry_classification, member_source, is_guild_member, server_name, last_verified_at
+     FROM ludra_raid_registrations
+     WHERE raid_tier = 'EASY' AND eligibility_status = 'ACTIVE'
+     ORDER BY
+       (CASE WHEN carry_classification = 'كيري' THEN 0 ELSE 1 END) ASC,
+       combat_power DESC,
+       item_level DESC,
+       character_name ASC`
+  );
+
+  let carryCount = 0;
+  let carriedCount = 0;
+  const classCounts = {};
+  for (const c of ALL_CLASSES) classCounts[c] = 0;
+
+  for (const row of res.rows) {
+    if (row.carry_classification === "كيري") carryCount++;
+    else carriedCount++;
+
+    const normClass = normalizeClassName(row.class_name);
+    classCounts[normClass] = (classCounts[normClass] || 0) + 1;
+  }
+
+  return {
+    total: res.rows.length,
+    carryCount,
+    carriedCount,
+    classCounts,
+    players: res.rows,
+  };
+}
+
+export async function buildLudraEasyEmbedAndComponents(disabled = false) {
+  const stats = await getLudraEasyStats();
+
+  const classDistributionLines = ALL_CLASSES.map((cls) => {
+    const emoji = CLASS_EMOJIS[cls] || "🔹";
+    const cnt = stats.classCounts[cls] || 0;
+    return `${emoji} **${cls}:** \`${cnt}\``;
+  });
+
+  const embed = new EmbedBuilder()
+    .setColor(0x2ecc71)
+    .setTitle("🌱 LUDRA EASY — 2800+")
+    .setDescription(
+      `إحصاء وفرز اللاعبين المؤهلين لريد **Ludra Easy**.\n` +
+      `🎯 **شرط القبول:** \`Item Level >= 2800\` (تحديث وفحص حي من Shugo.gg)\n\n` +
+      `━━━━━━━━━━━━━━━━━━\n\n` +
+      `👥 **إجمالي المسجلين:** \`${stats.total}\`\n\n` +
+      `⚔️ **الكيري:** \`${stats.carryCount}\`\n` +
+      `🛡️ **يتكرى:** \`${stats.carriedCount}\`\n\n` +
+      `📊 **توزيع الكلاسات:**\n` +
+      `${classDistributionLines.join("\n")}\n\n` +
+      `━━━━━━━━━━━━━━━━━━`
+    )
+    .setFooter({ text: "تحالف M3RGEEN • نظام فرز وإحصاء Ludra Raid" })
+    .setTimestamp();
+
+  const row = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId("ludra_raid:register:EASY")
+      .setLabel("🌱 تسجيل Easy 2800+")
+      .setStyle(ButtonStyle.Success)
+      .setDisabled(disabled),
+    new ButtonBuilder()
+      .setCustomId("ludra_raid:refresh:EASY")
+      .setLabel("🔄 تحديث بياناتي")
+      .setStyle(ButtonStyle.Secondary)
+      .setDisabled(disabled),
+    new ButtonBuilder()
+      .setCustomId("ludra_raid:easy_list:0")
+      .setLabel("📋 عرض قائمة المسجلين")
+      .setStyle(ButtonStyle.Primary)
+      .setDisabled(disabled)
+  );
+
+  return { embed, components: [row], stats };
+}
+
 // ─── 7. Persistent Embed Config & Debounced Single-Message Updater ────────────
 let activeDiscordClient = null;
 let embedRefreshTimer = null;
@@ -1502,28 +1755,32 @@ export async function saveLudraPanelConfig({
   channelId,
   hardMessageId,
   normalMessageId,
+  easyMessageId = null,
   announcementMessageId = null,
   isTestChannel = false,
   previousChannelId = null,
   previousHardMessageId = null,
   previousNormalMessageId = null,
+  previousEasyMessageId = null,
 }) {
   await initLudraRaidDB();
   await query(
     `INSERT INTO ludra_raid_config (
-       config_key, guild_id, channel_id, hard_message_id, normal_message_id, announcement_message_id,
-       is_test_channel, previous_channel_id, previous_hard_message_id, previous_normal_message_id, updated_at
-     ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW())
+       config_key, guild_id, channel_id, hard_message_id, normal_message_id, easy_message_id, announcement_message_id,
+       is_test_channel, previous_channel_id, previous_hard_message_id, previous_normal_message_id, previous_easy_message_id, updated_at
+     ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW())
      ON CONFLICT (config_key) DO UPDATE SET
        guild_id = EXCLUDED.guild_id,
        channel_id = EXCLUDED.channel_id,
        hard_message_id = EXCLUDED.hard_message_id,
        normal_message_id = EXCLUDED.normal_message_id,
+       easy_message_id = COALESCE(EXCLUDED.easy_message_id, ludra_raid_config.easy_message_id),
        announcement_message_id = COALESCE(EXCLUDED.announcement_message_id, ludra_raid_config.announcement_message_id),
        is_test_channel = EXCLUDED.is_test_channel,
        previous_channel_id = COALESCE(EXCLUDED.previous_channel_id, ludra_raid_config.previous_channel_id),
        previous_hard_message_id = COALESCE(EXCLUDED.previous_hard_message_id, ludra_raid_config.previous_hard_message_id),
        previous_normal_message_id = COALESCE(EXCLUDED.previous_normal_message_id, ludra_raid_config.previous_normal_message_id),
+       previous_easy_message_id = COALESCE(EXCLUDED.previous_easy_message_id, ludra_raid_config.previous_easy_message_id),
        updated_at = NOW()`,
     [
       LUDRA_CONFIG_KEY,
@@ -1531,11 +1788,13 @@ export async function saveLudraPanelConfig({
       channelId,
       hardMessageId,
       normalMessageId,
+      easyMessageId,
       announcementMessageId,
       isTestChannel,
       previousChannelId,
       previousHardMessageId,
       previousNormalMessageId,
+      previousEasyMessageId,
     ]
   );
 }
@@ -1629,13 +1888,15 @@ export async function refreshLudraEmbedsNow(client = activeDiscordClient) {
       return { updated: false, reason: "CHANNEL_NOT_FOUND" };
     }
 
-    const [hardPayload, normalPayload] = await Promise.all([
+    const [hardPayload, normalPayload, easyPayload] = await Promise.all([
       buildLudraHardEmbedAndComponents(false),
       buildLudraNormalEmbedAndComponents(false),
+      buildLudraEasyEmbedAndComponents(false),
     ]);
 
     let hardMsgId = config.hard_message_id;
     let normalMsgId = config.normal_message_id;
+    let easyMsgId = config.easy_message_id;
 
     if (hardMsgId) {
       const hardMsg = await channel.messages.fetch(hardMsgId).catch(() => null);
@@ -1659,17 +1920,37 @@ export async function refreshLudraEmbedsNow(client = activeDiscordClient) {
       }
     }
 
-    if (hardMsgId !== config.hard_message_id || normalMsgId !== config.normal_message_id) {
+    if (easyMsgId) {
+      const easyMsg = await channel.messages.fetch(easyMsgId).catch(() => null);
+      if (easyMsg) {
+        await easyMsg.edit({ embeds: [easyPayload.embed], components: easyPayload.components });
+      } else {
+        console.warn(`[LudraRaid] Easy embed message ${easyMsgId} was deleted. Recreating safely once.`);
+        const recreated = await channel.send({ embeds: [easyPayload.embed], components: easyPayload.components });
+        easyMsgId = recreated.id;
+      }
+    } else {
+      const newEasyMsg = await channel.send({ embeds: [easyPayload.embed], components: easyPayload.components });
+      easyMsgId = newEasyMsg.id;
+    }
+
+    if (
+      hardMsgId !== config.hard_message_id ||
+      normalMsgId !== config.normal_message_id ||
+      easyMsgId !== config.easy_message_id
+    ) {
       await saveLudraPanelConfig({
         guildId: config.guild_id,
         channelId: config.channel_id,
         hardMessageId: hardMsgId,
         normalMessageId: normalMsgId,
+        easyMessageId: easyMsgId,
+        announcementMessageId: config.announcement_message_id,
         isTestChannel: config.is_test_channel,
       });
     }
 
-    return { updated: true, hardMessageId: hardMsgId, normalMessageId: normalMsgId };
+    return { updated: true, hardMessageId: hardMsgId, normalMessageId: normalMsgId, easyMessageId: easyMsgId };
   } finally {
     isRefreshingEmbeds = false;
     if (pendingEmbedRefreshAfterCurrent) {
@@ -1680,11 +1961,11 @@ export async function refreshLudraEmbedsNow(client = activeDiscordClient) {
 }
 
 /**
- * Deploy or update the 2 fixed Ludra embeds in the target channel.
+ * Deploy or update the 3 fixed Ludra embeds in the target channel.
  * If migrating from the test channel to the official channel later:
- *   1. Publishes the 2 new fixed embeds in the new channel (keeping all DB registrations intact).
+ *   1. Publishes the 3 new fixed embeds in the new channel (keeping all DB registrations intact).
  *   2. Disables the old buttons in the test channel.
- *   3. Deletes ONLY the 2 test embed messages after successful migration.
+ *   3. Deletes ONLY the test embed messages after successful migration.
  */
 export async function deployOrMigrateLudraPanels(client, targetChannelId = LUDRA_OFFICIAL_CHANNEL_ID, options = {}) {
   await initLudraRaidDB();
@@ -1708,9 +1989,10 @@ export async function deployOrMigrateLudraPanels(client, targetChannelId = LUDRA
   }
 
   const existingConfig = await getLudraPanelConfig();
-  const [hardPayload, normalPayload] = await Promise.all([
+  const [hardPayload, normalPayload, easyPayload] = await Promise.all([
     buildLudraHardEmbedAndComponents(false),
     buildLudraNormalEmbedAndComponents(false),
+    buildLudraEasyEmbedAndComponents(false),
   ]);
 
   // Same channel: edit existing messages if present, otherwise send once (never re-send mention!)
@@ -1720,6 +2002,9 @@ export async function deployOrMigrateLudraPanels(client, targetChannelId = LUDRA
       : null;
     let normalMsg = existingConfig.normal_message_id
       ? await channel.messages.fetch(existingConfig.normal_message_id).catch(() => null)
+      : null;
+    let easyMsg = existingConfig.easy_message_id
+      ? await channel.messages.fetch(existingConfig.easy_message_id).catch(() => null)
       : null;
 
     if (hardMsg) {
@@ -1734,11 +2019,18 @@ export async function deployOrMigrateLudraPanels(client, targetChannelId = LUDRA
       normalMsg = await channel.send({ embeds: [normalPayload.embed], components: normalPayload.components });
     }
 
+    if (easyMsg) {
+      await easyMsg.edit({ embeds: [easyPayload.embed], components: easyPayload.components });
+    } else {
+      easyMsg = await channel.send({ embeds: [easyPayload.embed], components: easyPayload.components });
+    }
+
     await saveLudraPanelConfig({
       guildId: channel.guildId || MAIN_GUILD_ID,
       channelId: targetChannelId,
       hardMessageId: hardMsg.id,
       normalMessageId: normalMsg.id,
+      easyMessageId: easyMsg.id,
       announcementMessageId: existingConfig.announcement_message_id || null,
       isTestChannel: isTest,
     });
@@ -1748,6 +2040,7 @@ export async function deployOrMigrateLudraPanels(client, targetChannelId = LUDRA
       channelId: targetChannelId,
       hardMessageId: hardMsg.id,
       normalMessageId: normalMsg.id,
+      easyMessageId: easyMsg.id,
       announcementMessageId: existingConfig.announcement_message_id || null,
     };
   }
@@ -1758,7 +2051,7 @@ export async function deployOrMigrateLudraPanels(client, targetChannelId = LUDRA
     const announcementContent =
       `<@&${M3RGEEN_GUILD_ROLE_ID}>\n` +
       `<@&${EMPEROR_GUILD_ROLE_ID}>\n` +
-      `📢 **تم فتح التسجيل والفرز الرسمي لـ Ludra Raid (Hard 3000+ & Normal 2800+)!**\n` +
+      `📢 **تم فتح التسجيل والفرز الرسمي لـ Ludra Raid (Hard 3000+ & Normal 2800+ & Easy 2800+)!**\n` +
       `يرجى اختيار الفئة المناسبة أدناه للتسجيل أو تحديث بيانات شخصيتك مباشرة عبر Shugo.gg.`;
 
     const announcementMsg = await channel.send({
@@ -1773,29 +2066,33 @@ export async function deployOrMigrateLudraPanels(client, targetChannelId = LUDRA
 
   const newHardMsg = await channel.send({ embeds: [hardPayload.embed], components: hardPayload.components });
   const newNormalMsg = await channel.send({ embeds: [normalPayload.embed], components: normalPayload.components });
+  const newEasyMsg = await channel.send({ embeds: [easyPayload.embed], components: easyPayload.components });
 
-  // Safety check: verify both messages and their interactive buttons were published before touching old channel
-  if (!newHardMsg?.id || !newNormalMsg?.id) {
-    throw new Error("فشل التحقق من نشر رسالتي الإمبد في الروم الجديد؛ لن يتم المساس بلوحات الاختبار.");
+  // Safety check: verify messages and their interactive buttons were published before touching old channel
+  if (!newHardMsg?.id || !newNormalMsg?.id || !newEasyMsg?.id) {
+    throw new Error("فشل التحقق من نشر رسائل الإمبد في الروم الجديد؛ لن يتم المساس بلوحات الاختبار.");
   }
 
   const oldChannelId = existingConfig?.channel_id || null;
   const oldHardMsgId = existingConfig?.hard_message_id || null;
   const oldNormalMsgId = existingConfig?.normal_message_id || null;
+  const oldEasyMsgId = existingConfig?.easy_message_id || null;
 
   await saveLudraPanelConfig({
     guildId: channel.guildId || MAIN_GUILD_ID,
     channelId: targetChannelId,
     hardMessageId: newHardMsg.id,
     normalMessageId: newNormalMsg.id,
+    easyMessageId: newEasyMsg.id,
     announcementMessageId,
     isTestChannel: isTest,
     previousChannelId: oldChannelId,
     previousHardMessageId: oldHardMsgId,
     previousNormalMessageId: oldNormalMsgId,
+    previousEasyMessageId: oldEasyMsgId,
   });
 
-  // If there was a previous channel (e.g. test channel migration), disable its buttons then delete ONLY those 2 messages
+  // If there was a previous channel (e.g. test channel migration), disable its buttons then delete ONLY those messages
   let oldMessagesCleaned = 0;
   if (oldChannelId && String(oldChannelId) !== String(targetChannelId)) {
     const oldChannel =
@@ -1803,14 +2100,16 @@ export async function deployOrMigrateLudraPanels(client, targetChannelId = LUDRA
       (await client.channels?.fetch?.(oldChannelId).catch(() => null));
 
     if (oldChannel) {
-      const [disabledHard, disabledNormal] = await Promise.all([
+      const [disabledHard, disabledNormal, disabledEasy] = await Promise.all([
         buildLudraHardEmbedAndComponents(true),
         buildLudraNormalEmbedAndComponents(true),
+        buildLudraEasyEmbedAndComponents(true),
       ]);
 
       for (const [msgId, payload] of [
         [oldHardMsgId, disabledHard],
         [oldNormalMsgId, disabledNormal],
+        [oldEasyMsgId, disabledEasy],
       ]) {
         if (!msgId) continue;
         const oldMsg = await oldChannel.messages.fetch(msgId).catch(() => null);
@@ -1828,6 +2127,7 @@ export async function deployOrMigrateLudraPanels(client, targetChannelId = LUDRA
     channelId: targetChannelId,
     hardMessageId: newHardMsg.id,
     normalMessageId: newNormalMsg.id,
+    easyMessageId: newEasyMsg.id,
     announcementMessageId,
     previousChannelId: oldChannelId,
     oldMessagesCleaned,
@@ -2128,7 +2428,7 @@ function buildShugoUrlModal(targetAction, isGuildFallback = false) {
     .setTitle(
       isGuildFallback
         ? "إدخال رابط Shugo.gg لفحص Ludra"
-        : `تسجيل Ludra ${targetAction === "HARD" ? "Hard 3000+" : "Normal 2800+"}`
+        : `تسجيل Ludra ${targetAction === "HARD" ? "Hard 3000+" : targetAction === "EASY" ? "Easy 2800+" : "Normal 2800+"}`
     );
 
   const urlInput = new TextInputBuilder()
@@ -2197,7 +2497,7 @@ export async function handleLudraInteraction(interaction) {
 
   // ── 1. Register / Refresh Button Clicked ──────────────────────────────────
   if (action === "register" || action === "refresh") {
-    const targetAction = action === "refresh" ? "REFRESH" : param === "HARD" ? "HARD" : "NORMAL";
+    const targetAction = action === "refresh" ? "REFRESH" : param === "HARD" ? "HARD" : param === "EASY" ? "EASY" : "NORMAL";
 
     // Look up existing Shugo URL
     const existingProfile = await resolveExistingPlayerShugoUrl(
@@ -2210,7 +2510,7 @@ export async function handleLudraInteraction(interaction) {
     if (!existingProfile || !existingProfile.shugoUrl) {
       if (action === "refresh") {
         // Check if they even have a registration to refresh
-        const modal = buildShugoUrlModal(param === "HARD" ? "HARD" : "NORMAL", roleStatus.isGuildMember);
+        const modal = buildShugoUrlModal(param === "HARD" ? "HARD" : param === "EASY" ? "EASY" : "NORMAL", roleStatus.isGuildMember);
         return interaction.showModal(modal);
       }
       const modal = buildShugoUrlModal(targetAction, roleStatus.isGuildMember);
@@ -2247,7 +2547,7 @@ export async function handleLudraInteraction(interaction) {
 
   // ── 2. Modal Submitted (External Member or Missing Guild URL Fallback) ────
   if (action === "modal" && interaction.isModalSubmit()) {
-    const targetAction = param === "HARD" ? "HARD" : "NORMAL";
+    const targetAction = param === "HARD" ? "HARD" : param === "EASY" ? "EASY" : "NORMAL";
     const rawUrl = interaction.fields.getTextInputValue("shugo_url_input");
 
     const validation = validateAndSanitizeShugoUrl(rawUrl);
@@ -2287,7 +2587,24 @@ export async function handleLudraInteraction(interaction) {
     });
   }
 
-  // ── 3. Detailed Paginated List for Normal (Restricted to Authorized Admins/Leaders)
+  // ── 3. Detailed Paginated List for Easy (Restricted to Authorized Admins/Leaders)
+  if (action === "easy_list") {
+    if (!isAuthorizedListViewer(member)) {
+      return interaction.reply({
+        content: "❌ عذراً، عرض القائمة التفصيلية للمسجلين مخصص لقائد السيرفر والمسؤولين الإداريين المخوّلين فقط.",
+        ephemeral: true,
+      });
+    }
+
+    const page = Math.max(0, parseInt(param || "0", 10) || 0);
+    const payload = await buildPaginatedEasyListReply(page);
+    if (interaction.isButton() && interaction.message?.flags?.has?.(64)) {
+      return interaction.update(payload);
+    }
+    return interaction.reply({ ...payload, ephemeral: true });
+  }
+
+  // ── 4. Detailed Paginated List for Normal (Restricted to Authorized Admins/Leaders)
   if (action === "normal_list") {
     if (!isAuthorizedListViewer(member)) {
       return interaction.reply({
@@ -2304,7 +2621,7 @@ export async function handleLudraInteraction(interaction) {
     return interaction.reply({ ...payload, ephemeral: true });
   }
 
-  // ── 4. Detailed Paginated List for Hard ───────────────────────────────────
+  // ── 5. Detailed Paginated List for Hard ───────────────────────────────────
   if (action === "hard_list") {
     const page = Math.max(0, parseInt(param || "0", 10) || 0);
     const payload = await buildPaginatedHardListReply(page, isAuthorizedListViewer(member));
@@ -2326,6 +2643,61 @@ function formatSourceLabel(memberSource) {
     default:
       return "مشارك خارجي";
   }
+}
+
+export async function buildPaginatedEasyListReply(page = 0) {
+  const stats = await getLudraEasyStats();
+  const total = stats.players.length;
+  const pageSize = QUEUE_CONFIG.PAGE_SIZE;
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const safePage = Math.min(Math.max(0, page), totalPages - 1);
+
+  const slice = stats.players.slice(safePage * pageSize, (safePage + 1) * pageSize);
+
+  const lines =
+    slice.length === 0
+      ? ["*لا يوجد مسجلون حالياً في Ludra Easy.*"]
+      : slice.map((p, idx) => {
+          const num = safePage * pageSize + idx + 1;
+          const emoji = CLASS_EMOJIS[normalizeClassName(p.class_name)] || "🔹";
+          const srcLabel = formatSourceLabel(p.member_source);
+          return (
+            `**${num}. ${p.character_name}** (${emoji} ${normalizeClassName(p.class_name)})\n` +
+            `   • iLvl: \`${numFmt(p.item_level)}\` | CP: \`${numFmt(p.combat_power)}\` | التصنيف: **${p.carry_classification}**\n` +
+            `   • العضوية: \`${srcLabel}\` | Discord: <@${p.discord_id}> (\`${p.discord_id}\`)`
+          );
+        });
+
+  const embed = new EmbedBuilder()
+    .setColor(0x2ecc71)
+    .setTitle(`📋 قائمة مسجلي Ludra Easy التفصيلية (${total})`)
+    .setDescription(
+      `⚔️ **الكيري:** \`${stats.carryCount}\`  •  🛡️ **يتكرى:** \`${stats.carriedCount}\`\n` +
+      `━━━━━━━━━━━━━━━━━━\n\n` +
+      lines.join("\n\n")
+    )
+    .setFooter({ text: `صفحة ${safePage + 1} من ${totalPages} • خاص بالإدارة والقيادة` })
+    .setTimestamp();
+
+  const components = [];
+  if (totalPages > 1) {
+    components.push(
+      new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId(`ludra_raid:easy_list:${safePage - 1}`)
+          .setLabel("◀ السابق")
+          .setStyle(ButtonStyle.Secondary)
+          .setDisabled(safePage <= 0),
+        new ButtonBuilder()
+          .setCustomId(`ludra_raid:easy_list:${safePage + 1}`)
+          .setLabel("التالي ▶")
+          .setStyle(ButtonStyle.Secondary)
+          .setDisabled(safePage >= totalPages - 1)
+      )
+    );
+  }
+
+  return { embeds: [embed], components };
 }
 
 export async function buildPaginatedNormalListReply(page = 0) {
