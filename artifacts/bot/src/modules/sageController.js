@@ -27,6 +27,7 @@ const LEADER_USER_ID = "136371223209836544"; // Alliance Leader Discord ID (حس
 
 // The role that marks guild roles in Sage server (roles containing ⚔️)
 const GUILD_ROLE_SYMBOL = "⚔️";
+const ALLIANCE_MEMBER_ROLE_ID = "1571516616435302410";
 
 // The role to remove upon guild selection (visitor/unaffiliated role)
 const SAGE_GUEST_ROLE_ID = process.env.SAGE_GUEST_ROLE_ID ?? null;
@@ -149,11 +150,20 @@ export async function handleSageJoinCommand(interaction) {
 // ─── Guild Select Menu Builder (Dynamic & Auto-Updating) ───────────────────────
 async function buildGuildSelectMenuData(guild, newlyAddedRoleId = null, newlyAddedGuildName = null) {
   await guild.roles.fetch();
-  const guildRoles = guild.roles.cache.filter((r) => r.name.includes(GUILD_ROLE_SYMBOL));
+  const guildRoles = guild.roles.cache.filter(
+    (r) =>
+      r.name.includes(GUILD_ROLE_SYMBOL) &&
+      r.id !== ALLIANCE_MEMBER_ROLE_ID &&
+      !r.name.toLowerCase().includes("alliance member") &&
+      !r.name.includes("عضو التحالف")
+  );
 
   let guildOptions = [];
   guildRoles.forEach((role) => {
-    const cleanName = role.name.replace(GUILD_ROLE_SYMBOL, "").trim();
+    const cleanName = role.name
+      .replace(GUILD_ROLE_SYMBOL, "")
+      .replace(/[┃|]/g, "")
+      .trim();
     guildOptions.push({
       label: `قيلد ${cleanName}`,
       value: role.id,
@@ -803,7 +813,6 @@ async function handleSageAccept(interaction, targetUserId, appId) {
   if (member) {
     try {
       // Assign the core Alliance Member role to give access to all alliance channels
-      const ALLIANCE_MEMBER_ROLE_ID = "1571516616435302410";
       await member.roles.add(ALLIANCE_MEMBER_ROLE_ID).catch(() => {});
 
       if (app.guild_role_id && !isSoloPlayerApp(app)) {
