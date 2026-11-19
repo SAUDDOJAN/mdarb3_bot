@@ -234,8 +234,7 @@ function formatClassColumnValue(className, entries) {
 
   for (const item of entries) {
     const numStr = String(item.signup_order || 0).padStart(2, " ");
-    const guildTag = item.guild_name ? ` \`[${item.guild_name}]\`` : "";
-    const line = `${emoji} \`${numStr}\` **${item.character_name}**${guildTag}`;
+    const line = `${emoji} \`${numStr}\` **${item.character_name}**`;
     if (len + line.length + 30 > 980) {
       hidden++;
       continue;
@@ -373,6 +372,31 @@ export function buildSageSiegeAnnouncementEmbed({
   const rangedTotal = RANGED_CLASSES.reduce((sum, cls) => sum + byClass[cls].length, 0);
   const healersTotal = HEALER_CLASSES.reduce((sum, cls) => sum + byClass[cls].length, 0);
 
+  // Guild breakdown for attending members
+  const guildCounts = {};
+  for (const player of attending) {
+    const g = player.guild_name ? player.guild_name.trim() : "لاعب فردي";
+    guildCounts[g] = (guildCounts[g] || 0) + 1;
+  }
+
+  if (guildCounts["M3RGEEN"] === undefined) {
+    guildCounts["M3RGEEN"] = 0;
+  }
+
+  const sortedGuilds = Object.keys(guildCounts).sort((a, b) => {
+    if (a.toLowerCase().includes("m3rgeen")) return -1;
+    if (b.toLowerCase().includes("m3rgeen")) return 1;
+    return guildCounts[b] - guildCounts[a];
+  });
+
+  const guildSummaryLines = sortedGuilds.map((g) => {
+    const isSolo = g.toLowerCase().includes("solo") || g.includes("فردي");
+    const icon = isSolo ? "⚠️" : "⚔️";
+    return `${icon} **${g}:** \`${guildCounts[g]}\``;
+  });
+
+  const guildBreakdownText = `\n\n📊 **المسجلون حسب القيلد:**\n${guildSummaryLines.join("\n")}`;
+
   const descLines = [
     "**تعلن قيادة تحالف الحصارات عن انطلاق عمليات حصار الأبيس (Artifact Siege).**",
     "على جميع مقاتلي وقادة القيلدات المتحالفة والأعضاء المعتمدين الالتزام التام بالتوقيتات والتواجد في الروم الصوتي قبل التجمع.",
@@ -405,7 +429,7 @@ export function buildSageSiegeAnnouncementEmbed({
       },
       {
         name: "⏳ التجمع والوقت المتبقي",
-        value: `🌀 التجمع: **<t:${gatheringUnix}:t>**\n⏰ المتبقي: **<t:${siegeUnix}:R>**\n\u200b`,
+        value: `🌀 التجمع: **<t:${gatheringUnix}:t>**\n⏰ المتبقي: **<t:${siegeUnix}:R>**${guildBreakdownText}\n\u200b`,
         inline: true,
       }
     )
