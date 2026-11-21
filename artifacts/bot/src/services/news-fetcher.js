@@ -5,7 +5,7 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import { query } from "../database/index.js";
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-const geminiModel = genAI.getGenerativeModel({ model: "gemini-flash-latest" });
+const geminiModel = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
 const SHUGO_HEADERS = {
   "User-Agent":
@@ -15,18 +15,23 @@ const SHUGO_HEADERS = {
 };
 
 const AION_DICTIONARY = {
-  "abyss": "الهاوية (Abyss)",
-  "dungeon": "دنجن (Dungeon)",
-  "buff": "تعزيز (Buff)",
-  "nerf": "إضعاف (Nerf)",
-  "stigma": "ستيجما (Stigma)",
-  "kinah": "كينا (Kinah)",
-  "boss": "زعيم (Boss)",
+  "abyssal forge": "«أبيسال فورج» (Abyssal Forge)",
+  "abyss": "«أبيس» (Abyss)",
+  "ludra": "«لودرا» (Ludra)",
+  "dungeon": "«دنجن» (Dungeon)",
+  "buff": "«تعزيز - Buff»",
+  "nerf": "«إضعاف - Nerf»",
+  "stigma": "«ستيجما» (Stigma)",
+  "kinah": "«كينا» (Kinah)",
+  "kina": "«كينا» (Kina)",
+  "boss": "«زعيم - Boss»",
   "patch": "تحديث (Patch)",
   "skill": "مهارة (Skill)",
-  "class": "تخصص (Class)",
-  "pvp": "لاعب ضد لاعب (PvP)",
-  "pve": "لاعب ضد بيئة (PvE)"
+  "class": "كلاس (Class)",
+  "pvp": "«PvP»",
+  "pve": "«PvE»",
+  "sanctuary": "«سانكتشواري» (Sanctuary)",
+  "rift": "«رفت» (Rift)"
 };
 
 function applyDictionaryLocal(text) {
@@ -79,14 +84,22 @@ async function processNewsContent(title, rawHtml) {
     textContent = textContent.slice(0, 20000) + "...";
   }
 
-  const prompt = `أنت محرر أخبار ألعاب محترف. مهمتك تحويل هذا النص الإنجليزي إلى تقرير عربي احترافي. استخدم المصطلحات العربية المعتمدة في مجتمع Aion (مثل: الزنزانة، الهاوية، ستيجما، تعزيز). يجب عليك دائماً عند ذكر أي مصطلح خاص باللعبة (مثل أسماء الكلاسات، الأماكن، الزعماء، المهارات) كتابة اسمه الإنجليزي الأصلي بين قوسين بجانب الكلمة العربية، مثال: الفارس (Templar)، الهاوية (Abyss)، صدع الزمان (Rift). يمنع كتابة جمل إنجليزية كاملة، فقط المصطلحات بين قوسين. يمنع منعاً باتاً إظهار أي تحذيرات أو جمل مثل (صياغة آلية). استخدم العناوين العريضة (Bold) والنقاط (Bullets). إذا كان النص طويلاً، قم بتلخيصه بذكاء (Summarize) وركز على المعلومات المهمة فقط، لا تترجم النص حرفياً لتجنب مشكلة الطول.
+  const prompt = `أنت محرر ومترجم أخبار ألعاب محترف. مهمتك تحويل هذا التحديث الإنجليزي الخاص بلعبة AION 2 إلى تقرير عربي احترافي ومنسق بالكامل.
+قواعد الترجمة الأساسية:
+1. ترجمة كل المحتوى بالكامل إلى اللغة العربية بأسلوب واضح ومفهوم للاعبي الألعاب.
+2. المسميات الخاصة باللعبة ومصطلحاتها (مثل: Abyss، Ludra، Abyssal Forge، Kinah، الدنجنات، أسماء الزعماء والأماكن والعتاد والمهارات والكلاسات):
+   - يجب تعريبها صوتياً وكتابتها بين علامات تنصيص أو أقواس (مثال: «أبيس»، «لودرا»، «أبيسال فورج»، «كينا»، «دنجن»).
+   - يمكنك وضع الاسم الإنجليزي بجانبها بين قوسين لزيادة التوضيح، مثل: «أبيس» (Abyss) أو «لودرا» (Ludra).
+3. يمنع ترك أي جمل أو فقرات باللغة الإنجليزية في التقرير.
+4. استخدم العناوين العريضة (Bold) والإيموجيات والنقاط المتسلسلة (Bullets) لتنظيم الخبر وتبسيطه.
+5. لخص ورتب المعلومات الأساسية بشكل احترافي.
 
-يجب أن تقوم بإرجاع النتيجة بصيغة JSON حصراً، وتحتوي على المفاتيح التالية:
-1. "title": عنوان الخبر باللغة العربية بأسلوب احترافي وجذاب.
-2. "summary": ملخص مكثف جداً للخبر.
-3. "fields": مصفوفة (Array) تحتوي على أقسام الخبر (مثل: التحديثات، التعديلات التقنية، إلخ)، كل قسم يمتلك:
-   - "name": عنوان القسم بخط عريض مع إيموجي (مثال: "**⚔️ الميزات الجديدة**").
-   - "value": تفاصيل القسم كنقاط متسلسلة (Bullet points) قصيرة، بحد أقصى 900 حرف للقسم الواحد (لخص الباقي بذكاء).
+يجب أن تقوم بإرجاع النتيجة بصيغة JSON حصراً بالمفاتيح التالية:
+1. "title": عنوان الخبر باللغة العربية مع إيموجي جذاب ومصطلحات معربة بين علامات تنصيص.
+2. "summary": ملخص مكثف وسريع لأبرز ما جاء في التحديث.
+3. "fields": مصفوفة (Array) تحتوي على أقسام الخبر (مثل: **🏛️ المحتوى الجديد**، **⚗️ التغييرات والعتاد**، **🎉 الفعاليات**، **🔧 الإصلاحات التقنية**)، كل قسم يمتلك:
+   - "name": عنوان القسم بخط عريض مع إيموجي مناسب.
+   - "value": تفاصيل القسم كنقاط متسلسلة واضحة باللغة العربية (بحد أقصى 900 حرف للقسم).
 
 عنوان الخبر: ${title}
 
@@ -133,7 +146,7 @@ ${textContent}`;
  * Main function to fetch, translate, and post news.
  */
 export async function fetchAndPostNews(client) {
-  const channelId = "1290056577856045127"; // Override process.env.NEWS_CHANNEL_ID
+  const channelId = process.env.AION2_NEWS_CHANNEL_ID || process.env.NEWS_CHANNEL_ID || "1567572191959064589";
   if (!channelId) {
     console.warn("[NewsFetcher] NEWS_CHANNEL_ID is not set in .env. Skipping news fetch.");
     return;
