@@ -5,7 +5,7 @@ export const SAGE_GUILD_ID = "1507696012410749030";
 export const ALLIANCE_MEMBER_ROLE_ID = "1571516616435302410";
 export const UNIFIED_CHAT_ID = "1507706953521041509"; // 💬┊شات-التحالف
 export const SERVER_OWNER_ID = "136371223209836544";
-export const WAR_STAGE_CHANNEL_ID = "1571540894061039788"; // 🏟️┊سيج-الحلف
+export const WAR_STAGE_CHANNEL_ID = "1573805145748152370"; // 🏟️┊سيج-الحلف
 
 export const EXEMPT_ROLES = [
   "1507733275278577916", // 👑 ┃ Alliance Leader

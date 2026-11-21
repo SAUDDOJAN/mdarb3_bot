@@ -36,7 +36,7 @@ export const CHANNEL_IDS = {
 
   // 🔊 ┃ صوت التحالف
   CAT_VOICE: "1507707354626527232",
-  WAR_STAGE: "1571540894061039788",    // 🏟️┊سيج-الحلف
+  WAR_STAGE: "1573805145748152370",    // 🏟️┊سيج-الحلف (Regular Voice Channel)
   RIFT_VC: "1573803179957686494",      // ⚔️┊حرب-الرفت
   COMMAND_VC: "1507696013551472683",   // 🎙️┊غرفة-القيادة
   GENERAL_VC: "1507708086171992125",   // 🔊┊الكول-العام
@@ -699,7 +699,7 @@ export async function syncAllSagePermissions(guild) {
     },
   ]);
 
-  // 🏟️┊سيج-الحلف (War Stage Channel - Unlimited listeners, zero noise)
+  // 🏟️┊سيج-الحلف (Regular Voice Channel - Listeners only, Shotcaller/Leader speak)
   await applyOverwrites(CHANNEL_IDS.WAR_STAGE, [
     {
       id: roles.everyone.id,
@@ -719,9 +719,14 @@ export async function syncAllSagePermissions(guild) {
         PermissionFlagsBits.ViewChannel,
         PermissionFlagsBits.Connect,
         PermissionFlagsBits.ReadMessageHistory,
+        PermissionFlagsBits.SendMessages,
+        PermissionFlagsBits.AddReactions,
+        PermissionFlagsBits.UseExternalEmojis,
+        PermissionFlagsBits.UseSoundboard,
+        PermissionFlagsBits.UseExternalSounds,
       ],
       deny: [
-        PermissionFlagsBits.RequestToSpeak, // Keep stage pure for war shotcalls
+        PermissionFlagsBits.Speak, // Members can connect & listen, but cannot speak!
       ],
     },
     {
@@ -729,48 +734,65 @@ export async function syncAllSagePermissions(guild) {
       allow: [
         PermissionFlagsBits.ViewChannel,
         PermissionFlagsBits.Connect,
+        PermissionFlagsBits.Speak,
+        PermissionFlagsBits.UseVAD,
+        PermissionFlagsBits.ReadMessageHistory,
+        PermissionFlagsBits.SendMessages,
+        PermissionFlagsBits.AddReactions,
+        PermissionFlagsBits.UseExternalEmojis,
         PermissionFlagsBits.MuteMembers,
         PermissionFlagsBits.MoveMembers,
-        PermissionFlagsBits.RequestToSpeak,
-        PermissionFlagsBits.ReadMessageHistory,
       ],
     },
     {
       id: roles.shotcaller?.id,
       allow: [
-        PermissionFlagsBits.ManageChannels, // Stage Moderator
         PermissionFlagsBits.ViewChannel,
         PermissionFlagsBits.Connect,
-        PermissionFlagsBits.MuteMembers,
-        PermissionFlagsBits.MoveMembers,
-        PermissionFlagsBits.RequestToSpeak,
+        PermissionFlagsBits.Speak,
         PermissionFlagsBits.PrioritySpeaker,
+        PermissionFlagsBits.UseVAD,
         PermissionFlagsBits.ReadMessageHistory,
+        PermissionFlagsBits.SendMessages,
+        PermissionFlagsBits.AddReactions,
+        PermissionFlagsBits.UseExternalEmojis,
+        PermissionFlagsBits.MuteMembers,
+        PermissionFlagsBits.DeafenMembers,
+        PermissionFlagsBits.MoveMembers,
       ],
     },
     {
       id: roles.council?.id,
       allow: [
-        PermissionFlagsBits.ManageChannels, // Stage Moderator
         PermissionFlagsBits.ViewChannel,
         PermissionFlagsBits.Connect,
-        PermissionFlagsBits.MuteMembers,
-        PermissionFlagsBits.MoveMembers,
-        PermissionFlagsBits.RequestToSpeak,
+        PermissionFlagsBits.Speak,
+        PermissionFlagsBits.PrioritySpeaker,
+        PermissionFlagsBits.UseVAD,
         PermissionFlagsBits.ReadMessageHistory,
+        PermissionFlagsBits.SendMessages,
+        PermissionFlagsBits.AddReactions,
+        PermissionFlagsBits.UseExternalEmojis,
+        PermissionFlagsBits.MuteMembers,
+        PermissionFlagsBits.DeafenMembers,
+        PermissionFlagsBits.MoveMembers,
       ],
     },
     {
       id: roles.leader?.id,
       allow: [
-        PermissionFlagsBits.ManageChannels, // Stage Moderator
         PermissionFlagsBits.ViewChannel,
         PermissionFlagsBits.Connect,
-        PermissionFlagsBits.MuteMembers,
-        PermissionFlagsBits.MoveMembers,
-        PermissionFlagsBits.RequestToSpeak,
+        PermissionFlagsBits.Speak,
         PermissionFlagsBits.PrioritySpeaker,
+        PermissionFlagsBits.UseVAD,
         PermissionFlagsBits.ReadMessageHistory,
+        PermissionFlagsBits.SendMessages,
+        PermissionFlagsBits.AddReactions,
+        PermissionFlagsBits.UseExternalEmojis,
+        PermissionFlagsBits.MuteMembers,
+        PermissionFlagsBits.DeafenMembers,
+        PermissionFlagsBits.MoveMembers,
       ],
     },
   ]);
