@@ -28,6 +28,7 @@ const LEADER_USER_ID = "136371223209836544"; // Alliance Leader Discord ID (حس
 // The role that marks guild roles in Sage server (roles containing ⚔️)
 const GUILD_ROLE_SYMBOL = "⚔️";
 const ALLIANCE_MEMBER_ROLE_ID = "1571516616435302410";
+const SOLO_PLAYER_ROLE_ID = "1573783700871708672";
 
 // The role to remove upon guild selection (visitor/unaffiliated role)
 const SAGE_GUEST_ROLE_ID = process.env.SAGE_GUEST_ROLE_ID ?? null;
@@ -46,6 +47,7 @@ function isSageGuild(guildId) {
 function isSoloPlayerApp(app) {
   if (!app) return false;
   return (
+    app.guild_role_id === SOLO_PLAYER_ROLE_ID ||
     app.guild_role_id === "1519397169897935019" ||
     app.guild_name === "Solo Player" ||
     String(app.guild_name || "").includes("لاعب فردي")
@@ -183,7 +185,7 @@ async function buildGuildSelectMenuData(guild, newlyAddedRoleId = null, newlyAdd
   const soloOption = {
     label: "لاعب فردي (Solo Player — تدقيق أمني مشدد)",
     description: "تخضع حسابات اللاعبين الفرديين لتدقيق أمني صارم من قائد التحالف",
-    value: "1519397169897935019",
+    value: SOLO_PLAYER_ROLE_ID,
     emoji: "⚠️",
   };
 
@@ -237,6 +239,18 @@ async function handleJoinStart(interaction) {
 
 // ─── Button: sage:add_guild_start → Show Add Guild Modal ──────────────────────
 async function handleAddGuildStart(interaction) {
+  const isLeaderOrCouncil =
+    interaction.user.id === LEADER_USER_ID ||
+    interaction.user.id === interaction.guild?.ownerId ||
+    interaction.member?.roles?.cache?.has("1507733319989858435"); // Alliance Council
+
+  if (!isLeaderOrCouncil) {
+    return await interaction.reply({
+      content: "⛔ عذراً، إضافة قيلد جديد إلى قائمة التحالف مقتصرة فقط على إدارة تحالف الحصارات لمنع تكرار أو كتابة أسماء القيلدات بالخطأ.",
+      flags: 64,
+    });
+  }
+
   const modal = new ModalBuilder()
     .setCustomId("sage:add_guild_modal")
     .setTitle("إضافة قيلد جديد للتحالف");
@@ -412,7 +426,7 @@ async function handleSubmitName(interaction, guildId, className, raceName, serve
 
   const selectedRole = interaction.guild.roles.cache.get(guildId);
   let guildName = selectedRole?.name?.replace(GUILD_ROLE_SYMBOL, "").trim() ?? "Unknown";
-  if (guildId === "1519397169897935019") guildName = "Solo Player";
+  if (guildId === SOLO_PLAYER_ROLE_ID || guildId === "1519397169897935019") guildName = "Solo Player";
 
   const sourceRes = await query("SELECT source_server_name FROM sage_pending_source WHERE user_id = $1", [interaction.user.id]);
   const sourceDiscordServer = sourceRes.rows[0]?.source_server_name ?? null;
@@ -547,7 +561,7 @@ async function handleProfileModal(interaction, selectedRoleId) {
     return;
   }
 
-  const isSoloPlayer = selectedRoleId === "1519397169897935019";
+  const isSoloPlayer = selectedRoleId === SOLO_PLAYER_ROLE_ID || selectedRoleId === "1519397169897935019";
   const selectedRole = interaction.guild.roles.cache.get(selectedRoleId);
   let guildName = selectedRole?.name?.replace(GUILD_ROLE_SYMBOL, "").trim() ?? "Unknown";
   if (isSoloPlayer) guildName = "لاعب فردي (Solo Player)";
@@ -815,7 +829,9 @@ async function handleSageAccept(interaction, targetUserId, appId) {
       // Assign the core Alliance Member role to give access to all alliance channels
       await member.roles.add(ALLIANCE_MEMBER_ROLE_ID).catch(() => {});
 
-      if (app.guild_role_id && !isSoloPlayerApp(app)) {
+      if (isSoloPlayerApp(app)) {
+        await member.roles.add(SOLO_PLAYER_ROLE_ID).catch(() => {});
+      } else if (app.guild_role_id) {
         await member.roles.add(app.guild_role_id).catch(() => {});
       }
 
