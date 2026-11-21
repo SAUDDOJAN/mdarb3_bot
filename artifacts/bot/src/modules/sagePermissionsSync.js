@@ -37,6 +37,7 @@ export const CHANNEL_IDS = {
   // 🔊 ┃ صوت التحالف
   CAT_VOICE: "1507707354626527232",
   WAR_STAGE: "1571540894061039788",    // 🏟️┊سيج-الحلف
+  RIFT_VC: "1573803179957686494",      // ⚔️┊حرب-الرفت
   COMMAND_VC: "1507696013551472683",   // 🎙️┊غرفة-القيادة
   GENERAL_VC: "1507708086171992125",   // 🔊┊الكول-العام
   GENERAL_VC2: "1571540896401326090",  // 🔊┊الكول-العام-2
@@ -774,8 +775,8 @@ export async function syncAllSagePermissions(guild) {
     },
   ]);
 
-  // 🔊┊الكول-العام & 🔊┊الكول-العام-2: All members can connect, speak, stream, use VAD
-  const generalVcs = [CHANNEL_IDS.GENERAL_VC, CHANNEL_IDS.GENERAL_VC2];
+  // ⚔️┊حرب-الرفت & 🔊┊الكول-العام & 🔊┊الكول-العام-2: All members can connect, speak, stream, use VAD
+  const generalVcs = [CHANNEL_IDS.RIFT_VC, CHANNEL_IDS.GENERAL_VC, CHANNEL_IDS.GENERAL_VC2];
   for (const gVcId of generalVcs) {
     await applyOverwrites(gVcId, [
       {

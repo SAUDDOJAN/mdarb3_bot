@@ -5,6 +5,7 @@ export const SAGE_GUILD_ID = "1507696012410749030";
 export const ALLIANCE_MEMBER_ROLE_ID = "1571516616435302410";
 export const UNIFIED_CHAT_ID = "1507706953521041509"; // 💬┊شات-التحالف
 export const SERVER_OWNER_ID = "136371223209836544";
+export const WAR_STAGE_CHANNEL_ID = "1571540894061039788"; // 🏟️┊سيج-الحلف
 
 export const EXEMPT_ROLES = [
   "1507733275278577916", // 👑 ┃ Alliance Leader
@@ -78,6 +79,8 @@ export async function isSiegeVoiceWindowOpen() {
 
 /**
  * Handles voice state gate enforcement when a user joins or moves channels.
+ * Note: Only enforces the 3-hour siege window on the official War Stage channel (سيج-الحلف).
+ * General calls, Rift War, and all other voice rooms are open 24/7 without kicking.
  */
 export async function handleVoiceStateGate(oldState, newState) {
   if (newState.guild.id !== SAGE_GUILD_ID) return;
@@ -87,6 +90,9 @@ export async function handleVoiceStateGate(oldState, newState) {
 
   // If leaving voice, do nothing
   if (!newState.channelId) return;
+
+  // The strict siege window gate ONLY applies to the official War Stage channel (سيج-الحلف)!
+  if (newState.channelId !== WAR_STAGE_CHANNEL_ID) return;
 
   // Leaders, Council, Shotcaller, Guild Leaders are completely exempt
   if (isMemberExempt(member)) {
@@ -157,34 +163,31 @@ export async function runVoiceGateWatcher(client) {
         const chatCh = guild.channels.cache.get(UNIFIED_CHAT_ID) ?? await guild.channels.fetch(UNIFIED_CHAT_ID).catch(() => null);
         if (chatCh) {
           await chatCh.send({
-            content: `📢 **تنبيه هام لجميع مقاتلي التحالف (<@&${ALLIANCE_MEMBER_ROLE_ID}>):**\n\n` +
-              `نظراً لاختتام فعاليات حصار اليوم بنجاح، وتطبيقاً للائحة خادم التحالف (المخصص لتجمعات الحصارات فقط حفاظاً على الجو العام واستقرار التنظيم):\n\n` +
-              `⚠️ **سيتم إغلاق القنوات الصوتية وفصل جميع الأعضاء بعد 10 دقائق.**\n\n` +
-              `شكراً لجهودكم وتفاعلكم المشرف، ونراكم في الحصار القادم بإذن الله! ⚔️`,
+            content: `📢 **تنبيه لجميع مقاتلي التحالف (<@&${ALLIANCE_MEMBER_ROLE_ID}>):**\n\n` +
+              `نظراً لاختتام فعاليات حصار اليوم بنجاح:\n\n` +
+              `⚠️ **سيتم إغلاق روم منصة الحصار (🏟️┊سيج-الحلف) بعد 10 دقائق.**\n` +
+              `*تبقى رومات الكول العام وروم حرب الرفت متاحة للجميع للاستمرار والتجمع.* ⚔️`,
           });
           console.log(`[sageVoiceGate] Sent 10-minute voice shutdown notice to #شات-التحالف`);
         }
       }
 
-      // 2. Check 3-Hour Hard Closure & Disconnect
+      // 2. Check 3-Hour Hard Closure & Disconnect — Strictly for War Stage channel ONLY!
       if (nowUnix >= windowEnd && !clearedEvents.has(evt.message_id)) {
         clearedEvents.add(evt.message_id);
-        console.log(`[sageVoiceGate] 3-Hour window elapsed for event ${evt.message_id}. Clearing voice channels...`);
+        console.log(`[sageVoiceGate] 3-Hour window elapsed for event ${evt.message_id}. Clearing War Stage channel only...`);
 
-        await guild.members.fetch().catch(() => {});
-        const voiceChannels = guild.channels.cache.filter((c) => c.isVoiceBased());
-
-        let disconnectedCount = 0;
-        for (const [, vc] of voiceChannels) {
-          for (const [, m] of vc.members) {
+        const warStageCh = guild.channels.cache.get(WAR_STAGE_CHANNEL_ID) ?? await guild.channels.fetch(WAR_STAGE_CHANNEL_ID).catch(() => null);
+        if (warStageCh && warStageCh.isVoiceBased()) {
+          let disconnectedCount = 0;
+          for (const [, m] of warStageCh.members) {
             if (!m.user.bot && !isMemberExempt(m)) {
               await m.voice.disconnect("انتهاء وقت السيج الرسمي").catch(() => {});
               disconnectedCount++;
             }
           }
+          console.log(`[sageVoiceGate] Successfully disconnected ${disconnectedCount} non-exempt member(s) from War Stage.`);
         }
-
-        console.log(`[sageVoiceGate] Successfully disconnected ${disconnectedCount} non-exempt member(s) from voice channels.`);
       }
     }
   } catch (err) {
