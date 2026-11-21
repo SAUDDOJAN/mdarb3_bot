@@ -737,6 +737,7 @@ export async function syncAllSagePermissions(guild) {
     {
       id: roles.shotcaller?.id,
       allow: [
+        PermissionFlagsBits.ManageChannels, // Stage Moderator
         PermissionFlagsBits.ViewChannel,
         PermissionFlagsBits.Connect,
         PermissionFlagsBits.MuteMembers,
@@ -749,6 +750,7 @@ export async function syncAllSagePermissions(guild) {
     {
       id: roles.council?.id,
       allow: [
+        PermissionFlagsBits.ManageChannels, // Stage Moderator
         PermissionFlagsBits.ViewChannel,
         PermissionFlagsBits.Connect,
         PermissionFlagsBits.MuteMembers,
@@ -760,6 +762,7 @@ export async function syncAllSagePermissions(guild) {
     {
       id: roles.leader?.id,
       allow: [
+        PermissionFlagsBits.ManageChannels, // Stage Moderator
         PermissionFlagsBits.ViewChannel,
         PermissionFlagsBits.Connect,
         PermissionFlagsBits.MuteMembers,
