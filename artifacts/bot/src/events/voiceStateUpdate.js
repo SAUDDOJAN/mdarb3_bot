@@ -24,6 +24,15 @@ export default {
     }
     // ───────────────────────────────────────────────────────────────────────
 
+    // ─── M3RGEEN Abyss Voice Security & Spy Alert ─────────────────────────
+    try {
+      const { handleAbyssVoiceSecurity } = await import("../modules/m3rgeenAbyssVoiceSecurity.js");
+      await handleAbyssVoiceSecurity(oldState, newState, client);
+    } catch (abyssErr) {
+      console.error("[VoiceStateUpdate] Error in handleAbyssVoiceSecurity:", abyssErr);
+    }
+    // ───────────────────────────────────────────────────────────────────────
+
     try {
       const { handleLfgVoiceJoin, handleLfgVoiceLeave, cleanUpEmptyLfg } = await import("../modules/dungeonLfg.js");
 
