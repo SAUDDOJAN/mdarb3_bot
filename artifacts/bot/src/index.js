@@ -102,7 +102,7 @@ const server = http.createServer((req, res) => {
   handleDungeonsApi(req, res, parsedUrl).then(handled => {
     if (!handled) {
       res.writeHead(200, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ status: "ok", bot: client.isReady() ? "online" : "starting" }));
+      res.end(JSON.stringify({ status: "ok", bot: client.isReady() ? "online" : "starting", version: "abyss-security-v1", uptime: Math.floor(process.uptime()), timestamp: new Date().toISOString() }));
     }
   }).catch(err => {
     console.error("[API] Uncaught API Error:", err);
