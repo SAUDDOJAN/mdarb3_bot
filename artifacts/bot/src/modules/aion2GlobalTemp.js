@@ -530,90 +530,26 @@ export async function handleInteraction(interaction) {
           .setLabel("🌍 مسار Global")
           .setStyle(ButtonStyle.Primary),
         new ButtonBuilder()
-          .setCustomId("temp_aion2_global_path_early")
-          .setLabel("⚡ مسار Early Access")
-          .setStyle(ButtonStyle.Success)
+          .setCustomId("temp_aion2_global_path_early_disabled")
+          .setLabel("⚡ مسار Early Access (مغلق)")
+          .setStyle(ButtonStyle.Secondary)
+          .setDisabled(true)
       );
   
       await interaction.editReply({
-        content: `🛡️ **اختر مسار الانضمام الخاص بك:**\n\n**🌍 مسار Global:**\nللمشاركة في اللعبة عبر سيرفرات الجلوبال. سيتطلب منك اختيار الكلاس وأسلوب اللعب وانتظار موافقة الإدارة.\n\n**⚡ مسار Early Access:**\nللدخول المباشر والحصري لسيرفرات الدخول المبكر (السعة المتبقية محدودة).`,
+        content: `🛡️ **اختر مسار الانضمام الخاص بك:**\n\n**🌍 مسار Global:**\nللمشاركة في اللعبة عبر سيرفرات الجلوبال. سيتطلب منك اختيار الكلاس وأسلوب اللعب وانتظار موافقة الإدارة.\n\n*(ملاحظة: تم إيقاف وإلغاء التسجيل في مسار Early Access)*`,
         components: [row]
       });
       return;
     }
   
-    // 3.1. Path: Early Access (Direct Join)
+    // 3.1. Path: Early Access (Direct Join) -> Cancelled
     if (customId === "temp_aion2_global_path_early") {
       await interaction.deferUpdate();
-      
-      const userId = interaction.user.id;
-      const EARLY_ACCESS_ROLE_ID = "1551161877017403412";
-      const AION2_MEMBER_ROLE_ID = "1401376073077231702";
-  
-      // Re-verify duplicate protection before transaction
-      const existing = await query(`SELECT status FROM aion2_global_applications WHERE discord_id = $1 AND status IN ('PENDING', 'ACCEPTED', 'PROCESSING')`, [userId]);
-      if (existing.rows.length > 0) {
-        return interaction.editReply({ content: "❌ لا يمكنك التقديم. لديك طلب أو عضوية فعالة حالياً.", components: [] });
-      }
-  
-      const clientDB = await pool.connect();
-      let appId = null;
-      try {
-        await clientDB.query('BEGIN');
-        
-        // Lock Early Access roster safely
-        await clientDB.query(`SELECT 1 FROM aion2_roster_locks WHERE roster_id = 'EARLY_ACCESS' FOR UPDATE`);
-        
-        // Count existing early access
-        const earlyRes = await clientDB.query(`SELECT COUNT(*) as count FROM aion2_global_applications WHERE status = 'ACCEPTED' AND guild_type = 'EARLY_ACCESS'`);
-        const earlyCount = parseInt(earlyRes.rows[0].count, 10);
-        
-        if (earlyCount >= 128) {
-          await clientDB.query('ROLLBACK');
-          return interaction.editReply({ content: "❌ عذراً، اكتمل العدد في Early Access (128 عضو).", components: [] });
-        }
-        
-        // Insert new direct early member
-        const insertRes = await clientDB.query(`
-          INSERT INTO aion2_global_applications (discord_id, status, guild_type, selected_class, playstyle) 
-          VALUES ($1, 'ACCEPTED', 'EARLY_ACCESS', NULL, NULL) 
-          RETURNING id
-        `, [userId]);
-        
-        appId = insertRes.rows[0].id;
-        
-        await clientDB.query('COMMIT');
-      } catch (e) {
-        await clientDB.query('ROLLBACK');
-        console.error("[CRITICAL] Direct Early Join transaction failed:", e);
-        return interaction.editReply({ content: "❌ حدث خطأ داخلي أثناء تسجيلك في Early Access. حاول مجدداً.", components: [] });
-      } finally {
-        clientDB.release();
-      }
-      
-      // Grant Roles
-      const member = interaction.member;
-      if (member) {
-        try {
-          await member.roles.add(AION2_MEMBER_ROLE_ID);
-          await member.roles.add(EARLY_ACCESS_ROLE_ID);
-        } catch (e) {
-          console.error("Failed to add roles for Direct Early:", e);
-        }
-      }
-      
-      // Trigger Announcer
-      try {
-        await triggerDirectEarlyAnnouncement(interaction.client, appId);
-      } catch (e) {
-        console.error("Failed to trigger early announcement:", e);
-      }
-      
-      await interaction.editReply({
-        content: "⚡ **تم تسجيلك بنجاح في مسار Early Access!**\nتم منحك رتبة الدخول المبكر. حياك الله بين أخوانك في M3RGEEN.",
+      return interaction.editReply({
+        content: "❌ عذراً، تم إيقاف وإلغاء التسجيل في مسار Early Access. التسجيل متاح حالياً لمسار Global فقط.",
         components: []
       });
-      return;
     }
   
     // 3.2 Path: Global (Proceeds to Class Selection)

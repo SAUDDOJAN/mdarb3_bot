@@ -357,24 +357,25 @@ export async function handleShugoInteraction(interaction) {
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // STEP 2: Choose Path (Early Access vs Global)
+  // STEP 2: Choose Path (Early Access vs Global) -> Early Access CANCELLED
   // ─────────────────────────────────────────────────────────────────────────────
   if (customId === "aion2_shugo_rules_confirm") {
     await interaction.deferUpdate();
 
     const row = new ActionRowBuilder().addComponents(
       new ButtonBuilder()
-        .setCustomId("aion2_shugo_path:EARLY_ACCESS")
-        .setLabel("⚡ Early Access")
-        .setStyle(ButtonStyle.Success),
-      new ButtonBuilder()
         .setCustomId("aion2_shugo_path:GLOBAL")
         .setLabel("🌍 Global")
-        .setStyle(ButtonStyle.Primary)
+        .setStyle(ButtonStyle.Primary),
+      new ButtonBuilder()
+        .setCustomId("aion2_shugo_path:EARLY_ACCESS_DISABLED")
+        .setLabel("⚡ Early Access (مغلق)")
+        .setStyle(ButtonStyle.Secondary)
+        .setDisabled(true)
     );
 
     return interaction.editReply({
-      content: `🛡️ **أين تلعب؟**\n\nاختر مسار انضمامك لمجتمع AION 2:`,
+      content: `🛡️ **اختر مسار انضمامك لمجتمع AION 2:**\n\nاضغط أدناه لمتابعة التسجيل في مسار **Global**:\n*(ملاحظة: تم إيقاف وإلغاء التسجيل في Early Access، التسجيل متاح لمسار Global فقط)*`,
       components: [row]
     });
   }
@@ -384,38 +385,9 @@ export async function handleShugoInteraction(interaction) {
   // ─────────────────────────────────────────────────────────────────────────────
   if (customId === "aion2_shugo_path:EARLY_ACCESS") {
     await interaction.deferUpdate();
-
-    // 1. Create or ensure Community Membership
-    try {
-      await query(`
-        INSERT INTO aion2_global_applications 
-          (discord_id, status, guild_type, assigned_guild, guild_app_status, guild_app_target, created_at, updated_at)
-        VALUES ($1, 'ACCEPTED', 'EARLY_ACCESS', NULL, NULL, NULL, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-        ON CONFLICT (discord_id) WHERE status IN ('PENDING', 'ACCEPTED', 'PROCESSING')
-        DO UPDATE SET guild_type = 'EARLY_ACCESS', updated_at = CURRENT_TIMESTAMP
-      `, [userId]);
-    } catch (e) {
-      console.error("[ShugoReg] Error upserting Early Access Community row:", e);
-    }
-
-    // 2. Assign Community Roles: AION 2 Member + AION 2 Early Access
-    await safeAddRoles(interaction.guild, userId, [ROLES.AION2_MEMBER, ROLES.AION2_EARLY_ACCESS]);
-
-    // 3. Ask Emperor Question
-    const row = new ActionRowBuilder().addComponents(
-      new ButtonBuilder()
-        .setCustomId("aion2_shugo_emperor_apply")
-        .setLabel("⚔️ نعم، أرغب بالانضمام")
-        .setStyle(ButtonStyle.Success),
-      new ButtonBuilder()
-        .setCustomId("aion2_shugo_emperor_decline")
-        .setLabel("🛡️ لا، أريد اللعب مع المجتمع فقط")
-        .setStyle(ButtonStyle.Secondary)
-    );
-
     return interaction.editReply({
-      content: `🎉 **تم تفعيل عضويتك في مجتمع AION 2 Early Access بنجاح!**\n\n👑 **هل ترغب بالانضمام إلى Guild Emperor؟**`,
-      components: [row]
+      content: `❌ **عذراً، تم إيقاف وإلغاء التسجيل في مسار Early Access.**\n\nالتسجيل متاح حالياً لمسار **Global** فقط. يرجى اختيار مسار Global لمتابعة التسجيل.`,
+      components: []
     });
   }
 
