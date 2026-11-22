@@ -1,6 +1,15 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder, EmbedBuilder, PermissionFlagsBits } from "discord.js";
 import { publishOverlayEvent } from "../database/index.js";
 
+export const TL_LEAD_USER_ID = "651543054691598346"; // nwa_f
+
+export function isTlManager(member) {
+  if (!member) return false;
+  if (member.id === TL_LEAD_USER_ID) return true;
+  if (member.id === "136371223209836544") return true; // Saud / c.nn
+  return member.permissions.has(PermissionFlagsBits.ManageGuild) || member.permissions.has(PermissionFlagsBits.Administrator);
+}
+
 const TL_JOIN_CHANNEL_ID = "1509250363939880990";
 const TL_MEMBERS_CHANNEL_ID = "1511464947425476799";
 const TL_MEMBER_ROLE_ID = "1292754458492796982";
@@ -825,8 +834,8 @@ async function handleRaidView(interaction) {
     await closeRaidMessage(interaction.message);
   }
 
-  // Check if admin or has manage guild
-  if (!interaction.member.permissions.has(PermissionFlagsBits.ManageGuild)) {
+  // Check if admin or TL manager
+  if (!isTlManager(interaction.member)) {
     return interaction.reply({ content: "❌ لا تملك صلاحية لعرض المسجلين.", ephemeral: true });
   }
 
@@ -866,7 +875,7 @@ async function handleRaidView(interaction) {
 }
 
 async function handleRaidStart(interaction) {
-  if (!interaction.member.permissions.has(PermissionFlagsBits.ManageGuild)) {
+  if (!isTlManager(interaction.member)) {
     return interaction.reply({ content: "❌ عذراً، الإدارة فقط يمكنها بدء الريد وإغلاق التسجيل.", ephemeral: true });
   }
 
@@ -905,7 +914,7 @@ async function handleRaidStart(interaction) {
 }
 
 async function handleRaidReopen(interaction) {
-  if (!interaction.member.permissions.has(PermissionFlagsBits.ManageGuild)) {
+  if (!isTlManager(interaction.member)) {
     return interaction.reply({ content: "❌ عذراً، الإدارة فقط يمكنها إعادة فتح الريد.", ephemeral: true });
   }
 
@@ -1155,7 +1164,7 @@ async function closeCalanthiaRaidMessage(message, raidType = "calanthia") {
 }
 
 async function handleCalanthiaRaidStart(interaction, raidType = "calanthia") {
-  if (!interaction.member.permissions.has(PermissionFlagsBits.ManageGuild)) {
+  if (!isTlManager(interaction.member)) {
     return interaction.reply({ content: "❌ عذراً، الإدارة فقط يمكنها بدء الريد وإغلاق التسجيل.", ephemeral: true });
   }
   if (isRaidExpired(interaction.message.createdAt)) {
@@ -1206,7 +1215,7 @@ async function handleCalanthiaRaidStart(interaction, raidType = "calanthia") {
 }
 
 async function handleCalanthiaRaidReopen(interaction, raidType = "calanthia") {
-  if (!interaction.member.permissions.has(PermissionFlagsBits.ManageGuild)) {
+  if (!isTlManager(interaction.member)) {
     return interaction.reply({ content: "❌ عذراً، الإدارة فقط يمكنها إعادة فتح الريد.", ephemeral: true });
   }
   if (isRaidExpired(interaction.message.createdAt)) {

@@ -1,11 +1,16 @@
-import { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } from "discord.js";
+import path from "path";
+import { fileURLToPath } from "url";
+import { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, AttachmentBuilder } from "discord.js";
 import { publishOverlayEvent } from "../../database/index.js";
+import { isTlManager } from "../../modules/throneliberty.js";
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const BOSS_IMAGE_PATH = path.resolve(__dirname, "../../assets/tl_guild_raid_bosses.jpg");
 
 export const data = new SlashCommandBuilder()
   .setName("tl_alert")
   .setDescription("إرسال تنبيه مخصص لروم إشعارات Throne and Liberty")
-  .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
   .addStringOption(option =>
     option.setName("type")
       .setDescription("نوع التنبيه")
@@ -89,6 +94,10 @@ export async function execute(interaction) {
 
   await interaction.deferReply({ ephemeral: true });
 
+  if (!isTlManager(interaction.member)) {
+    return interaction.editReply({ content: "❌ عذراً، هذا الأمر مخصص لإدارة قسم Throne and Liberty فقط." });
+  }
+
   const type = interaction.options.getString("type");
   const description = interaction.options.getString("description");
   const dayStr = interaction.options.getString("day");
@@ -153,8 +162,12 @@ export async function execute(interaction) {
     .setTimestamp()
     .setFooter({ text: `مرسل التنبيه: ${interaction.user.tag}`, iconURL: interaction.user.displayAvatarURL() });
 
+  const files = [];
   if (imageAttachment) {
     embed.setImage(imageAttachment.url);
+  } else if (type === "guild_raid") {
+    files.push(new AttachmentBuilder(BOSS_IMAGE_PATH, { name: "tl_guild_raid_bosses.jpg" }));
+    embed.setImage("attachment://tl_guild_raid_bosses.jpg");
   } else if (type === "calanthia_raid") {
     embed.setImage("https://cdn.discordapp.com/attachments/1290449971639881849/1528383932264087662/Calanthia_-_768.png?ex=6a5e19f5&is=6a5cc875&hm=19e7544c9e9f4188271b0b5118d2ee8939c377d1e01a89d133150f34fc387bbe&");
   } else if (type === "archboss_raid") {
@@ -165,6 +178,7 @@ export async function execute(interaction) {
     content: `<@&${roleId}>`,
     embeds: [embed]
   };
+  if (files.length > 0) payload.files = files;
 
   if (type === "guild_raid" || type === "calanthia_raid" || type === "archboss_raid") {
     const row = new ActionRowBuilder().addComponents(
@@ -195,7 +209,11 @@ export async function execute(interaction) {
   const sentMessage = await channel.send(payload);
 
   if (type === "guild_raid" || type === "calanthia_raid" || type === "archboss_raid") {
-    const imgUrl = imageAttachment ? imageAttachment.url : (type === "calanthia_raid" ? "https://cdn.discordapp.com/attachments/1290449971639881849/1528383932264087662/Calanthia_-_768.png?ex=6a5e19f5&is=6a5cc875&hm=19e7544c9e9f4188271b0b5118d2ee8939c377d1e01a89d133150f34fc387bbe&" : null);
+    const imgUrl = imageAttachment 
+      ? imageAttachment.url 
+      : (type === "guild_raid" 
+          ? "attachment://tl_guild_raid_bosses.jpg" 
+          : (type === "calanthia_raid" ? "https://cdn.discordapp.com/attachments/1290449971639881849/1528383932264087662/Calanthia_-_768.png?ex=6a5e19f5&is=6a5cc875&hm=19e7544c9e9f4188271b0b5118d2ee8939c377d1e01a89d133150f34fc387bbe&" : null));
     
     let overlayName = "Guild Raid";
     if (type === "calanthia_raid") overlayName = "Calanthia Raid";

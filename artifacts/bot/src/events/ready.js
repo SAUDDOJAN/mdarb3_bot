@@ -6,6 +6,7 @@ import { startPowerCardQueue } from "../tasks/powerCardQueue.js";
 import { startPowerCardRefresh } from "../tasks/powerCardRefresh.js";
 import { startVoiceTracker } from "../tasks/voiceTracker.js";
 import { startSageGuildStatsTask } from "../tasks/sageGuildStats.js";
+import { startTlGuildRaidTask } from "../tasks/tlGuildRaidTask.js";
 import { cacheGuildInvites } from "./guildMemberAdd.js";
 
 const SAGE_GUILD_ID = "1507696012410749030";
@@ -37,6 +38,7 @@ export default {
       startPowerCardRefresh(client);
       startVoiceTracker(client);
       startSageGuildStatsTask(client);
+      startTlGuildRaidTask(client);
 
       try {
         const { runVoiceGateWatcher } = await import("../modules/sageVoiceGate.js");
