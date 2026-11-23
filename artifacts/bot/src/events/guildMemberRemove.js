@@ -1,4 +1,4 @@
-import { EmbedBuilder } from "discord.js";
+import { EmbedBuilder, AuditLogEvent } from "discord.js";
 import { query } from "../database/index.js";
 import { removeMemberAllData } from "../modules/management.js";
 
@@ -55,6 +55,94 @@ export default {
       await channel.send({ embeds: [embed] });
     } catch (err) {
       console.error("[Farewell] Error sending farewell message:", err);
+    }
+
+    // ── Member Leave Watcher System (e.g. OSAJ Oday) ─────────────────────────
+    try {
+      let watcherRecord = null;
+      // 1. Check database
+      try {
+        const watchRes = await query(
+          "SELECT * FROM member_leave_watchers WHERE user_id = $1",
+          [member.id]
+        );
+        if (watchRes.rowCount > 0) {
+          watcherRecord = watchRes.rows[0];
+        }
+      } catch (dbErr) {
+        console.error("[Watcher] DB check error:", dbErr);
+      }
+
+      // Fallback in-memory safety check
+      if (!watcherRecord && member.id === "1112142593107697674") {
+        watcherRecord = {
+          user_id: "1112142593107697674",
+          notify_user_id: "136371223209836544",
+          reason: "تحذير شديد اللهجة بسبب مضايقة عضوة"
+        };
+      }
+
+      if (watcherRecord) {
+        const notifyTargetUser = await client.users.fetch(watcherRecord.notify_user_id).catch(() => null);
+        if (notifyTargetUser) {
+          let leaveType = "خروج ذاتي (غادر السيرفر بنفسه)";
+          
+          try {
+            const auditLogs = await member.guild.fetchAuditLogs({ limit: 5 }).catch(() => null);
+            if (auditLogs && auditLogs.entries.size > 0) {
+              const now = Date.now();
+              for (const entry of auditLogs.entries.values()) {
+                if (entry.target?.id === member.id && Math.abs(now - entry.createdTimestamp) < 15000) {
+                  if (entry.action === AuditLogEvent.MemberKick) {
+                    leaveType = `طرد (Kick) بواسطة: <@${entry.executor.id}> (\`${entry.executor.tag}\`)`;
+                    break;
+                  } else if (entry.action === AuditLogEvent.MemberBanAdd) {
+                    leaveType = `حظر (Ban) بواسطة: <@${entry.executor.id}> (\`${entry.executor.tag}\`)`;
+                    break;
+                  }
+                }
+              }
+            }
+          } catch (auditErr) {
+            console.error("[Watcher] Audit log fetch error:", auditErr);
+          }
+
+          const unixNow = Math.floor(Date.now() / 1000);
+          const joinedUnix = member.joinedTimestamp ? Math.floor(member.joinedTimestamp / 1000) : null;
+
+          const leaveAlertEmbed = new EmbedBuilder()
+            .setColor("#F39C12")
+            .setTitle("🚨 إشعار خروج: عضو مراقب غادر السيرفر")
+            .setDescription(`العضو المراقب **${member.user.tag}** غادر سيرفر **${member.guild.name}**.`)
+            .addFields(
+              { name: "👤 العضو", value: `<@${member.user.id}> (\`${member.user.tag}\`)`, inline: true },
+              { name: "🆔 آيدي العضو", value: `\`${member.id}\``, inline: true },
+              { name: "📋 سبب المراقبة", value: watcherRecord.reason || "مراقبة إدارية", inline: false },
+              { name: "🚪 طبيعة الخروج", value: leaveType, inline: false },
+              { name: "📅 تاريخ الانضمام السابق", value: joinedUnix ? `<t:${joinedUnix}:F>` : "غير متوفر", inline: true },
+              { name: "⏰ وقت الخروج", value: `<t:${unixNow}:F> (<t:${unixNow}:R>)`, inline: true }
+            )
+            .setThumbnail(member.user.displayAvatarURL({ dynamic: true }))
+            .setFooter({ text: `نظام المراقبة والتنبيهات الإدارية • سيرفر ${member.guild.name}` })
+            .setTimestamp();
+
+          await notifyTargetUser.send({
+            content: `🔔 **تنبيه إداري عاجل:** العضو **${member.user.tag}** (\`${member.id}\`) غادر السيرفر الآن! (${leaveType})`,
+            embeds: [leaveAlertEmbed]
+          });
+
+          console.log(`[Watcher] Leave notification successfully sent to ${notifyTargetUser.tag} for user ${member.id}`);
+
+          // Remove from watchers table after notifying
+          try {
+            await query("DELETE FROM member_leave_watchers WHERE user_id = $1", [member.id]);
+          } catch (delErr) {
+            console.error("[Watcher] DB delete error:", delErr);
+          }
+        }
+      }
+    } catch (watcherTotalErr) {
+      console.error("[Watcher] Fatal error in leave watcher:", watcherTotalErr);
     }
   },
 };
