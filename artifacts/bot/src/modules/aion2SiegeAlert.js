@@ -11,6 +11,7 @@ export const TEST_COMMANDS_CHANNEL_ID = "1290449971639881849"; // #🤖｜الأ
 export const M3RGEEN_ROLE_ID = "1555617080521269368";
 export const VOICE_CHANNEL_ID = "1558947326704226424";
 export const MAIN_GUILD_ID = process.env.MAIN_GUILD_ID || "861355983975874601";
+export const SIEGE_ALLIANCE_INVITE_URL = "https://discord.gg/7sEdUBeWYR";
 export const SIEGE_BANNER_URL =
   "https://raw.githubusercontent.com/SAUDDOJAN/mdarb3_bot/main/artifacts/bot/assets/aion2_siege_banner_v2.jpg";
 
@@ -425,7 +426,7 @@ export function buildSiegeAnnouncementEmbed({
     "على جميع المقاتلين الالتزام التام بالتوقيتات المحددة والتواجد في الروم الصوتي قبل التجمع.",
     "",
     "📍 **مكان التجمع:** `قاعدة الأبيس جانب الكورة المتوهجة`",
-    `🔊 **روم التجمع الصوتي:** <#${VOICE_CHANNEL_ID}> ([دخول مباشر للروم](https://discord.com/channels/${MAIN_GUILD_ID}/${VOICE_CHANNEL_ID}))`,
+    `🔊 **روم التجمع الصوتي:** التجمع في **سيرفر التحالفات العربية** ([دخول مباشر للروم الصوتي](${SIEGE_ALLIANCE_INVITE_URL}))`,
   ];
 
   if (notes) {
@@ -610,7 +611,7 @@ async function sendSiegeDmToUser(user, { siegeUnix, gatheringUnix, isScheduledAl
       `🌀 **وقت التجمع (قبل الحدث بـ 2.5 ساعة):** <t:${gatheringUnix}:t> (<t:${gatheringUnix}:R>)`,
       `⚔️ **انطلاق الحصار:** <t:${siegeUnix}:t> (<t:${siegeUnix}:R>)`,
       `📍 **مكان التجمع:** \`قاعدة الأبيس جانب الكورة المتوهجة\``,
-      `🔊 **روم التجمع الصوتي:** <#${VOICE_CHANNEL_ID}> ([دخول مباشر للروم الصوتي](https://discord.com/channels/${MAIN_GUILD_ID}/${VOICE_CHANNEL_ID}))`,
+      `🔊 **روم التجمع الصوتي:** التجمع في **سيرفر التحالفات العربية** ([دخول مباشر للروم الصوتي](${SIEGE_ALLIANCE_INVITE_URL}))`,
       "",
       "🛡️ جهّز الجرع والأطعمة والبوفات مسبقاً — ننتظرك في الساحة!",
     ].join("\n"))
@@ -673,7 +674,7 @@ async function send2HourReminder(client, siege) {
       `⏰ **موعد انطلاق الحصار:** <t:${siege.siege_unix}:t> (<t:${siege.siege_unix}:R>)`,
       `🌀 **موعد التجمع (قبل الحدث بـ 2.5 ساعة):** <t:${siege.gathering_unix}:t> (<t:${siege.gathering_unix}:R>)`,
       `📍 **مكان التجمع:** \`قاعدة الأبيس جانب الكورة المتوهجة\``,
-      `🔊 **الروم الصوتي:** <#${VOICE_CHANNEL_ID}> ([دخول مباشر](https://discord.com/channels/${MAIN_GUILD_ID}/${VOICE_CHANNEL_ID}))`,
+      `🔊 **الروم الصوتي:** التجمع في **سيرفر التحالفات العربية** ([دخول مباشر للروم الصوتي](${SIEGE_ALLIANCE_INVITE_URL}))`,
       "",
       "🛡️ **تذكير بالتعليمات الهامة:**",
       "• التجمع في الروم الصوتي وقاعدة الأبيس قبل انطلاق الحصار بساعتين ونصف (سارع بالدخول قبل إغلاق الأبيس).",
@@ -719,7 +720,7 @@ async function send5MinuteReminder(client, siege) {
       "🚨 **السيج حيبدأ بعد 5 دقائق! خلوكم متجمعين حول مدربع وجاهزين للانطلاق فوراً!**",
       "",
       `📍 **مكان التجمع:** \`قاعدة الأبيس جانب الكورة المتوهجة\``,
-      `🔊 **الروم الصوتي:** <#${VOICE_CHANNEL_ID}> ([انتقال فوري للروم الصوتي](https://discord.com/channels/${MAIN_GUILD_ID}/${VOICE_CHANNEL_ID}))`,
+      `🔊 **الروم الصوتي:** التجمع في **سيرفر التحالفات العربية** ([انتقال فوري للروم الصوتي](${SIEGE_ALLIANCE_INVITE_URL}))`,
       `⏰ **موعد البدء:** <t:${siege.siege_unix}:t> (<t:${siege.siege_unix}:R>)`,
       "",
       `👥 **المحاربون المشاركون (${snap.attending.length} مؤكد):**`,
